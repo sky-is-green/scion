@@ -58,7 +58,7 @@ class CorrectionBranch(nn.Module):
 
     ``quant`` controls the deployed branch format (STE during training):
       - ``fp32``  : no quantisation (reference)
-      - ``g128``  : ternary codes + fp16 group scales (our expert format)
+      - ``g128``  : ternary codes + fp16 group scales (the expert format)
       - ``rank``  : TAARDIS V3-style, one ternary scale per rank component,
                     folded from the down factor into the up factor
     """

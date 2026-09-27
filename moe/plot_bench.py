@@ -216,7 +216,7 @@ fig.subplots_adjust(left=0.075, right=0.975, top=0.90, bottom=0.175, hspace=0.42
 fig.suptitle("Qwen3.8-35B-A3B-Distill — quantization retention vs file size",
              fontsize=16, fontweight="bold", y=0.978)
 fig.text(0.5, 0.947,
-         "same protocol for every row · our method is the blue triangle — the smallest point on every panel · K-quant / IQ quants use imatrix calibration",
+         "same protocol for every row · the release is the blue triangle, the smallest file on every panel · K-quant / IQ quants use imatrix calibration",
          ha="center", fontsize=10.5, color="#444444")
 
 n_problems = 0
@@ -261,7 +261,7 @@ for ax, (key, title, ylab, logy, higher_better) in zip(axes.ravel(), panels):
     annotations = []
     for x, y, tag in points:
         if tag == "release":
-            lab = f"ours {y:.3g}"
+            lab = f"release {y:.3g}"
         elif tag in ("Q4_K_M", "IQ2_M", "BF16"):
             lab = f"{tag} {y:.3g}"
         else:
@@ -288,7 +288,7 @@ for ax, (key, title, ylab, logy, higher_better) in zip(axes.ravel(), panels):
 
 handles = [
     Line2D([], [], marker="^", color="w", markerfacecolor=blue, markeredgecolor="black",
-           markersize=13, label="ours: ternary PQ2_0 + trained corrections (2.61 bpw)"),
+           markersize=13, label="release: ternary PQ2_0 + trained corrections (2.61 bpw)"),
     Line2D([], [], marker="D", color="w", markerfacecolor=red, markeredgecolor="black",
            markersize=8, label="Q4_K_M (competitor)"),
     Line2D([], [], marker="o", color="w", markerfacecolor=green, markeredgecolor="black",

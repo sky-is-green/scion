@@ -2,7 +2,7 @@
 # Placement sweep 2026-09-27: expert-offload cost curve on 2x RX 7900 XT + 7800X3D.
 #
 # Goal: measure what it costs to keep N layers' MoE experts on the CPU while the
-# rest stays on the GPUs. This is the static lever llama.cpp gives us today
+# rest stays on the GPUs. This is the static lever llama.cpp exposes today
 # (`-ncmoe`); the adaptive per-expert cache Strata/FreeToken have would have to
 # beat this baseline to be worth engine work.
 #

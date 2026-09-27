@@ -2,7 +2,7 @@
 """Collect the 35B quant-retention grid from llama-perplexity logs.
 
 Reads:  results/<tag>-{ppl,hellaswag,winogrande,kld}.log  (pod grid)
-        results/local-release-*.log                        (our release, card 1)
+        results/local-release-*.log                        (the release, measured on card 1)
 Writes: retention-grid.md and retention-grid.json
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ import re
 import sys
 from pathlib import Path
 
-SIZES_GB = {          # decimal GB, from the empero GGUF model card / our file
+SIZES_GB = {          # decimal GB, from the empero GGUF model card / the release file
     "release": 11.337,
     "IQ2_M": 12.558, "Q2_K": 13.839, "IQ3_M": 16.340, "Q3_K_M": 17.664,
     "IQ4_XS": 19.628, "Q4_K_M": 21.713, "Q5_K_M": 25.348, "Q6_K": 29.209,

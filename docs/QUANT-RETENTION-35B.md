@@ -4,7 +4,7 @@ Community-protocol benchmark of the single-file release against every quant of
 the same model (`empero-ai/Qwen3.8-35B-A3B-Distill`), measured against a BF16
 reference.  Raw logs: `hivebench/artifacts/ternary/refs/qwen35/results/`
 (collector: `collect_bench.py`, table: `retention-grid.{md,json}`,
-figure: `retention-grid.png` / `.svg` — Pareto grid, ours drawn as the blue triangle).
+figure: `retention-grid.png` / `.svg` — Pareto grid, the release drawn as the blue triangle).
 
 ## Protocol (matches the community tables)
 
@@ -18,7 +18,7 @@ figure: `retention-grid.png` / `.svg` — Pareto grid, ours drawn as the blue tr
   session); the release on the local RX 7900 XT (card 1).  Cross-check:
   IQ2_M KLD local 0.163842 vs pod 0.163555 (0.2%) — builds are equivalent.
 - Reference weights verified: 5 sampled tensors hash identically between the
-  empero BF16 (reference logits) and the MrFuzzihead BF16 (our body's source).
+  empero BF16 (reference logits) and the MrFuzzihead BF16 (the body's source).
 
 ## Results
 
@@ -79,7 +79,7 @@ The method is also the only non-imatrix point on the chart: ternary experts
 
 - KLD was measured over 50 chunks (25.5k tokens); consistent across all rows.
 - The 2/3-bit competitor quants use imatrix calibration (Wikipedia-like data),
-  which flatters wikitext KLD; our corrections were trained on fineweb.
+  which flatters wikitext KLD; the corrections were trained on fineweb.
 - HellaSwag/Winogrande at 400 tasks carry ~±2% CI; treat sub-1% differences
   as ties.
 - The release row was measured on the local card; the IQ2_M control confirms

@@ -1,6 +1,6 @@
 """Expert-hit concentration profile for OLMoE (placement sweep, 2026-09-27).
 
-Question: if we could pin individual experts in VRAM (Strata/FreeToken style),
+Question: if individual experts could be pinned in VRAM (Strata/FreeToken style),
 how much of the routing mass would a per-layer top-K cache actually cover, and
 how many bytes is that in the deployed Q1_0_g128 container?
 

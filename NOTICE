@@ -26,8 +26,8 @@ Third-party components and attributions:
    https://huggingface.co/MrFuzzihead/Qwen3.8-35B-A3B-Distill-APEX-GGUF
 
 4. Prism ML llama.cpp fork (runtime: PQ2_0 container + kernels; the ternary
-   approach was validated publicly by Bonsai 2.  We used the engine work, not
-   Bonsai weights.)
+   approach was validated publicly by Bonsai 2.  This release uses the engine
+   work, not Bonsai weights.)
    MIT License. https://github.com/PrismML-Eng/llama.cpp
 
 5. TAARDIS fork (legacy Q1_0_g128 container and adapter conventions)

@@ -17,7 +17,7 @@ also FP8 and GGUF releases).
 
 ## Why it is not the first target
 
-1. **Custom modeling code.** The model is not in transformers; our harness patches
+1. **Custom modeling code.** The model is not in transformers; the harness patches
    HF classes at runtime (fused-bank STE, router hooks). Here the MoE is a
    per-expert `nn.ModuleList` with a custom `Xing4_0TopkRouter`, so the STE patch
    is the old per-expert shape (cf. `olmoe_experts.py`), not the fused-bank path.
@@ -26,7 +26,7 @@ also FP8 and GGUF releases).
    `moe_out` placement (block input -> block output) has no single stream to
    anchor on; the branch placement rule needs rethinking for mHC (the MLP sees
    the *collapsed* stream, so an `attn_out`-style branch is the natural first cut).
-3. **Serving.** llama.cpp needs the pending arch PR, and our
+3. **Serving.** llama.cpp needs the pending arch PR, and the
    `moe-corr-runtime` virtual target would need hooking into that arch's graph.
 
 ## Porting checklist (when the recipe is proven)
@@ -43,9 +43,9 @@ also FP8 and GGUF releases).
 - [ ] Benchmarks: compare against the published table (SWE-bench 75.0 etc.) as
       the retention yardstick.
 
-## What we can use right now
+## What can be used right now
 
 - Published benchmarks as a **modern-MoE retention yardstick**.
 - Its architecture as the **generality test** for the blueprint: MLA + mHC +
   fine-grained experts is the next class after qwen3_5_moe.
-- Its GGUF/FP8 releases for external tooling comparisons (not our container).
+- Its GGUF/FP8 releases for external tooling comparisons (not this container).

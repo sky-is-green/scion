@@ -155,7 +155,7 @@ exactly what the correction pipeline has to carry.
 The design rule puts the corrections on the residual stream; the remaining
 artifact question is whether they can be stored at ternary-class bit widths.
 TAARDIS V3 ships its branches ternarised per rank component at ~2 bits per
-factor.  Both that per-rank format and our g128 expert format were trained with
+factor.  Both that per-rank format and the g128 expert format were trained with
 straight-through estimation on the rank-512 recipe.  At the 512-window
 operating point, at matched steps:
 

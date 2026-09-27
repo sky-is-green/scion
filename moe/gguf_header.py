@@ -25,7 +25,7 @@ GGML_TYPES = {
     142: "PQ2_0", 143: "PTQ1_0",
 }
 
-# bytes per weight for block formats we care about
+# bytes per weight for block formats of interest
 BPW = {
     "F32": 32.0, "F16": 16.0, "BF16": 16.0, "Q8_0": 8.5, "Q6_K": 6.5625,
     "Q5_K": 5.5, "Q5_1": 6.0, "Q5_0": 5.5, "Q4_K": 4.5, "Q4_1": 5.0,

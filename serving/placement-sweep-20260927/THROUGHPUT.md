@@ -20,12 +20,12 @@ computes the hot slots. Net: same CPU work + extra GPU work + split overhead.
 
 Reducing CPU work requires the per-token selection to be *compacted* into a
 smaller number of slots (variable k per token → sparse dispatch), which is real
-kernel work: exactly the "dynamic cache" tier we deferred.
+kernel work: exactly the "dynamic cache" tier that was deferred.
 
 The control confirms the mechanism is sound but performance-neutral: hot64
 (cold pass all-zero, hot pass covers everything) lands at the same 89 t/s as
 the baseline — the machine is not bound by CPU expert FLOPs at this size; it is
-bound by the GPU-side graph, and our split only adds nodes.
+bound by the GPU-side graph, and the split only adds nodes.
 
 ## What this means for the extras
 

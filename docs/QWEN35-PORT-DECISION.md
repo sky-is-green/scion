@@ -36,8 +36,8 @@ error-compensation signature) and Bonsai 2 (rotated `PQ2_0`, ≈naive scales,
 trained residual) are ~2 months apart.  That is consistent with a team that had
 the rotation + QAT/KD research ready, shipped the older PTQ line first, then
 "sprinted" into Bonsai 2.  This is a **plausible story about Prism**, and it is
-why porting to `qwen3_5` is the natural next step — it is *not* evidence that our
-implementation matches theirs.
+why porting to `qwen3_5` is the natural next step, but it is *not* evidence that the
+implementation here matches theirs.
 
 ## Measured vs assumed
 
@@ -51,7 +51,7 @@ implementation matches theirs.
 | Qwen3.5 ≥ Qwen3 resistance to ternarisation | **assumed, unmeasured** | — |
 | "Our recipe is Prism's recipe" | **not established** | method proprietary; independent repro failed |
 
-## Why we do not simply reuse the Qwen3 bit-density
+## Why the Qwen3 bit-density is not reused
 
 The temptation is to read retention off the Qwen3 ladder at the Qwen3.5
 bit-density.  This is unsafe for three reasons:
@@ -134,9 +134,9 @@ architecture.  A converged (~20k) Qwen3.5-2B run is required to report a number.
 
 ## What this decision does *not* claim
 
-- It does **not** claim Qwen3.5 parity with Prism, or that our recipe is theirs.
+- It does **not** claim Qwen3.5 parity with Prism, or that the recipe here is theirs.
 - It does **not** claim a measured Qwen3.5 retention.
 - It does **not** claim Qwen3.5 is more ternarisation-resistant than Qwen3 — that
-  is an unmeasured assumption, and the one point we have does not support it.
+  is an unmeasured assumption, and the one measured point does not support it.
 - It does **not** replace the 27B port; the 27B still needs the sharded/blockwise
   path and the missing embedding/norm/export parity.
