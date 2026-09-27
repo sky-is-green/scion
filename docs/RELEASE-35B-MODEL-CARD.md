@@ -3,7 +3,6 @@
 > for provenance. The harness it references lives in this repository (`moe/`);
 > the dense forensics stayed in
 > [`bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics).
-
 ---
 library_name: llama.cpp
 model_name: Scion-35B-A3B
