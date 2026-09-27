@@ -1,0 +1,10 @@
+{
+  "rtn_no_doctors": {
+    "ppl": 40120.725,
+    "router_agree": 0.4631
+  },
+  "trained_doctors": {
+    "ppl": 72.3032,
+    "router_agree": 0.7112
+  }
+}

@@ -1,0 +1,10986 @@
+{
+ "summary": {
+  "tensors": 733,
+  "total_params": 34660610688,
+  "ternary_params": 34508636160,
+  "fp16_params": 150814720,
+  "f32_params": 1156800,
+  "unknown_params": 3008,
+  "projected_bytes": 9472613120,
+  "projected_gib": 8.822,
+  "effective_bpw": 2.186,
+  "roles": {
+   "ternary_embed": 2,
+   "raw_f32": 190,
+   "unknown": 31,
+   "absorb_exempt_fp16": 260,
+   "ternary_rot": 250
+  },
+  "rotation_widths": {
+   "512": 40,
+   "2048": 172,
+   "4096": 40
+  },
+  "rotation_blocks": {
+   "2048": 1024,
+   "4096": 1024,
+   "512": 512
+  },
+  "apex_by_role_type": {
+   "absorb_exempt_fp16:Q3_K": {
+    "tensors": 52,
+    "n": 3407872
+   },
+   "absorb_exempt_fp16:Q4_K": {
+    "tensors": 101,
+    "n": 98041856
+   },
+   "absorb_exempt_fp16:Q5_K": {
+    "tensors": 27,
+    "n": 28311552
+   },
+   "ternary_rot:Q3_K": {
+    "tensors": 141,
+    "n": 8365539328
+   },
+   "ternary_rot:Q4_K": {
+    "tensors": 16,
+    "n": 161480704
+   },
+   "ternary_rot:iq1_m": {
+    "tensors": 63,
+    "n": 16911433728
+   },
+   "ternary_rot:iq2_xs": {
+    "tensors": 30,
+    "n": 8053063680
+   }
+  }
+ },
+ "rows": [
+  {
+   "name": "output.weight",
+   "suffix": "output.weight",
+   "layer": -1,
+   "role": "ternary_embed",
+   "dims": [
+    2048,
+    248320
+   ],
+   "n": 508559360,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": ""
+  },
+  {
+   "name": "token_embd.weight",
+   "suffix": "token_embd.weight",
+   "layer": -1,
+   "role": "ternary_embed",
+   "dims": [
+    2048,
+    248320
+   ],
+   "n": 508559360,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 0,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.ssm_a",
+   "suffix": "",
+   "layer": 0,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 0,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 0,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 0,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.0.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 0,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.0.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 0,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.0.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 0,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.0.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 0,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 0,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.0.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 0,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.0.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 0,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.0.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 0,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.0.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 0,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 0,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.0.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 0,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.0.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 0,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.0.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 0,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.0.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 0,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 1,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.ssm_a",
+   "suffix": "",
+   "layer": 1,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 1,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 1,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 1,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.1.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 1,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.1.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 1,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.1.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 1,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.1.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 1,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 1,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.1.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 1,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.1.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 1,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.1.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 1,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.1.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 1,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 1,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.1.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 1,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.1.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 1,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.1.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 1,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.1.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 1,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 2,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.ssm_a",
+   "suffix": "",
+   "layer": 2,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 2,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 2,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 2,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.2.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 2,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.2.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 2,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.2.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 2,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.2.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 2,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 2,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.2.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 2,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.2.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 2,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.2.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 2,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.2.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 2,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 2,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.2.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 2,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.2.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 2,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.2.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 2,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.2.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 2,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.3.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 3,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.3.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 3,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.3.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 3,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.3.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 3,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.3.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 3,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.3.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 3,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.3.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 3,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.3.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 3,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.3.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 3,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.3.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 3,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.3.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 3,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.3.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 3,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.3.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 3,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.3.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 3,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.3.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 3,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.3.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 3,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 4,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.4.ssm_a",
+   "suffix": "",
+   "layer": 4,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.4.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 4,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.4.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 4,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.4.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 4,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 4,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 4,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 4,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 4,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.4.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 4,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 4,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 4,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 4,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.4.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 4,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.4.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 4,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.4.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 4,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.4.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 4,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.4.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 4,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.4.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 4,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 5,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.ssm_a",
+   "suffix": "",
+   "layer": 5,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 5,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 5,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 5,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.5.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 5,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.5.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 5,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.5.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 5,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.5.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 5,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 5,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.5.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 5,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.5.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 5,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.5.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 5,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.5.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 5,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 5,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.5.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 5,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.5.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 5,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.5.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 5,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.5.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 5,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 6,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.ssm_a",
+   "suffix": "",
+   "layer": 6,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 6,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 6,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 6,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.6.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 6,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.6.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 6,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.6.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 6,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.6.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 6,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 6,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.6.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 6,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.6.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 6,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.6.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 6,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.6.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 6,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 6,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.6.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 6,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.6.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 6,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.6.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 6,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.6.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 6,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.7.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 7,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.7.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 7,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.7.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 7,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.7.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 7,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.7.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 7,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.7.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 7,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.7.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 7,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.7.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 7,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.7.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 7,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.7.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 7,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.7.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 7,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.7.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 7,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.7.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 7,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.7.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 7,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.7.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 7,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.7.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 7,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.8.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 8,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.8.ssm_a",
+   "suffix": "",
+   "layer": 8,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.8.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 8,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.8.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 8,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.8.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 8,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.8.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 8,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.8.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 8,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.8.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 8,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.8.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 8,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.8.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 8,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.8.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 8,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.8.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 8,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.8.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 8,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.8.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 8,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.8.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 8,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.8.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 8,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.8.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 8,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.8.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 8,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.8.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 8,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 9,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.ssm_a",
+   "suffix": "",
+   "layer": 9,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 9,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 9,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 9,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.9.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 9,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.9.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 9,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.9.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 9,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.9.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 9,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 9,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.9.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 9,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.10.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 10,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.10.ssm_a",
+   "suffix": "",
+   "layer": 10,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.10.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 10,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.10.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 10,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.10.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 10,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.10.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 10,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.10.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 10,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.10.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 10,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.10.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 10,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.10.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 10,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.10.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 10,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.10.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 10,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.10.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 10,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.10.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 10,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.10.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 10,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.10.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 10,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.10.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 10,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.10.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 10,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.10.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 10,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 11,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 11,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.9.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 9,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.9.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 9,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.9.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 9,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 9,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.9.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 9,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.9.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 9,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.9.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 9,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.9.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 9,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 11,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.11.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 11,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.11.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 11,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 11,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.11.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 11,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.11.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 11,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.11.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 11,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 11,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 11,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 11,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.11.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 11,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.11.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 11,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.11.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 11,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.11.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 11,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.12.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 12,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.12.ssm_a",
+   "suffix": "",
+   "layer": 12,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.12.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 12,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.12.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 12,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.12.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 12,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.12.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 12,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.12.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 12,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.12.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 12,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.12.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 12,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.12.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 12,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.12.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 12,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.12.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 12,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.12.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 12,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.12.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 12,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.12.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 12,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.12.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 12,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.12.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 12,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.12.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 12,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.12.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 12,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 13,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.ssm_a",
+   "suffix": "",
+   "layer": 13,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 13,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 13,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 13,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.13.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 13,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.13.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 13,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.13.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 13,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.13.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 13,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 13,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.13.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 13,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.13.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 13,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.13.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 13,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.13.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 13,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 13,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.13.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 13,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.13.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 13,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.13.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 13,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.13.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 13,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 14,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.ssm_a",
+   "suffix": "",
+   "layer": 14,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 14,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 14,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 14,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.14.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 14,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.14.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 14,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.14.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 14,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.14.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 14,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 14,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.14.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 14,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.14.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 14,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.14.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 14,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.14.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 14,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 14,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.14.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 14,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.14.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 14,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.14.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 14,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.14.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 14,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.15.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 15,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.15.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 15,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.15.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 15,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.15.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 15,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.15.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 15,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.15.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 15,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.15.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 15,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.15.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 15,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.15.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 15,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.15.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 15,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.15.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 15,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.15.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 15,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.15.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 15,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.15.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 15,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.15.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 15,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.15.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 15,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.16.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 16,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.16.ssm_a",
+   "suffix": "",
+   "layer": 16,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.16.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 16,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.16.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 16,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.16.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 16,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.16.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 16,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.16.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 16,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.16.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 16,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.16.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 16,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.16.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 16,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.16.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 16,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.16.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 16,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.16.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 16,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.16.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 16,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.16.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 16,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.16.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 16,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.16.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 16,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.16.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 16,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.16.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 16,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 17,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.ssm_a",
+   "suffix": "",
+   "layer": 17,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 17,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 17,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 17,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.17.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 17,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.17.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 17,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.17.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 17,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.17.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 17,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 17,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.17.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 17,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.17.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 17,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.17.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 17,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.17.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 17,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 17,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.17.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 17,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.17.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 17,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.17.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 17,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.17.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 17,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 18,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.ssm_a",
+   "suffix": "",
+   "layer": 18,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 18,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 18,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 18,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.18.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 18,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.18.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 18,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.18.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 18,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.18.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 18,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 18,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.18.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 18,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.18.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 18,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.18.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 18,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.18.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 18,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 18,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.18.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 18,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.18.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 18,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.18.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 18,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.18.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 18,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.19.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 19,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.19.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 19,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.19.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 19,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.19.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 19,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.19.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 19,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.19.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 19,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.19.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 19,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.19.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 19,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.19.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 19,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.19.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 19,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.19.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 19,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.19.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 19,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.19.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 19,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.19.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 19,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.19.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 19,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.19.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 19,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.20.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 20,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.20.ssm_a",
+   "suffix": "",
+   "layer": 20,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.20.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 20,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.20.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 20,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.20.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 20,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.20.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 20,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.20.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 20,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.20.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 20,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.20.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 20,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.20.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 20,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.20.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 20,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.20.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 20,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.20.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 20,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.20.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 20,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.20.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 20,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.20.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 20,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.20.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 20,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.20.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 20,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.20.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 20,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 21,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.ssm_a",
+   "suffix": "",
+   "layer": 21,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 21,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 21,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 21,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.21.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 21,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.21.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 21,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.21.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 21,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.21.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 21,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 21,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.21.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 21,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.21.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 21,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.21.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 21,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.21.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 21,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 21,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.21.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 21,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.21.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 21,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.21.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 21,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.21.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 21,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 22,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.ssm_a",
+   "suffix": "",
+   "layer": 22,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 22,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 22,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 22,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.22.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 22,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.22.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 22,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.22.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 22,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.22.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 22,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 22,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.22.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 22,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.22.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 22,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.22.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 22,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.22.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 22,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 22,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.22.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 22,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.22.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 22,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.22.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 22,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.22.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 22,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.23.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 23,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.23.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 23,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.23.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 23,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.23.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 23,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.23.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 23,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.23.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 23,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.23.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 23,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.23.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 23,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.23.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 23,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.23.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 23,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.23.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 23,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.23.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 23,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.23.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 23,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.23.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 23,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.23.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 23,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.23.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 23,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.24.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 24,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.24.ssm_a",
+   "suffix": "",
+   "layer": 24,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.24.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 24,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.24.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 24,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.24.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 24,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.24.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 24,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.24.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 24,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.24.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 24,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.24.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 24,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.24.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 24,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.24.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 24,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.24.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 24,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.24.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 24,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.24.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 24,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.24.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 24,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.24.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 24,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.24.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 24,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.24.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 24,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.24.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 24,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 25,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.ssm_a",
+   "suffix": "",
+   "layer": 25,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 25,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 25,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 25,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.25.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 25,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.25.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 25,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.25.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 25,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.25.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 25,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 25,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.25.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 25,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.25.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 25,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.25.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 25,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.25.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 25,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 25,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.25.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 25,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.25.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 25,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.25.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 25,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.25.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 25,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 26,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.ssm_a",
+   "suffix": "",
+   "layer": 26,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 26,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 26,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 26,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.26.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 26,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.26.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 26,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.26.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 26,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.26.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 26,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 26,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.26.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 26,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.26.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 26,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.26.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 26,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.26.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 26,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 26,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.26.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 26,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.26.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 26,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.26.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 26,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.26.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 26,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.27.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 27,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.27.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 27,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.27.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 27,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.27.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 27,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.27.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 27,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.27.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 27,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.27.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 27,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.27.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 27,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.27.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 27,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.27.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 27,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.27.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 27,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.27.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 27,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.27.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 27,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.27.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 27,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.27.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 27,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.27.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 27,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.28.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 28,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.28.ssm_a",
+   "suffix": "",
+   "layer": 28,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.28.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 28,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.28.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 28,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.28.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 28,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.28.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 28,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.28.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 28,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.28.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 28,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.28.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 28,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.28.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 28,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.28.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 28,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.28.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 28,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.28.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 28,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.28.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 28,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.28.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 28,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.28.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 28,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.28.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 28,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.28.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 28,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.28.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 28,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 29,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.ssm_a",
+   "suffix": "",
+   "layer": 29,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 29,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 29,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 29,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.29.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 29,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.29.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 29,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.29.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 29,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.29.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 29,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 29,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.29.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 29,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.29.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 29,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.29.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 29,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.29.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 29,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 29,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.29.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 29,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.29.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 29,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.29.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 29,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.29.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 29,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 30,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.ssm_a",
+   "suffix": "",
+   "layer": 30,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 30,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 30,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 30,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.30.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 30,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.30.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 30,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.30.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 30,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.30.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 30,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 30,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.30.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 30,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.30.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 30,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.30.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 30,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq1_m"
+  },
+  {
+   "name": "blk.30.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 30,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 30,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.30.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 30,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.30.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 30,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.30.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 30,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.30.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 30,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.31.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 31,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.31.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 31,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.31.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 31,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.31.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 31,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.31.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 31,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.31.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 31,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.31.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 31,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.31.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 31,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.31.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 31,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.31.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 31,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.31.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 31,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.31.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 31,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.31.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 31,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.31.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 31,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.31.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 31,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.31.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 31,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.32.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 32,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.32.ssm_a",
+   "suffix": "",
+   "layer": 32,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.32.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 32,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.32.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 32,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.32.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 32,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.32.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 32,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.32.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 32,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.32.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 32,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.32.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 32,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.32.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 32,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.32.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 32,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.32.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 32,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.32.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 32,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.32.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 32,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.32.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 32,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.32.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 32,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.32.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 32,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.32.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 32,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.32.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 32,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 33,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.ssm_a",
+   "suffix": "",
+   "layer": 33,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 33,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 33,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 33,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.33.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 33,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.33.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 33,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.33.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 33,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.33.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 33,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 33,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.33.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 33,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.33.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 33,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.33.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 33,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.33.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 33,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 33,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.33.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 33,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.33.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 33,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.33.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 33,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.33.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 33,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 34,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.ssm_a",
+   "suffix": "",
+   "layer": 34,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 34,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 34,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 34,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.34.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 34,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.34.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 34,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.34.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 34,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.34.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 34,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 34,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.34.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 34,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.34.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 34,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.34.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 34,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.34.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 34,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 34,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.34.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 34,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.34.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 34,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.34.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 34,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.34.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 34,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.35.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 35,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.35.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 35,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.35.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 35,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.35.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 35,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "iq2_xs"
+  },
+  {
+   "name": "blk.35.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 35,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.35.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 35,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.35.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 35,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.35.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 35,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.35.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 35,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.35.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 35,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.35.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 35,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.35.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 35,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.35.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 35,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.35.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 35,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.35.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 35,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.35.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 35,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 36,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.36.ssm_a",
+   "suffix": "",
+   "layer": 36,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.36.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 36,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.36.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 36,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.36.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 36,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 36,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 36,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 36,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 36,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.36.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 36,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 36,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 36,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 36,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.36.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 36,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.36.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 36,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.36.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 36,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.36.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 36,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.36.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 36,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.36.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 36,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 37,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.ssm_a",
+   "suffix": "",
+   "layer": 37,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 37,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 37,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 37,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 37,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 37,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 37,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 37,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 37,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 37,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 37,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 37,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.37.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 37,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 37,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.37.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 37,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.37.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 37,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.37.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 37,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.37.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 37,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 38,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.ssm_a",
+   "suffix": "",
+   "layer": 38,
+   "role": "unknown",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.ssm_conv1d.weight",
+   "suffix": "ssm_conv1d",
+   "layer": 38,
+   "role": "raw_f32",
+   "dims": [
+    4,
+    8192
+   ],
+   "n": 32768,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.ssm_dt.bias",
+   "suffix": "ssm_dt",
+   "layer": 38,
+   "role": "raw_f32",
+   "dims": [
+    32
+   ],
+   "n": 32,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.ssm_alpha.weight",
+   "suffix": "ssm_alpha",
+   "layer": 38,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.38.ssm_beta.weight",
+   "suffix": "ssm_beta",
+   "layer": 38,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    32
+   ],
+   "n": 65536,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.38.attn_qkv.weight",
+   "suffix": "attn_qkv",
+   "layer": 38,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.38.attn_gate.weight",
+   "suffix": "attn_gate",
+   "layer": 38,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    4096
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.38.ssm_norm.weight",
+   "suffix": "ssm_norm",
+   "layer": 38,
+   "role": "raw_f32",
+   "dims": [
+    128
+   ],
+   "n": 128,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.ssm_out.weight",
+   "suffix": "ssm_out",
+   "layer": 38,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.38.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 38,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.38.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 38,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.38.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 38,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.38.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 38,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 38,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.38.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 38,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.38.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 38,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.38.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 38,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.38.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 38,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.39.attn_norm.weight",
+   "suffix": "attn_norm",
+   "layer": 39,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.39.ffn_down_exps.weight",
+   "suffix": "ffn_down_exps",
+   "layer": 39,
+   "role": "ternary_rot",
+   "dims": [
+    512,
+    2048,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 512,
+   "rot_block": 512,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.39.ffn_gate_exps.weight",
+   "suffix": "ffn_gate_exps",
+   "layer": 39,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.39.ffn_up_exps.weight",
+   "suffix": "ffn_up_exps",
+   "layer": 39,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512,
+    256
+   ],
+   "n": 268435456,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q3_K"
+  },
+  {
+   "name": "blk.39.ffn_gate_inp.weight",
+   "suffix": "ffn_gate_inp",
+   "layer": 39,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    256
+   ],
+   "n": 524288,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.39.ffn_down_shexp.weight",
+   "suffix": "ffn_down_shexp",
+   "layer": 39,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    512,
+    2048
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.39.ffn_gate_shexp.weight",
+   "suffix": "ffn_gate_shexp",
+   "layer": 39,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.39.ffn_up_shexp.weight",
+   "suffix": "ffn_up_shexp",
+   "layer": 39,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": "Q5_K"
+  },
+  {
+   "name": "blk.39.ffn_gate_inp_shexp.weight",
+   "suffix": "ffn_gate_inp_shexp",
+   "layer": 39,
+   "role": "absorb_exempt_fp16",
+   "dims": [
+    2048,
+    1
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.39.post_attention_norm.weight",
+   "suffix": "post_attention_norm",
+   "layer": 39,
+   "role": "raw_f32",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.39.attn_k_norm.weight",
+   "suffix": "attn_k_norm",
+   "layer": 39,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.39.attn_k.weight",
+   "suffix": "attn_k",
+   "layer": 39,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.39.attn_output.weight",
+   "suffix": "attn_output",
+   "layer": 39,
+   "role": "ternary_rot",
+   "dims": [
+    4096,
+    2048
+   ],
+   "n": 8388608,
+   "type": "BF16",
+   "rot_width": 4096,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.39.attn_q_norm.weight",
+   "suffix": "attn_q_norm",
+   "layer": 39,
+   "role": "raw_f32",
+   "dims": [
+    256
+   ],
+   "n": 256,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  },
+  {
+   "name": "blk.39.attn_q.weight",
+   "suffix": "attn_q",
+   "layer": 39,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    8192
+   ],
+   "n": 16777216,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "blk.39.attn_v.weight",
+   "suffix": "attn_v",
+   "layer": 39,
+   "role": "ternary_rot",
+   "dims": [
+    2048,
+    512
+   ],
+   "n": 1048576,
+   "type": "BF16",
+   "rot_width": 2048,
+   "rot_block": 1024,
+   "apex_type": "Q4_K"
+  },
+  {
+   "name": "output_norm.weight",
+   "suffix": "output_norm.weight",
+   "layer": -1,
+   "role": "unknown",
+   "dims": [
+    2048
+   ],
+   "n": 2048,
+   "type": "F32",
+   "rot_width": 0,
+   "rot_block": 0,
+   "apex_type": ""
+  }
+ ]
+}

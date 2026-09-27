@@ -1,0 +1,20 @@
+### VMM build (GGML_HIP_NO_VMM=OFF), llama-bench m=olmoe-q1exp-q8rest.gguf
+--- sanity ---
+ggml_cuda_init: found 2 ROCm devices (Total VRAM: 40928 MiB):
+  Device 0: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: yes, Wave Size: 32, VRAM: 20464 MiB
+  Device 1: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: yes, Wave Size: 32, VRAM: 20464 MiB
+Available devices:
+  ROCm0: AMD Radeon RX 7900 XT (20464 MiB, 17482 MiB free)
+  ROCm1: AMD Radeon RX 7900 XT (20464 MiB, 20428 MiB free)
+--- -sm row ---
+  Device 0: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: yes, Wave Size: 32, VRAM: 20464 MiB
+  Device 1: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: yes, Wave Size: 32, VRAM: 20464 MiB
+llama_bench: error: failed to load model 'olmoe-q1exp-q8rest.gguf'
+| model                          |       size |     params | backend    | ngl |     sm |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | -----: | --------------: | -------------------: |
+--- -sm tensor ---
+  Device 0: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: yes, Wave Size: 32, VRAM: 20464 MiB
+  Device 1: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: yes, Wave Size: 32, VRAM: 20464 MiB
+llama_bench: error: failed to load model 'olmoe-q1exp-q8rest.gguf'
+| model                          |       size |     params | backend    | ngl |     sm |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | -----: | --------------: | -------------------: |

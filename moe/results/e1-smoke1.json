@@ -1,0 +1,29 @@
+{
+  "layers": 1,
+  "windows": 1,
+  "seq_len": 128,
+  "seed": 1234,
+  "group": 128,
+  "attn_too": false,
+  "experts": [
+    {
+      "layer": 0,
+      "param": "gate_up_proj",
+      "rel_err": 0.51092,
+      "zero_share": 0.3087
+    },
+    {
+      "layer": 0,
+      "param": "down_proj",
+      "rel_err": 0.51048,
+      "zero_share": 0.3086
+    }
+  ],
+  "per_layer": [
+    {
+      "layer": 0,
+      "router_topk_agreement": 1.0,
+      "hidden_rel_l2": 0.21716
+    }
+  ]
+}

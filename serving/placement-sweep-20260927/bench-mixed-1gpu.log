@@ -1,0 +1,21 @@
+### mixed model, single GPU (sm=none, mg=0)
+--- ncmoe=0 ---
+ggml_cuda_init: found 2 ROCm devices (Total VRAM: 40928 MiB):
+  Device 0: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: no, Wave Size: 32, VRAM: 20464 MiB
+  Device 1: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: no, Wave Size: 32, VRAM: 20464 MiB
+| model                          |       size |     params | backend    | ngl |     sm |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | -----: | --------------: | -------------------: |
+| olmoe A1.7B Q1_0_g128 - 2.125 bpw ternary |   2.07 GiB |     6.92 B | ROCm       |  99 |   none |           pp512 |     4467.28 ± 107.32 |
+| olmoe A1.7B Q1_0_g128 - 2.125 bpw ternary |   2.07 GiB |     6.92 B | ROCm       |  99 |   none |           tg128 |        329.63 ± 3.96 |
+
+build: 53388d74a (10784)
+--- ncmoe=16 ---
+ggml_cuda_init: found 2 ROCm devices (Total VRAM: 40928 MiB):
+  Device 0: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: no, Wave Size: 32, VRAM: 20464 MiB
+  Device 1: AMD Radeon RX 7900 XT, gfx1100 (0x1100), VMM: no, Wave Size: 32, VRAM: 20464 MiB
+| model                          |       size |     params | backend    | ngl |  n_cpu_moe |     sm |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | ---------: | -----: | --------------: | -------------------: |
+| olmoe A1.7B Q1_0_g128 - 2.125 bpw ternary |   2.07 GiB |     6.92 B | ROCm       |  99 |         16 |   none |           pp512 |      2347.51 ± 53.43 |
+| olmoe A1.7B Q1_0_g128 - 2.125 bpw ternary |   2.07 GiB |     6.92 B | ROCm       |  99 |         16 |   none |           tg128 |        104.83 ± 1.30 |
+
+build: 53388d74a (10784)

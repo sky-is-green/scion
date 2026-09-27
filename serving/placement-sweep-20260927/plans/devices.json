@@ -1,0 +1,20 @@
+{
+ "devices": [
+  {
+   "backend": "ROCm",
+   "index": 0,
+   "name": "AMD Radeon RX 7900 XT",
+   "total_mib": 20464,
+   "free_mib": 20404
+  },
+  {
+   "backend": "ROCm",
+   "index": 1,
+   "name": "AMD Radeon RX 7900 XT",
+   "total_mib": 20464,
+   "free_mib": 20428
+  }
+ ],
+ "physical_cores": 8,
+ "source": "linux /proc/cpuinfo"
+}

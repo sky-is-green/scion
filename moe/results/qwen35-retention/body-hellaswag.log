@@ -1,0 +1,7 @@
+0.00.757.708 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 99, abort
+0.12.105.577 E ggml_backend_cuda_buffer_type_alloc_buffer: allocating 10187.78 MiB on device 0: cudaMalloc failed: out of memory
+0.12.105.583 E alloc_tensor_range: failed to allocate ROCm0 buffer of size 10682665472
+0.12.470.605 E llama_model_load: error loading model: unable to allocate ROCm0 buffer
+0.12.470.611 E llama_model_load_from_file_impl: failed to load model
+0.12.611.837 E cmn  common_init_: failed to load model '/home/penis/Desktop/work/hivebench/artifacts/ternary/moe/qwen35/qwen35-body-pq2_0-q8rest.gguf'
+0.12.614.324 E llama_perplexity: unable to load model

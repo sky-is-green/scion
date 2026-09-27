@@ -1,0 +1,44 @@
+Scion — ternary MoE quantization with trained corrections
+Copyright 2026 the Scion contributors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This repository was split out of sky-is-green/bonsai2-ternary-forensics
+(the dense-model forensics study). It is an independent research release; it is
+not affiliated with, endorsed by, or supported by Prism ML, empero-ai,
+Alibaba Cloud, or ThakiCloud.
+
+Third-party components and attributions:
+
+1. empero-ai/Qwen3.8-35B-A3B-Distill (the distilled base model quantized by the
+   reference release)
+   Copyright the empero-ai authors. Apache License 2.0.
+   https://huggingface.co/empero-ai/Qwen3.8-35B-A3B-Distill
+
+2. Qwen (upstream model family; Qwen3.6-35B-A3B is the declared base of the
+   distill, Qwen3.8 is the distillation line it is named after)
+   Copyright 2026 Alibaba Cloud. Apache License 2.0.
+   https://huggingface.co/Qwen
+
+3. MrFuzzihead/Qwen3.8-35B-A3B-Distill-APEX-GGUF (BF16 GGUF used to build the
+   reference release's body)
+   Apache License 2.0 (inherited).
+   https://huggingface.co/MrFuzzihead/Qwen3.8-35B-A3B-Distill-APEX-GGUF
+
+4. Prism ML llama.cpp fork (runtime: PQ2_0 container + kernels; the ternary
+   approach was validated publicly by Bonsai 2.  We used the engine work, not
+   Bonsai weights.)
+   MIT License. https://github.com/PrismML-Eng/llama.cpp
+
+5. TAARDIS fork (legacy Q1_0_g128 container and adapter conventions)
+   MIT License, (c) CodeMasterCody3D.
+   https://github.com/CodeMasterCody3D/prism-ml-llama.cpp
+
+6. llama.cpp (engine upstream)
+   MIT License. https://github.com/ggml-org/llama.cpp
+
+7. CodeMasterCody3D/autogrid (used for the AUTOGRID noise-floor map)
+   MIT License.
+
+8. allenai/OLMoE-1B-7B-0924 (the frozen proxy model used by the harness)
+   Apache License 2.0. https://huggingface.co/allenai/OLMoE-1B-7B-0924

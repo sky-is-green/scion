@@ -1,0 +1,6 @@
+# Qwen3.8-35B-A3B-Distill ternary release — SHA256SUMS (2026-09-27)
+
+545d83a93c6ad1474a97201a687f9a344df3e2d5f89ae7cc324aa3680be58d9c  qwen35-release.gguf
+6cede33aa00968dd78a4422fa49f55cf5f940e4fc2b95806a1bed686ff02551b  qwen35-body-pq2_0-q8rest.gguf
+8ee37faa567373c2e2bed24e8c2c92837f6c54a34602a08d564ee33d8ee1c665  qwen35-adapter.lora-soup.gguf
+97548355e5bf37d4a4115c725bdb34b913781c89bf8c9bd6218b0a4a3d7d3145  qwen35-adapter.lora-final.gguf

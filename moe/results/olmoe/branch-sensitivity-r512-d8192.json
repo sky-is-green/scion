@@ -1,0 +1,104 @@
+{
+  "checkpoint": "/home/penis/Desktop/work/hivebench/artifacts/ternary/moe/olmoe/olmoe-doctors-r512-d8192-step8192.pt",
+  "rank": 512,
+  "windows": 8,
+  "baseline_fp32_ppl": 37.1077,
+  "per_layer_g128": [
+    {
+      "layer": 0,
+      "ppl_g128": 40.4341,
+      "delta": 3.3265,
+      "ratio": 1.0896
+    },
+    {
+      "layer": 1,
+      "ppl_g128": 39.8583,
+      "delta": 2.7506,
+      "ratio": 1.0741
+    },
+    {
+      "layer": 2,
+      "ppl_g128": 38.6584,
+      "delta": 1.5507,
+      "ratio": 1.0418
+    },
+    {
+      "layer": 3,
+      "ppl_g128": 39.7031,
+      "delta": 2.5954,
+      "ratio": 1.0699
+    },
+    {
+      "layer": 4,
+      "ppl_g128": 38.3344,
+      "delta": 1.2267,
+      "ratio": 1.0331
+    },
+    {
+      "layer": 5,
+      "ppl_g128": 38.4993,
+      "delta": 1.3916,
+      "ratio": 1.0375
+    },
+    {
+      "layer": 6,
+      "ppl_g128": 39.0786,
+      "delta": 1.9709,
+      "ratio": 1.0531
+    },
+    {
+      "layer": 7,
+      "ppl_g128": 39.2751,
+      "delta": 2.1674,
+      "ratio": 1.0584
+    },
+    {
+      "layer": 8,
+      "ppl_g128": 38.4834,
+      "delta": 1.3757,
+      "ratio": 1.0371
+    },
+    {
+      "layer": 9,
+      "ppl_g128": 38.3844,
+      "delta": 1.2767,
+      "ratio": 1.0344
+    },
+    {
+      "layer": 10,
+      "ppl_g128": 37.8137,
+      "delta": 0.706,
+      "ratio": 1.019
+    },
+    {
+      "layer": 11,
+      "ppl_g128": 37.9399,
+      "delta": 0.8322,
+      "ratio": 1.0224
+    },
+    {
+      "layer": 12,
+      "ppl_g128": 37.5438,
+      "delta": 0.4362,
+      "ratio": 1.0118
+    },
+    {
+      "layer": 13,
+      "ppl_g128": 37.1952,
+      "delta": 0.0876,
+      "ratio": 1.0024
+    },
+    {
+      "layer": 14,
+      "ppl_g128": 38.1369,
+      "delta": 1.0293,
+      "ratio": 1.0277
+    },
+    {
+      "layer": 15,
+      "ppl_g128": 40.4796,
+      "delta": 3.3719,
+      "ratio": 1.0909
+    }
+  ]
+}

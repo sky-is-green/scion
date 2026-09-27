@@ -1,0 +1,80 @@
+{
+  "layers": 4,
+  "windows": 4,
+  "seq_len": 512,
+  "seed": 1234,
+  "group": 128,
+  "attn_too": false,
+  "experts": [
+    {
+      "layer": 0,
+      "param": "gate_up_proj",
+      "rel_err": 0.51092,
+      "zero_share": 0.3087
+    },
+    {
+      "layer": 0,
+      "param": "down_proj",
+      "rel_err": 0.51048,
+      "zero_share": 0.3086
+    },
+    {
+      "layer": 1,
+      "param": "gate_up_proj",
+      "rel_err": 0.51095,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 1,
+      "param": "down_proj",
+      "rel_err": 0.5109,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 2,
+      "param": "gate_up_proj",
+      "rel_err": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 2,
+      "param": "down_proj",
+      "rel_err": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 3,
+      "param": "gate_up_proj",
+      "rel_err": 0.51093,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 3,
+      "param": "down_proj",
+      "rel_err": 0.51094,
+      "zero_share": 0.3088
+    }
+  ],
+  "per_layer": [
+    {
+      "layer": 0,
+      "router_topk_agreement": 1.0,
+      "hidden_rel_l2": 0.2023
+    },
+    {
+      "layer": 1,
+      "router_topk_agreement": 0.80688,
+      "hidden_rel_l2": 0.31131
+    },
+    {
+      "layer": 2,
+      "router_topk_agreement": 0.76019,
+      "hidden_rel_l2": 0.34614
+    },
+    {
+      "layer": 3,
+      "router_topk_agreement": 0.65222,
+      "hidden_rel_l2": 0.37284
+    }
+  ]
+}

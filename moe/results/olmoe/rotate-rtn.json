@@ -1,0 +1,232 @@
+{
+  "teacher_ppl": 11.0247,
+  "rtn_rotated_ppl": 56610.9339,
+  "ratio": 5134.9,
+  "router_agree_mean": 0.5064,
+  "weights": [
+    {
+      "layer": 0,
+      "param": "gate_up_proj",
+      "rel_raw": 0.52344,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3089
+    },
+    {
+      "layer": 0,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 1,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51091,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 1,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3087
+    },
+    {
+      "layer": 2,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51093,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 2,
+      "param": "down_proj",
+      "rel_raw": 0.51172,
+      "rel_rotated": 0.51096,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 3,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51094,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 3,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 4,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51172,
+      "rel_rotated": 0.51093,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 4,
+      "param": "down_proj",
+      "rel_raw": 0.51172,
+      "rel_rotated": 0.51093,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 5,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51172,
+      "rel_rotated": 0.51096,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 5,
+      "param": "down_proj",
+      "rel_raw": 0.51172,
+      "rel_rotated": 0.51096,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 6,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51095,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 6,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.5109,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 7,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 7,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51091,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 8,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51953,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 8,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51094,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 9,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 9,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51096,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 10,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51097,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 10,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 11,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51089,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 11,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 12,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 12,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51097,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 13,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 13,
+      "param": "down_proj",
+      "rel_raw": 0.51172,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 14,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 14,
+      "param": "down_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 15,
+      "param": "gate_up_proj",
+      "rel_raw": 0.51562,
+      "rel_rotated": 0.51093,
+      "zero_share": 0.3088
+    },
+    {
+      "layer": 15,
+      "param": "down_proj",
+      "rel_raw": 0.51953,
+      "rel_rotated": 0.51092,
+      "zero_share": 0.3088
+    }
+  ]
+}

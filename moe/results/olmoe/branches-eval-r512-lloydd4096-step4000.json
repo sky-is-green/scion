@@ -1,0 +1,10 @@
+{
+  "rtn_no_branches": {
+    "ppl": 804.3905,
+    "router_agree": 0.6913
+  },
+  "trained_branches": {
+    "ppl": 19.7993,
+    "router_agree": 0.8461
+  }
+}

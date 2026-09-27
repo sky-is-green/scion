@@ -1,0 +1,56 @@
+{
+ "model": "olmoe-q1exp-q8rest.gguf",
+ "arch": "olmoe",
+ "name": "Olmoe Hf",
+ "devices": [
+  {
+   "backend": "ROCm",
+   "index": 0,
+   "name": "AMD Radeon RX 7900 XT",
+   "total_mib": 20464,
+   "free_mib": 20404
+  },
+  {
+   "backend": "ROCm",
+   "index": 1,
+   "name": "AMD Radeon RX 7900 XT",
+   "total_mib": 20464,
+   "free_mib": 20428
+  }
+ ],
+ "gpus": [
+  {
+   "backend": "ROCm",
+   "index": 0,
+   "name": "AMD Radeon RX 7900 XT",
+   "total_mib": 20464,
+   "free_mib": 20404
+  },
+  {
+   "backend": "ROCm",
+   "index": 1,
+   "name": "AMD Radeon RX 7900 XT",
+   "total_mib": 20464,
+   "free_mib": 20428
+  }
+ ],
+ "split_mode": "none",
+ "main_gpu": 0,
+ "n_gpu_layers": 99,
+ "n_cpu_moe": 6,
+ "threads": 8,
+ "threads_source": "linux /proc/cpuinfo",
+ "context": 4096,
+ "kv_mib": 512.0,
+ "model_mib": 2121.3,
+ "non_expert_mib": 489.3,
+ "expert_mib": 1632.0,
+ "expert_layers_on_gpu": 10,
+ "expert_layers_total": 16,
+ "est_vram_mib": 3045.3,
+ "vram_budget_mib": 4096.0,
+ "notes": [
+  "KV 512 MiB at 4096 tokens (f16); reserve 1024 MiB/GPU",
+  "weights+KV fit one card (AMD Radeon RX 7900 XT); no layer split needed"
+ ]
+}

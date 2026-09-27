@@ -1,0 +1,14 @@
+{
+  "teacher": {
+    "ppl": 11.0247,
+    "router_agree_mean": 1.0
+  },
+  "rtn": {
+    "ppl": 23.9408,
+    "router_agree_mean": 0.8626
+  },
+  "trained": {
+    "ppl": 23.7886,
+    "router_agree_mean": 0.8631
+  }
+}
