@@ -45,6 +45,16 @@ here the trained corrections are grafted onto a 2.125 bpw ternary body.
 |---|---|---|
 | `Scion-35B-A3B-PQ2_0-corr.gguf` | 10.558 GiB (11.337 GB) | `545d83a93c6ad1474a97201a687f9a344df3e2d5f89ae7cc324aa3680be58d9c` |
 
+> **On the Hub's quant chip.** The Hub parses file names and labels this file
+> `Q2_0` (the same happens on Prism ML's own `PQ2_0` releases). The container is
+> Prism's **`PQ2_0`** — legacy name `Q1_0_g128`, type 142/43, identical byte
+> layout — 2-bit codes with one fp16 group scale per 128 weights, *not* upstream
+> llama.cpp's g64 `Q2_0` (type 42). No single quant name fits anyway: the file
+> is a mix — `PQ2_0` expert banks, the embedded corrections in the legacy
+> `q1_0_g128` container, and `Q8_0` for the rest (norms/embeddings in F32/F16).
+> Load it with the fork build above; the Hub's copy-paste `-hf …` snippet does
+> not imply stock llama.cpp support.
+
 ## Numbers (all measured)
 
 Runtime, `wiki.test.raw`, `-c 512`, 580 chunks (local RX 7900 XT):
