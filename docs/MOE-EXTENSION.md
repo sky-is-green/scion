@@ -1,5 +1,10 @@
 # The MoE extension: does the ternary recipe survive routing?
 
+> Companion docs that stay in the forensics repository — `WHITEPAPER.md`,
+> `FORENSIC-ARCHIVE.md`, the TBR failure register, `SCALING-PROTOCOL.md`,
+> `QUANTIZATION-LANDSCAPE.md` — are linked from its
+> [docs index](https://github.com/sky-is-green/bonsai2-ternary-forensics/tree/main/docs).
+
 Status: research note, 2026-09-25.  This document re-frames the dense-27B
 forensics (Parts 1 and 2 of the public write-up) onto the question that
 follows it: **can ternary-class compression reach Bonsai-level retention on a

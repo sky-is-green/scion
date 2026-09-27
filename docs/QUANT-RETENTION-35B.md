@@ -4,7 +4,7 @@ Community-protocol benchmark of the single-file release against every quant of
 the same model (`empero-ai/Qwen3.8-35B-A3B-Distill`), measured against a BF16
 reference.  Raw logs: `hivebench/artifacts/ternary/refs/qwen35/results/`
 (collector: `collect_bench.py`, table: `retention-grid.{md,json}`,
-figure: `retention-grid.png` / `.svg` — Pareto grid, ours drawn as a distinct star).
+figure: `retention-grid.png` / `.svg` — Pareto grid, ours drawn as the blue triangle).
 
 ## Protocol (matches the community tables)
 

@@ -52,7 +52,7 @@ A snapshot of the card is kept at `docs/RELEASE-35B-MODEL-CARD.md`.
 
 Earlier proof on the frozen proxy `allenai/OLMoE-1B-7B-0924`: uncorrected mixed
 GGUF **566.7 PPL → 14.48** with both placements + routers (2.12 GB body +
-22.2 MB adapter), CPU and HIP alike.
+22.2 MB adapter); the CPU and HIP builds agree.
 
 ## Quickstart
 
@@ -62,9 +62,10 @@ exact run sequence are in [`moe/README.md`](moe/README.md); the in-place ternary
 QAT negative control is `moe/olmoe_proxy.py`, the correction trainer is
 `moe/olmoe_corrections.py`.
 
-**Rental (the 35B path, one 80 GB card, ≈$7).** Build the deployment body
-locally first (`moe/merge_adapter_into_body.py`, `GGML_PQ2_0_LLOYD=1`), then on
-the box:
+**Rental (the 35B path, one 80 GB card, ≈$7).** Quantize the deployment body
+locally first (`llama-quantize` with the experts mapped to `pq2_0`,
+`GGML_PQ2_0_LLOYD=1`), run the box stages, then merge the exported adapter into
+the body with `moe/merge_adapter_into_body.py`:
 
 ```bash
 bash moe/box-run.sh setup && bash moe/box-run.sh smoke && bash moe/box-run.sh cache
@@ -88,7 +89,7 @@ embedded adapters; ~90 lines on top of Prism ML's `prism` branch).
 | `docs/` | write-ups: the MoE extension, release table, port decision, tail plan, registers |
 | `serving/` | serving experiments: placement sweep (ternary vs f16 offload, threads, split modes) + expert-cache handoff |
 | `scion_moe/` | vendored `rotation` + RTN quantizer used by the harness |
-| `retention-grid.png` | the release figure (regenerate: `moe/plot_bench.py`) |
+| `retention-grid.png` | the release figure (regenerate: `moe/plot_bench.py`, writes into `moe/results/qwen35-retention/`) |
 
 ## Serving notes (measured on 2× RX 7900 XT + 7800X3D)
 
