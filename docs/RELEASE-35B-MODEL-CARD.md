@@ -1,8 +1,3 @@
-> **Snapshot note.** This is the model card as published on
-> [Hugging Face](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B), kept here
-> for provenance. The harness it references lives in this repository (`moe/`);
-> the dense forensics stayed in
-> [`bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics).
 ---
 library_name: llama.cpp
 model_name: Scion-35B-A3B
@@ -23,6 +18,12 @@ tags:
 - quantized
 - scion
 ---
+
+> **Snapshot note.** This is the model card as published on
+> [Hugging Face](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B), kept here
+> for provenance. The harness it references lives in this repository (`moe/`);
+> the dense forensics stayed in
+> [`bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics).
 
 <p align="center">
   <a href="https://github.com/sky-is-green/scion"><b>GitHub: harness and docs</b></a> &nbsp;|&nbsp;
