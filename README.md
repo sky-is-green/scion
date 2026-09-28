@@ -78,8 +78,13 @@ volume. Port notes: `moe/PORT-QWEN35.md`; the architecture decision record:
 
 **Runtime.** Ternary experts and embedded adapters live in
 [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp),
-branch `moe-corr-runtime` (PQ2_0 container, `ffn_moe_out` virtual target,
-embedded adapters; about 90 lines on top of Prism ML's `prism` branch).
+branch `moe-corr-runtime`, which is the fork's default branch: a plain
+`git clone` gets the right tree (PQ2_0 container, `ffn_moe_out` virtual target,
+embedded adapters; about 90 lines on top of Prism ML's `prism` branch). The
+fork's `master` is an untouched upstream mirror and cannot load these GGUFs; if
+a load fails with `invalid ggml type 142. should be in [0, 43)`, you built
+`master`, and `./verify-container-support.sh` in the checkout tells you in a
+second.
 
 ## Layout
 

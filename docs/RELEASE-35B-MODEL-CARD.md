@@ -157,15 +157,28 @@ The PQ2_0 container, the legacy `Q1_0_g128` import, the `ffn_moe_out` virtual
 target and embedded adapters all live in the fork. **Stock llama.cpp will not
 run this file**: it treats `PQ2_0` and `Q1_0_g128` as unknown tensor types.
 Upstream's own `Q2_0` (type 42, g64) is a different container and is not a
-substitute.
+substitute. The fork's default branch is the one you want, so a plain clone is
+enough.
 
 ```bash
-# build the fork
-git clone -b moe-corr-runtime https://github.com/sky-is-green/prism-ml-llama.cpp
+# build the runtime
+git clone https://github.com/sky-is-green/prism-ml-llama.cpp
 cd prism-ml-llama.cpp
+./verify-container-support.sh          # must print "RESULT: OK"
+rm -rf build
 cmake -B build -DGGML_CUDA=ON && cmake --build build -j --target llama-cli llama-server
 # ROCm: -DGGML_HIP=ON     CPU-only: no flag
 ```
+
+> **If the model will not load:** `tensor '...' has invalid ggml type 142. should
+> be in [0, 43)` means the binary you ran is a build of upstream `master`, which
+> knows 43 types and has never heard of `PQ2_0` (type id 142). The branch above
+> defines `GGML_TYPE_PQ2_0 = 142` and `GGML_TYPE_COUNT = 144`, and
+> `./verify-container-support.sh` checks exactly that in a second. The same error
+> also comes from a stale `build/` directory or from an older `llama-cli` earlier
+> on your `PATH`; the reliable fix for all three is to delete the checkout and
+> the build directory and start from the clone above. See also the
+> [fork README](https://github.com/sky-is-green/prism-ml-llama.cpp#readme).
 
 ```bash
 # fetch the weights
