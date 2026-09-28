@@ -143,6 +143,66 @@ def tail_stats(per_token: torch.Tensor) -> dict:
     return out
 
 
+def topk_coverage(teacher_logits_full: torch.Tensor,
+                  cached_vals: torch.Tensor) -> dict:
+    """How much teacher mass a top-k cache actually holds.
+
+    ``teacher_logits_full`` is [T, V] of raw teacher logits and ``cached_vals``
+    is the [T, k] top-k of the same row. Renormalising ``cached_vals`` on its
+    own returns 1.0 by construction and says nothing -- the cache stores raw
+    logits, not normalised logprobs. The real quantity needs the full-vocab
+    normaliser:
+
+        captured = sum_{v in topk} exp(logit_v) / sum_{all v} exp(logit_v)
+
+    This is what decides whether a sampled residual-mass tail term is worth
+    building, and it is only computable here, where the full teacher pass
+    already exists.
+    """
+    full = teacher_logits_full.float()
+    top = cached_vals.float()
+    if full.shape[0] == 0:
+        return {"n_tokens": 0, "top_k": int(top.shape[-1]),
+                "mean_topk_mass": 0.0, "min_topk_mass": 0.0,
+                "p01_topk_mass": 0.0, "mean_residual_mass": 0.0}
+    denom = torch.logsumexp(full, dim=-1)
+    numer = torch.logsumexp(top, dim=-1)
+    captured = (numer - denom).exp().clamp(0.0, 1.0)
+    return {
+        "n_tokens": int(captured.numel()),
+        "top_k": int(top.shape[-1]),
+        "mean_topk_mass": float(captured.mean()),
+        "min_topk_mass": float(captured.min()),
+        "p01_topk_mass": float(torch.quantile(captured, 0.01)),
+        "mean_residual_mass": float(1.0 - captured.mean()),
+    }
+
+
+def _coverage(tcache: list[torch.Tensor], raw_top: list[torch.Tensor],
+              k: int) -> dict:
+    """Top-k mass coverage from the parked full log-probs.
+
+    The parked tensor is the *full-vocab* log-softmax, so ``exp`` of a log-prob
+    is the true probability mass, and summing the top-k of those recovers exactly
+    what a top-k cache holds. No renormalisation over the cached entries (that
+    returns 1.0 by construction and measures nothing) and no second teacher pass.
+
+    ``raw_top`` is accepted so the caller can pass both consistently; only ``k``
+    and the parked rows are needed.
+    """
+    captured = [torch.topk(lp, k, dim=-1).values.exp().sum(-1).clamp(0.0, 1.0)
+                for lp in tcache]
+    c = torch.cat(captured)
+    return {
+        "n_tokens": int(c.numel()),
+        "top_k": int(k),
+        "mean_topk_mass": float(c.mean()),
+        "min_topk_mass": float(c.min()),
+        "p01_topk_mass": float(torch.quantile(c, 0.01)),
+        "mean_residual_mass": float(1.0 - c.mean()),
+    }
+
+
 def top1_agreement(tlp: torch.Tensor, slp: torch.Tensor) -> float:
     """Fraction of tokens where teacher and student agree on the argmax token.
 
@@ -155,11 +215,13 @@ def top1_agreement(tlp: torch.Tensor, slp: torch.Tensor) -> float:
 # ------------------------------------------------------------------- run -----
 
 @torch.no_grad()
-def teacher_pass(model, data, device, chunk: int, vocab: int):
+def teacher_pass(model, data, device, chunk: int, vocab: int, top_k: int = 0):
     """Park fp32 teacher log-probs per window, plus the teacher's own entropy.
 
     The teacher entropy/peak are the reference the student's numbers are read
-    against, so they are measured here rather than recomputed later.
+    against, so they are measured here rather than recomputed later. When
+    ``top_k`` is set, the raw top-k logits are returned too, so the caller can
+    measure what fraction of teacher mass a top-k cache would hold.
     """
     from qwen35_moe_proxy import model_logits
 
@@ -168,16 +230,24 @@ def teacher_pass(model, data, device, chunk: int, vocab: int):
     need = sum(d.numel() - 1 for d in data) * vocab * 4
     print(f"teacher cache: {need/1e9:.2f} GB of host memory "
           f"({len(data)} windows x {vocab} vocab)", flush=True)
+    raw_top: list[torch.Tensor] = []
     out, ents, tops = [], [], []
     for i in range(len(data)):
         ids = data[i:i + 1].to(device)
-        lp = log_probs(model_logits(model, ids)[0, :-1], chunk).cpu()
+        raw = model_logits(model, ids)[0, :-1]
+        lp = log_probs(raw, chunk).cpu()
         out.append(lp)
         ents.append(float(-(lp.exp() * lp).sum(-1).mean()))
         tops.append(float(lp.exp().max(-1).values.mean()))
+        # stash the raw top-k logits so the caller can compute coverage against a
+        # cache, using the full-vocab normaliser rather than renormalising over
+        # the cached entries (which is 1.0 by construction and means nothing)
+        if top_k:
+            out[-1] = lp
+            raw_top.append(raw.topk(top_k, dim=-1).values.cpu())
         print(f"  teacher {i+1}/{len(data)} entropy {ents[-1]:.3f} peak {tops[-1]:.4f}",
               flush=True)
-    return out, sum(ents) / len(ents), sum(tops) / len(tops)
+    return out, sum(ents) / len(ents), sum(tops) / len(tops), raw_top
 
 
 @torch.no_grad()
@@ -218,6 +288,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--worst", type=int, default=16,
                     help="how many of the worst per-token KLDs to record with their "
                          "window/position, so the tail is inspectable")
+    ap.add_argument("--measure-topk", type=int, default=0,
+                    help="also report how much teacher mass a top-k of this size "
+                         "holds, against the full-vocab normaliser. 0 = off. This "
+                         "is what decides whether a sampled residual-mass tail term "
+                         "is worth building, and it is only computable here, where "
+                         "the full teacher pass already runs.")
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--chunk", type=int, default=32, help="token chunk for log_softmax")
     ap.add_argument("--group", type=int, default=128)
@@ -264,7 +340,8 @@ def main() -> None:
 
     # ---- teacher: FP prefix, banks untouched, no branches
     model, _, _, _ = load_prefix(args.prefix_layers, args.device, model_dir=model_dir)
-    tcache, t_ent, t_top = teacher_pass(model, data, args.device, args.chunk, vocab)
+    tcache, t_ent, t_top, raw_top = teacher_pass(model, data, args.device, args.chunk,
+                                                 vocab, top_k=args.measure_topk)
     del model
     gc.collect()
     torch.cuda.empty_cache()
@@ -323,6 +400,15 @@ def main() -> None:
     # the teacher's distribution, which is the usual reason KLD rises while PPL
     # falls; say so in the record rather than leaving a bare number
     res["sharper_than_teacher"] = bool(ent < t_ent - 0.5)
+    if raw_top:
+        # Coverage of the top-k the caches were built with, against the teacher's
+        # full-vocab normaliser. This is the number that decides whether a
+        # sampled residual-mass tail term is worth building.
+        cov = _coverage(tcache, raw_top, args.measure_topk)
+        res["topk_coverage"] = cov
+        print(f"top-{args.measure_topk} mass: mean {cov['mean_topk_mass']:.8f} "
+              f"min {cov['min_topk_mass']:.8f} "
+              f"residual {cov['mean_residual_mass']:.3e}", flush=True)
     res.update({
         "top1_agreement": round(agree, 6),
         "checkpoint": args.load,
