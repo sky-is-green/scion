@@ -23,6 +23,9 @@ sys.path.insert(0, str(MOE))
 # stage name in the runner -> the script it invokes
 TARGETS = {"kld": "kld_eval.py", "kld-body": "kld_eval.py", "steer": "steer_probe.py"}
 
+# stages that go through the proxy rather than a separate instrument
+PROXY_STAGES = {"ref", "cache", "train", "train-lmonly"}
+
 
 def _stage_blocks() -> dict[str, list[str]]:
     """Command lines per stage, from the ``case`` arms of the runner.
@@ -159,7 +162,40 @@ def test_the_flag_check_would_catch_the_regression(tmp_path):
 def test_every_case_arm_is_covered_by_a_test():
     """No stage may exist in the runner without a flag-compatibility check."""
     blocks = _stage_blocks()
-    # ref/cache/train are validated by the proxy's own flag set at run time;
-    # these three are the ones the runner composes from RECIPE_EVAL / PYTHONPATH
     assert set(TARGETS) <= set(blocks), \
-        f"runner stages not under test: {sorted(set(blocks) - set(TARGETS))}"
+        f"runner stages not under test: {sorted(set(TARGETS) - set(blocks))}"
+    known = set(TARGETS) | PROXY_STAGES
+    unknown = set(blocks) - known
+    assert not unknown, f"unregistered runner stages: {sorted(unknown)}"
+
+
+@pytest.mark.parametrize("stage", sorted(PROXY_STAGES))
+def test_proxy_stages_flags_are_accepted(stage):
+    """The proxy stages compose from SHARED/RECIPE, so they need the same check."""
+    import qwen35_moe_proxy as proxy
+    assert proxy is not None
+    flags = _flags_of(stage)
+    assert flags, f"stage {stage} passes no flags"
+    # the proxy takes a positional stage name; the runner supplies it as the
+    # first argument, so prepend a valid one
+    sub = {"ref": "ref", "cache": "cache", "train": "train",
+           "train-lmonly": "train"}[stage]
+    parser = proxy.build_parser()
+    try:
+        parser.parse_args([sub, *flags])
+    except SystemExit:
+        pytest.fail(f"stage {stage} passes flags the proxy rejects: {flags}")
+
+
+def test_lmonly_ablation_actually_zeroes_kd():
+    """The whole point of that arm: it must not inherit the recipe's KD weight."""
+    body = "\n".join(_stage_blocks()["train-lmonly"])
+    assert "--kd-weight" in body
+    m = re.search(r"--kd-weight\s+([0-9.]+)", body)
+    assert m, "train-lmonly does not set --kd-weight"
+    assert float(m.group(1)) == 0.0, \
+        "train-lmonly must set --kd-weight 0.0 or the ablation tests nothing"
+    # and it must still use the top-512 cache, so only the loss term varies
+    assert "prefix-top512.pt" in body
+    # but keep the train-only knobs out of it
+    assert "--kd-filter-frac" not in body

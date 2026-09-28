@@ -555,7 +555,8 @@ def stage_eval(args):
     print(json.dumps(res, indent=2), flush=True)
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
+    """The CLI, as a function so tests can check flags without running a stage."""
     ap = argparse.ArgumentParser()
     ap.add_argument("stage", choices=["smoke", "cache", "ref", "train", "eval"])
     ap.add_argument("--device", default="cuda:0")
@@ -611,7 +612,11 @@ def main():
                          "share rank/branch-quant/steps, or they overwrite each other")
     ap.add_argument("--resume", default="",
                     help="resume training from a branch checkpoint (step number from the filename)")
-    args = ap.parse_args()
+    return ap
+
+
+def main():
+    args = build_parser().parse_args()
     if args.stage == "smoke":
         smoke(args)
     elif args.stage == "cache":

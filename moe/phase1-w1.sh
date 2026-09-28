@@ -62,6 +62,23 @@ train)
       --epochs 1 --steps 4096 --eval-every 1000 --ckpt-every 1000 --log-every 100
   ;;
 
+train-lmonly)
+  # Loss-term ablation: top-512 cache, same recipe, --kd-weight 0 so the LM term
+  # is the only thing training.  Answers the question the Phase 1 KLD result
+  # could not: is the entropy collapse (10.77 -> 7.42 nats) caused by the LM
+  # term pushing toward one-hot data targets, or by the top-k KD term?  If it
+  # still sharpens with KD off, the LM term is the culprit and a tail constraint
+  # bolted onto the KD term would barely move it.
+  #   usage: phase1-w1.sh train-lmonly [steps]
+  steps="${2:-4096}"
+  run "$PY" $PROXY train "${SHARED[@]}" --quant lloyd --branch-quant g128 \
+      --branch-target both --rank 512 --kd-weight 0.0 --temp 2.0 \
+      --device-map cuda:0 --device cuda:0 \
+      --cache-file "$MOE/prefix-top512.pt" --ref-file "$MOE/eval-ref-w2.pt" \
+      --tag "lmonly" \
+      --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
+  ;;
+
 kld)
   # the gate instrument: same prefix, same placement, checkpoint under test.
   # NB kld_eval takes its own (narrower) flag set -- only the prefix depth and
@@ -90,6 +107,6 @@ steer)
   ;;
 
 *)
-  echo "stages: ref | cache <a|c> | train <a|c> | kld <ckpt> <tag> |"
-  echo "        kld-body | steer"; exit 2;;
+  echo "stages: ref | cache <a|c> | train <a|c> | train-lmonly [steps] |"
+  echo "        kld <ckpt> <tag> | kld-body | steer"; exit 2;;
 esac
