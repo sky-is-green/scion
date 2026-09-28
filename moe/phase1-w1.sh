@@ -33,12 +33,54 @@ RECIPE=(--quant lloyd --branch-quant g128 --branch-target both --rank 512
 RECIPE_EVAL=(--quant lloyd --branch-quant g128 --branch-target both --rank 512)
 
 # CARD selects the GPU. Default 1 (the headless card). Set CARD=0 to use the
-# display card instead; the single-job-per-card rule still holds, so two
-# concurrent stages need two different CARD values.
+# display card instead.
+#
+# One job at a TIME, not one job per card.  load_prefix materialises the prefix
+# in fp32 on the host (~17 GB for a 4-layer prefix) before moving it to the GPU,
+# so two concurrent load_prefix jobs exceed this box's 30 GB of RAM no matter how
+# many cards are idle.  That is what killed the first --kd-weight sweep: two
+# copies of the same arm plus a KLD run, all racing on one checkpoint path.
 CARD="${CARD:-1}"
+LOCKDIR="${LOCKDIR:-$MOE/.stage-lock}"
+
+# One stage at a time. mkdir is atomic, so this is a real lock, and a stale lock
+# from a killed run is reclaimable via STALE_PID=1 rather than blocking forever.
+#
+# This guard exists because the alternative was silent: two copies of the same arm
+# ran concurrently, both wrote ...-step4096-kdw5.0.pt, and the machine OOM'd before
+# either finished, leaving a checkpoint that was neither one's.
+acquire() {
+  local tag="${1:-general}" holder=""
+  if ! mkdir "$LOCKDIR" 2>/dev/null; then
+    holder="$(cat "$LOCKDIR/pid" 2>/dev/null || echo '?')"
+    if [ -n "${STALE_PID:-}" ] && ! kill -0 "$holder" 2>/dev/null; then
+      echo "reclaiming stale lock from dead pid $holder" >&2
+      rm -rf "$LOCKDIR"
+    else
+      echo "REFUSING: stage '$holder' already holds $LOCKDIR" >&2
+      echo "  another stage is running; they all load the FP prefix (~17 GB host" >&2
+      echo "  RAM each), so two at once exceed this box's 30 GB." >&2
+      echo "  If that process is gone, re-run with STALE_PID=1." >&2
+      exit 3
+    fi
+    mkdir "$LOCKDIR" || { echo "REFUSING: cannot take $LOCKDIR" >&2; exit 3; }
+  fi
+  echo $$ > "$LOCKDIR/pid"
+  echo "$tag" > "$LOCKDIR/tag"
+  # release on any exit, including a signal
+  trap 'rm -rf "$LOCKDIR" 2>/dev/null' EXIT INT TERM
+}
+
 run() { echo "### CARD=$CARD"; echo "### $*"; HIP_VISIBLE_DEVICES=$CARD "$@"; }
 
 mkdir -p "$MOE" logs
+
+case "${1:-all}" in
+ref|cache|train|train-lmonly|train-kdw|kld|kld-body|steer)
+  # every stage loads the FP prefix, so all of them are exclusive
+  acquire "${1:-all}"
+  ;;
+esac
 
 case "${1:-all}" in
 ref)

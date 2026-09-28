@@ -34,6 +34,9 @@ def _stage_blocks() -> dict[str, list[str]]:
     indented two spaces and end at ``;;``, and an earlier regex silently matched
     nothing (returned ``{}``) instead of failing, which is how three stages
     ended up untested for a while.
+
+    The guard arm (a bare pattern list with no body) is skipped: it is not a
+    stage, and including it would fail every flag check.
     """
     text = RUNNER.read_text()
     blocks: dict[str, list[str]] = {}
@@ -42,8 +45,12 @@ def _stage_blocks() -> dict[str, list[str]]:
         # arms are top-level case labels: `ref)`, `kld-body)`, `*)`
         arm = re.match(r"^([a-z][a-z|-]*)\)\s*$", line)
         if arm:
-            current = None if arm.group(1) == "*" else arm.group(1)
-            if current:
+            if arm.group(1) == "*":
+                current = None
+            elif "|" in arm.group(1):
+                current = None          # the guard's pattern-list arm
+            else:
+                current = arm.group(1)
                 blocks[current] = []
             continue
         if current and line.strip() == ";;":
