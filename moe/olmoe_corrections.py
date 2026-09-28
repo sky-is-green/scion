@@ -29,6 +29,7 @@ import torch.nn.functional as F
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from catq import ternary_catq  # noqa: E402
 from moe_proxy import ternary_absmean, ternary_lloyd  # noqa: E402
 from olmoe_proxy import (CACHE, FEAT_STRIDE, MODEL, OUT, gate_hook,  # noqa: E402
                          load_model, parse_layers, windows)
@@ -36,15 +37,20 @@ from olmoe_proxy import (CACHE, FEAT_STRIDE, MODEL, OUT, gate_hook,  # noqa: E40
 
 @torch.no_grad()
 def quantize_bank_inplace(p: torch.Tensor, group: int = 128, chunk: int = 8,
-                          kind: str = "absmean") -> None:
+                          kind: str = "absmean", catq_kw: dict | None = None) -> None:
     """RTN the frozen expert bank in place, chunked to bound GPU memory.
 
-    ``kind="lloyd"`` matches the deployment quantizer (TAARDIS Q1_0_g128).
+    ``kind="lloyd"`` matches the deployment quantizer (TAARDIS Q1_0_g128);
+    ``kind="catq"`` runs the CAT-Q reconstruction (``catq_kw`` passes its
+    hyperparameters), chunked the same way to bound memory.
     """
-    fn = ternary_lloyd if kind == "lloyd" else ternary_absmean
+    if kind == "catq":
+        fn, kw = ternary_catq, (catq_kw or {})
+    else:
+        fn, kw = (ternary_lloyd if kind == "lloyd" else ternary_absmean), {}
     for s in range(0, p.shape[0], chunk):
         part = p[s:s + chunk]
-        q = fn(part, group)
+        q = fn(part, group, **kw)
         part.copy_(q)
         del q
     torch.cuda.empty_cache()

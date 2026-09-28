@@ -18,6 +18,11 @@ Stages:
   train : frozen ternary body + correction branches + routers.
   eval  : held-out PPL and per-layer router agreement.
 
+Quant-methods options (all default to the frozen v1 recipe): ``--quant catq``
+(CAT-Q body reconstruction), ``--kd-filter-frac`` (SignRoundV2 loss
+filtering), ``--corpus-file``/``--agentic-frac`` (AYOT reasoning-trace
+mixing), ``--top-logits`` (tail-plan step 1).
+
 Ops: training needs the FP teacher and ternary student resident together, so it
 needs a card that holds both (or two cards via ``--device-map auto`` with
 ``--max-memory``); single-card stages should pin the free card
@@ -44,6 +49,8 @@ from olmoe_corrections import (CorrectionBranch, MoEWithCorrection,  # noqa: E40
                                load_branch_state, moe_block,
                                quantize_bank_inplace)
 from olmoe_proxy import gate_hook, ternary_ste, windows  # noqa: E402
+from ayot import load_traces, mix_windows, windows_from_texts  # noqa: E402
+from kd_loss import kd_filtered  # noqa: E402
 
 ART = Path(os.environ.get("MOE_ARTIFACTS", HERE / "artifacts"))
 MODEL = ART / "empero-hf"          # full or partial qwen3_5_moe checkpoint
@@ -128,6 +135,26 @@ def model_logits(model, ids):
     if logits is None:
         logits = model.lm_head(out.last_hidden_state)
     return logits
+
+
+def _corpus_windows(tok, args):
+    """Training windows; ``--corpus-file`` mixes in AYOT agentic traces."""
+    data = windows(tok, args.windows, args.seq, args.seed, max_chars=args.corpus_chars)
+    if args.corpus_file:
+        agentic = windows_from_texts(tok, load_traces(args.corpus_file), args.windows,
+                                     args.seq, args.seed)
+        data = mix_windows(data, agentic, args.agentic_frac, args.seed)
+        print(f"corpus: {int(round(args.windows * args.agentic_frac))}/{args.windows} "
+              f"windows from {args.corpus_file}", flush=True)
+    return data
+
+
+def _quant_kwargs(args):
+    """CAT-Q knobs for ``quantize_bank_inplace`` when ``--quant catq``."""
+    if args.quant != "catq":
+        return {}
+    return {"catq_kw": {"steps": args.catq_steps, "lr": args.catq_lr,
+                        "gamma": args.catq_gamma, "s0": args.catq_s0}}
 
 
 @torch.no_grad()
@@ -287,7 +314,7 @@ def smoke(args):
 @torch.no_grad()
 def stage_cache(args):
     model, tok = load_full(args)
-    data = windows(tok, args.windows, args.seq, args.seed, max_chars=args.corpus_chars)
+    data = _corpus_windows(tok, args)
     recs = []
     for w in range(len(data)):
         ids = data[w:w + 1].to(args.device)
@@ -355,8 +382,10 @@ def stage_train(args):
     layers = text_layers(model)
     with torch.no_grad():
         for layer in layers:
-            quantize_bank_inplace(layer.mlp.experts.gate_up_proj, args.group, kind=args.quant)
-            quantize_bank_inplace(layer.mlp.experts.down_proj, args.group, kind=args.quant)
+            quantize_bank_inplace(layer.mlp.experts.gate_up_proj, args.group,
+                                  kind=args.quant, **_quant_kwargs(args))
+            quantize_bank_inplace(layer.mlp.experts.down_proj, args.group,
+                                  kind=args.quant, **_quant_kwargs(args))
             layer.mlp.experts._ternary = False          # banks already quantised
     hidden = getattr(model.config, "hidden_size", None) or model.config.text_config.hidden_size
     target = args.branch_target
@@ -387,7 +416,7 @@ def stage_train(args):
 
     cache_path = Path(args.cache_file) if args.cache_file else CACHE
     cache = torch.load(cache_path, map_location="cpu")
-    data = windows(tok, args.windows, args.seq, args.seed, max_chars=args.corpus_chars)
+    data = _corpus_windows(tok, args)
 
     ref = None
     ev = None
@@ -420,9 +449,13 @@ def stage_train(args):
             ti = rec["idx"].to(logits.device)
             tv = rec["val"].to(logits.device).float()
             s_sel = logits[:, :-1].gather(-1, ti).reshape(-1, ti.shape[-1])
-            kd = F.kl_div(F.log_softmax(s_sel.float() / args.temp, dim=-1),
-                          F.log_softmax(tv.reshape(-1, tv.shape[-1]) / args.temp, dim=-1),
-                          log_target=True, reduction="batchmean") * (args.temp ** 2)
+            if args.kd_filter_frac > 0:
+                kd = kd_filtered(s_sel, tv.reshape(-1, tv.shape[-1]),
+                                 args.temp, args.kd_filter_frac)
+            else:
+                kd = F.kl_div(F.log_softmax(s_sel.float() / args.temp, dim=-1),
+                              F.log_softmax(tv.reshape(-1, tv.shape[-1]) / args.temp, dim=-1),
+                              log_target=True, reduction="batchmean") * (args.temp ** 2)
             loss = lm + args.kd_weight * kd
             loss.backward()
             opt.step()
@@ -472,8 +505,10 @@ def stage_eval(args):
     layers = text_layers(model)
     with torch.no_grad():
         for layer in layers:
-            quantize_bank_inplace(layer.mlp.experts.gate_up_proj, args.group, kind=args.quant)
-            quantize_bank_inplace(layer.mlp.experts.down_proj, args.group, kind=args.quant)
+            quantize_bank_inplace(layer.mlp.experts.gate_up_proj, args.group,
+                                  kind=args.quant, **_quant_kwargs(args))
+            quantize_bank_inplace(layer.mlp.experts.down_proj, args.group,
+                                  kind=args.quant, **_quant_kwargs(args))
             layer.mlp.experts._ternary = False
     hidden = getattr(model.config, "hidden_size", None) or model.config.text_config.hidden_size
     for layer in layers:
@@ -525,14 +560,24 @@ def main():
     ap.add_argument("--prefix-layers", type=int, default=0,
                     help="run the full stages on an N-layer prefix (local dry runs only)")
     ap.add_argument("--group", type=int, default=128)
-    ap.add_argument("--quant", choices=["absmean", "lloyd"], default="lloyd",
-                    help="per-group scale rule for the frozen banks (lloyd = deployable)")
+    ap.add_argument("--quant", choices=["absmean", "lloyd", "catq"], default="lloyd",
+                    help="per-group scale rule for the frozen banks (lloyd = deployable; "
+                         "catq = learned LM+ST reconstruction)")
+    ap.add_argument("--catq-steps", type=int, default=200,
+                    help="CAT-Q reconstruction steps when --quant catq")
+    ap.add_argument("--catq-lr", type=float, default=0.05)
+    ap.add_argument("--catq-gamma", type=float, default=0.8)
+    ap.add_argument("--catq-s0", type=float, default=30.0)
     ap.add_argument("--rank", type=int, default=512)
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"], default="fp32")
     ap.add_argument("--branch-target", choices=["moe_out", "attn_out", "both"], default="both",
                     help="moe_out (block output), attn_out (ssm_out/o_proj), or both")
     ap.add_argument("--windows", type=int, default=4096)
     ap.add_argument("--corpus-chars", type=int, default=50_000_000)
+    ap.add_argument("--corpus-file", default="",
+                    help="AYOT trace JSONL mixed into the training windows")
+    ap.add_argument("--agentic-frac", type=float, default=0.1,
+                    help="fraction of rows drawn from --corpus-file (AYOT: 0.1)")
     ap.add_argument("--cache-file", default="")
     ap.add_argument("--eval-windows", type=int, default=8)
     ap.add_argument("--seq", type=int, default=512)
@@ -546,6 +591,9 @@ def main():
     ap.add_argument("--optimizer", choices=["adafactor", "adamw"], default="adafactor")
     ap.add_argument("--temp", type=float, default=2.0)
     ap.add_argument("--kd-weight", type=float, default=1.0)
+    ap.add_argument("--kd-filter-frac", type=float, default=0.0,
+                    help="drop this fraction of the largest per-token KD losses "
+                         "(SignRoundV2 uses 0.001; 0 = off)")
     ap.add_argument("--eval-every", type=int, default=0)
     ap.add_argument("--ref-file", default="",
                     help="precomputed teacher router refs for the in-run eval "
