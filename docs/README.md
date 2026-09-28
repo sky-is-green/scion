@@ -9,6 +9,7 @@
 | [QWEN35-PORT-DECISION.md](QWEN35-PORT-DECISION.md) | the `qwen3_5_moe` (Qwen3.5/3.8) port decision record |
 | [TAIL-EXPERIMENT-PLAN.md](TAIL-EXPERIMENT-PLAN.md) | **current path:** KLD beyond the teacher's top-50 (queued; needs a GPU) |
 | [FAILURES.md](FAILURES.md) | negative register for this track (D1–D8) |
+| [launch/](launch/) | public launch copy: Reddit body, community notes, discussion replies (copy-paste blocks) |
 | [archive/](archive/) | superseded drafts kept for provenance |
 
 Harness and experiments:
