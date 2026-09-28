@@ -100,10 +100,12 @@ kld)
   # NB kld_eval takes its own (narrower) flag set -- only the prefix depth and
   # the sequence length are shared with the train stage; --windows/--corpus-chars
   # are training-corpus knobs and have no meaning here.
+  #   usage: phase1-w1.sh kld <ckpt> <tag> [measure-topk]
   ckpt="${2:?checkpoint}"
   tag="${3:?tag}"
+  topk="${4:-0}"
   run "$PY" $KLD --prefix-layers 4 --seq 512 "${RECIPE_EVAL[@]}" --device cuda:0 \
-      --eval-windows 8 --load "$ckpt" --out "$MOE/kld-$tag.json"
+      --eval-windows 8 --measure-topk "$topk" --load "$ckpt" --out "$MOE/kld-$tag.json"
   ;;
 
 kld-body)

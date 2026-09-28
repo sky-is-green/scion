@@ -73,6 +73,7 @@ Measured observations (keep these honest):
 | body (no branches) | 0.1452 | 0.6788 | 2.4232 | 10.83 | 0.0213 | no |
 | armA (top-50) | 1.6391 | 5.5072 | 6.8429 | 7.42 | 0.1475 | yes |
 | armC (top-512) | 1.3272 | 4.7196 | 5.8458 | 7.87 | 0.1475 | yes |
+| lmonly (kd 0) | 4.5440 | 11.0062 | 15.3861 | 5.70 | 0.2024 | yes |
 
 teacher: entropy 10.77 nats, top-1 mass 0.0230.
 
@@ -80,21 +81,41 @@ Top-k expansion does help — armC beats armA by 19% on mean, 14% on p99 and max
 But both trained arms are ~10x worse than the *uncorrected body*, so the gate
 fails, and the diagnosis is that **the correction branches break the
 distribution, not the top-k budget**. They are trained on LM + top-k KD only,
-which never constrains the other 248k logits, so they sharpen without
-constraint: entropy 10.77 → 7.42 nats, top-1 mass 6x higher. PPL improves
-(83989 → 512) while full-vocab KLD worsens, which is the canary failure mode
-from the tail plan, now quantified.
+so they sharpen without constraint: entropy 10.77 → 7.42 nats, top-1 mass 6x
+higher. PPL improves (83989 → 512) while full-vocab KLD worsens, which is the
+canary failure mode from the tail plan, now quantified.
 
-Consequence for the order below: **Step 2 of the tail plan (a tail term in the
-loss) is the binding constraint**, and more cache arms are not. W1 arms B/C
-should be re-read as "top-512 helps a little; nothing helps until the tail is in
-the objective." `kld_eval.py` reports `sharper_than_teacher` so this failure mode
-cannot be mistaken for a quantizer regression.
+**The `lmonly` ablation identifies which term does it.** `--kd-weight 0` gives
+mean KLD 4.5440 (+242% vs armC), p99 +133%, max +163%, and sharpens *harder*
+(entropy 5.70, peak 0.202). So the **LM term is the primary cause**: dropping KD
+makes everything worse, meaning KD was already the only thing resisting the
+collapse. A tail constraint bolted onto the KD term is the wrong lever.
 
-`kld-*.json` in `$MOE_ARTIFACTS/qwen35/`. p99.9 was unresolved in all three runs
-(rank 5 of 4088) — the comparison was argued on `max` and the mean. The `top1_agreement`
-field in those files is teacher/student *logit* argmax, **not** router agreement;
-the routing number remains the in-run `router_agree` (0.74-0.79).
+**And the KD term is blind for a measurable reason.** `kld_eval.py
+--measure-topk 512`, from the full-vocab log-softmax, gives mean captured mass
+**0.1704** (p01 0.0455, min 0.0366) — the cache holds 17% of teacher mass, and
+the 512-support distribution the KD term optimises renormalises over the other
+83% as if it did not exist. Consistent with 50 → 512 buying only 19%: coverage
+rises slowly, not across a regime boundary. (Measured on wikitext eval windows
+while the caches are fineweb-edu, so order-of-magnitude.)
+
+Consequences for the order below:
+
+1. **Rebalance the loss** — raise `--kd-weight`. One flag, and the ablation says
+   the gradient exists. A trade, not a fix: the PPL gains are the point of the
+   method, so read PPL and KLD together. v1 defaults stay frozen.
+2. **Residual-mass term** (tail plan 2a) — the better second build now that 83%
+   of the mass is out there to match, and since the failure is not specifically
+   near-tie flips.
+3. Not now: W4 (filters the largest KD losses, i.e. the term that is not the
+   problem), W2a (body quantizer, cannot close a loss-function gap), arm B.
+
+`kld-*.json` and `kld-cov512.json` in `$MOE_ARTIFACTS/qwen35/`. `kld_eval.py`
+reports `sharper_than_teacher` and `topk_coverage` so this failure mode cannot be
+mistaken for a quantizer regression. p99.9 was unresolved in all runs (rank 5 of
+4088) — the comparison was argued on `max` and the mean. `top1_agreement` is
+teacher/student *logit* argmax, **not** router agreement; the routing number
+remains the in-run `router_agree`.
 
 **Read the gate number with its sample size.**  `kld_eval.py` reports
 `p999_rank`, the number of tokens at or above the p99.9 position, because that
@@ -148,21 +169,27 @@ real `lm_head` on truncated hidden states is not a language model, so its PPL
 
 ## Order and gates
 
-Revised after the Phase 1 result above — the ordering changed because the
-binding constraint turned out not to be the one this list assumed.
+Revised twice: after the Phase 1 result, then again after the `lmonly` ablation
+and the `--measure-topk` coverage result. The binding constraint is the **balance
+between the two loss terms**, not the size of k and not a missing tail term.
 
-1. **Tail term in the loss** (tail plan Step 2: residual-mass, rank/margin, or
-   top-k expansion *plus* a tail constraint). This is now the blocker. Nothing
-   else moves the KLD tail while the objective leaves 248k logits unconstrained.
-2. W1 re-run on top of the tail term: A vs C, and B once traces exist. Top-512
-   alone bought 19% on mean KLD and is worth keeping, but it is not the fix.
-3. W4 (`--kd-filter-frac 0.001`) folded into the winning arm (free). Note it
-   filters the *largest* per-token KD losses, so it attacks the opposite end of
-   the problem from the tail term — treat it as a separate variable, not a
-   substitute.
-4. W2a on the winning setup; W2b only if warranted. CAT-Q changes the body
+1. **Rebalance: `--kd-weight` sweep** (`phase1-w1.sh train-kdw <w>`). The
+   ablation says the LM term causes the collapse and KD is the only thing
+   resisting it, so push the other way. Read PPL and KLD together — the PPL
+   gains are the point of the method and this is a trade, not a fix. v1 defaults
+   stay at 1.0; nothing ships off this without a case for it.
+2. **Residual-mass term** (tail plan 2a) if rebalancing is not enough. Now the
+   preferred tail term over rank/margin: the top-512 cache holds 17% of teacher
+   mass, so 83% is available to match, and the failure is not specifically
+   near-tie flips.
+3. W1 re-run on the winning configuration: A vs C, and B once traces exist.
+   Top-512 alone bought 19% and is worth keeping, but it is not the fix.
+4. W4 (`--kd-filter-frac 0.001`) as a separate variable on the winning arm. It
+   filters the *largest* per-token KD losses, so it acts on the opposite end of
+   the problem from the tail — not a substitute for steps 1-2.
+5. W2a on the winning setup; W2b only if warranted. CAT-Q changes the body
    quantizer, so it cannot fix a loss-function gap; do not expect it to.
-5. W3 anytime (diagnostic).
+6. W3 anytime (diagnostic).
 
 Trace generation gates **arm B only**: arms A/C, W2, W3 and W4 run without
 traces, and generation can be bundled into any pod session (it is minutes on
