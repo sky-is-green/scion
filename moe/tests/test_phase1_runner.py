@@ -121,7 +121,7 @@ def test_stage_flags_are_accepted(stage, script):
     mod = __import__(Path(script).stem)
     parser = mod.build_parser()
     try:
-        parser.parse_args(flags)
+        parser.parse_args(_with_values_for(parser, flags))
     except SystemExit:
         pytest.fail(f"stage {stage} passes flags {script} rejects: {flags}")
 
@@ -169,6 +169,32 @@ def test_every_case_arm_is_covered_by_a_test():
     assert not unknown, f"unregistered runner stages: {sorted(unknown)}"
 
 
+def _with_values_for(parser, flags: list[str]) -> list[str]:
+    """Drop the dummy value after any flag the parser defines as valueless.
+
+    ``_flags_of`` pairs every flag with a value, which is right for
+    ``--opt X`` and wrong for ``--store-true`` -- argparse then reads the next
+    flag as the value and reports it as an extra argument.
+    """
+    valueless = {("--" + a.dest).replace("_", "-")
+                 for a in parser._actions if a.const in (True, False) or
+                 a.nargs == 0}
+    out: list[str] = []
+    i = 0
+    while i < len(flags):
+        tok = flags[i]
+        nxt = flags[i + 1] if i + 1 < len(flags) else None
+        out.append(tok)
+        if tok in valueless:
+            if nxt is not None and not nxt.startswith("--"):
+                i += 1        # swallow the dummy value _flags_of inserted
+        elif nxt is not None:
+            out.append(nxt)
+            i += 1
+        i += 1
+    return out
+
+
 @pytest.mark.parametrize("stage", sorted(PROXY_STAGES))
 def test_proxy_stages_flags_are_accepted(stage):
     """The proxy stages compose from SHARED/RECIPE, so they need the same check."""
@@ -182,7 +208,8 @@ def test_proxy_stages_flags_are_accepted(stage):
            "train-lmonly": "train", "train-kdw": "train"}[stage]
     parser = proxy.build_parser()
     try:
-        parser.parse_args([sub, *flags])
+        parser.parse_args([sub, *_with_values_for(parser, flags)])
+        assert parser.parse_args([sub]).stage == sub
     except SystemExit:
         pytest.fail(f"stage {stage} passes flags the proxy rejects: {flags}")
 

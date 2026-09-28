@@ -479,6 +479,17 @@ def stage_train(args):
                               F.log_softmax(tv.reshape(-1, tv.shape[-1]) / args.temp, dim=-1),
                               log_target=True, reduction="batchmean") * (args.temp ** 2)
             loss = lm + args.kd_weight * kd
+            if args.log_entropy:
+                # The sharpening signature the Phase 1 KLD gate found: entropy
+                # and peak top-1 mass, read straight off the training logits so a
+                # --kd-weight sweep is self-diagnosing and does not need a KLD run
+                # per checkpoint. Diagnostic only -- costs a no-grad pass.
+                with torch.no_grad():
+                    flat = logits[:, :-1].reshape(-1, logits.shape[-1]).float()
+                    lp = F.log_softmax(flat, dim=-1)
+                    ent = float(-(lp.exp() * lp).sum(-1).mean())
+                    peak = float(lp.exp().max(-1).values.mean())
+                    del lp, flat
             loss.backward()
             opt.step()
             opt.zero_grad(set_to_none=True)
@@ -489,8 +500,11 @@ def stage_train(args):
                     g["lr"] *= 0.5
                 print(f"step {step}: lr -> {opt.param_groups[0]['lr']:.3e}", flush=True)
             if step % args.log_every == 0:
+                extra = ""
+                if args.log_entropy:
+                    extra = f" H {ent:.3f} peak {peak:.4f}"
                 print(f"step {step} lm {lm.item():.4f} kd {kd.item():.4f} "
-                      f"total {loss.item():.4f}", flush=True)
+                      f"total {loss.item():.4f}{extra}", flush=True)
             if args.eval_every and step % args.eval_every == 0 and ev is not None:
                 ppl, ag = quick_eval(model, ev, args, ref)
                 print(f"  [eval] step {step} ppl {ppl:.2f} router_agree {ag:.4f}",
@@ -610,6 +624,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--tag", default="",
                     help="suffix for checkpoint filenames; set it whenever two arms "
                          "share rank/branch-quant/steps, or they overwrite each other")
+    ap.add_argument("--log-entropy", action="store_true",
+                    help="also log training entropy and peak top-1 mass each "
+                         "--log-every steps. Diagnostic for the --kd-weight sweep: "
+                         "these are the quantities the KLD gate showed collapsing. "
+                         "Costs a no-grad forward over the vocab; off by default")
     ap.add_argument("--resume", default="",
                     help="resume training from a branch checkpoint (step number from the filename)")
     return ap

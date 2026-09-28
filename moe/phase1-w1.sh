@@ -73,7 +73,7 @@ train-lmonly)
   steps="${2:-4096}"
   run "$PY" $PROXY train "${SHARED[@]}" --quant lloyd --branch-quant g128 \
       --branch-target both --rank 512 --kd-weight 0.0 --temp 2.0 \
-      --device-map cuda:0 --device cuda:0 \
+      --device-map cuda:0 --device cuda:0 --log-entropy \
       --cache-file "$MOE/prefix-top512.pt" --ref-file "$MOE/eval-ref-w2.pt" \
       --tag "lmonly" \
       --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
@@ -87,9 +87,12 @@ train-kdw)
   # Always tagged with the weight, so a sweep cannot overwrite itself.
   w="${2:?weight}"
   steps="${3:-4096}"
+  # --log-entropy makes the sweep self-diagnosing: entropy and peak top-1 mass are
+  # exactly what the KLD gate showed collapsing, so the shape of the answer is
+  # visible in the log without a KLD run per checkpoint.
   run "$PY" $PROXY train "${SHARED[@]}" --quant lloyd --branch-quant g128 \
       --branch-target both --rank 512 --kd-weight "$w" --temp 2.0 \
-      --device-map cuda:0 --device cuda:0 \
+      --device-map cuda:0 --device cuda:0 --log-entropy \
       --cache-file "$MOE/prefix-top512.pt" --ref-file "$MOE/eval-ref-w2.pt" \
       --tag "kdw$w" \
       --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
