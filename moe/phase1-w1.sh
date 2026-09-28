@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Phase 1 (W1) — arms A and C on a 4-layer prefix.  GPU stage.
+#
+# Gate (docs/TAIL-EXPERIMENT-PLAN.md step 1): full-vocab KLD p99.9 and max must
+# improve materially vs arm A.  PPL alone is not the signal.
+#
+#   arm A : --top-logits 50            the v1 reference
+#   arm C : --top-logits 512           isolates top-k expansion from AYOT
+#
+# Arm B (AYOT traces) is NOT here: it needs teacher traces, which need the full
+# BF16 teacher on a rental pod.
+#
+# Stop rules honoured: cache and train share --windows/--corpus-chars/--seq/--seed
+# (or the KD targets desync), and every stage echoes its exact flags.
+set -euo pipefail
+
+PY="${PY:-$HOME/Desktop/work/.venv-rocm/bin/python}"
+export MOE_ARTIFACTS="${MOE_ARTIFACTS:-$HOME/Desktop/work/hivebench/artifacts/ternary/moe}"
+MOE="$MOE_ARTIFACTS/qwen35"
+PROXY=moe/qwen35_moe_proxy.py
+KLD=moe/kld_eval.py
+
+# shared between cache and train -- must not drift
+SHARED=(--prefix-layers 4 --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0)
+
+# The frozen v1 recipe, prefix-scoped.  KEEP separate from RECIPE: the KD
+# weight/temp are *training* loss knobs and kld_eval.py has no such flags, so
+# sharing one array makes every kld stage die on argparse.
+RECIPE=(--quant lloyd --branch-quant g128 --branch-target both --rank 512
+        --kd-weight 1.0 --temp 2.0)
+
+# the subset kld_eval.py actually accepts
+RECIPE_EVAL=(--quant lloyd --branch-quant g128 --branch-target both --rank 512)
+
+CARD="${CARD:-1}"
+run() { echo "### $*"; HIP_VISIBLE_DEVICES=$CARD "$@"; }
+
+mkdir -p "$MOE" logs
+
+case "${1:-all}" in
+ref)
+  run "$PY" $PROXY ref "${SHARED[@]}" --device cuda:0 \
+      --ref-file "$MOE/eval-ref-w2.pt"
+  ;;
+
+cache)
+  arm="${2:?arm: a|c}"
+  k=50; [ "$arm" = c ] && k=512
+  run "$PY" $PROXY cache "${SHARED[@]}" --device cuda:0 \
+      --top-logits $k --cache-file "$MOE/prefix-top$k.pt"
+  ;;
+
+train)
+  arm="${2:?arm: a|c}"
+  k=50; [ "$arm" = c ] && k=512
+  # --tag is mandatory: without it both arms write the same
+  # qwen35-corr-r512-g128-stepNNNN.pt and the second silently destroys the first.
+  run "$PY" $PROXY train "${SHARED[@]}" "${RECIPE[@]}" \
+      --device-map cuda:0 --device cuda:0 \
+      --cache-file "$MOE/prefix-top$k.pt" --ref-file "$MOE/eval-ref-w2.pt" \
+      --tag "arm$arm" \
+      --epochs 1 --steps 4096 --eval-every 1000 --ckpt-every 1000 --log-every 100
+  ;;
+
+kld)
+  # the gate instrument: same prefix, same placement, checkpoint under test.
+  # NB kld_eval takes its own (narrower) flag set -- only the prefix depth and
+  # the sequence length are shared with the train stage; --windows/--corpus-chars
+  # are training-corpus knobs and have no meaning here.
+  ckpt="${2:?checkpoint}"
+  tag="${3:?tag}"
+  run "$PY" $KLD --prefix-layers 4 --seq 512 "${RECIPE_EVAL[@]}" --device cuda:0 \
+      --eval-windows 8 --load "$ckpt" --out "$MOE/kld-$tag.json"
+  ;;
+
+kld-body)
+  # tail-plan Step 0 baseline: the *uncorrected* body's KLD, never measured --
+  # only its PPL was.  No --load, so this is the bare ternarised body, which is
+  # the honest "before" number the gate should be read against.
+  run "$PY" $KLD --prefix-layers 4 --seq 512 "${RECIPE_EVAL[@]}" --device cuda:0 \
+      --eval-windows 8 --out "$MOE/kld-body.json"
+  ;;
+
+steer)
+  # W3 diagnostic, rides along on the same card
+  run env PYTHONPATH="$HOME/Desktop/work/autogrid" \
+      "$PY" moe/steer_probe.py --prefix-layers 4 --device cuda:0 \
+      --windows 2 --seq 512 --quantizer lloyd --group 128 \
+      --out "$MOE/steer-rank.json"
+  ;;
+
+*)
+  echo "stages: ref | cache <a|c> | train <a|c> | kld <ckpt> <tag> |"
+  echo "        kld-body | steer"; exit 2;;
+esac
