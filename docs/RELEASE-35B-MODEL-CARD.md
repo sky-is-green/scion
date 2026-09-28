@@ -26,7 +26,7 @@ tags:
 > [`bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics).
 
 <p align="center">
-  <a href="https://github.com/sky-is-green/scion"><b>GitHub: harness and docs</b></a> &nbsp;|&nbsp;
+  <a href="https://github.com/sky-is-green/scion"><b>GitHub: Build-scripts and docs</b></a> &nbsp;|&nbsp;
   <a href="https://github.com/sky-is-green/bonsai2-ternary-forensics"><b>Forensics study</b></a> &nbsp;|&nbsp;
   <a href="https://github.com/sky-is-green/prism-ml-llama.cpp/tree/moe-corr-runtime"><b>Runtime fork</b></a> &nbsp;|&nbsp;
   <a href="https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B/discussions"><b>Discussions</b></a>
@@ -157,8 +157,8 @@ The PQ2_0 container, the legacy `Q1_0_g128` import, the `ffn_moe_out` virtual
 target and embedded adapters all live in the fork. **Stock llama.cpp will not
 run this file**: it treats `PQ2_0` and `Q1_0_g128` as unknown tensor types.
 Upstream's own `Q2_0` (type 42, g64) is a different container and is not a
-substitute. The fork's default branch is the one you want, so a plain clone is
-enough.
+substitute.
+The fork's default branch is the one you want, so a plain clone is enough.
 
 ```bash
 # build the runtime
