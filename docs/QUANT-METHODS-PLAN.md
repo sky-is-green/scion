@@ -30,9 +30,12 @@ the frozen v1 recipe.
 | `moe/catq.py` | LM + ST port, per-group factors, hard-ternarize export, `ternary_catq` for the bank quantizer | `--quant` unchanged (lloyd) |
 | `moe/ayot.py` | trace/prompt JSONL loaders, trace→window packing, agentic-fraction mixing | off |
 | `moe/ayot_gen.py` | teacher trace generator (GPU stage; `--dry-run` validates prompts) | n/a |
-| `moe/qwen35_moe_proxy.py` | flags `--quant catq`, `--catq-*`, `--kd-filter-frac`, `--corpus-file`, `--agentic-frac`; cache and train share `_corpus_windows` | frozen v1 |
+| `moe/build_ayot_prompts.py` | builds the 512-row prompt set (128 math / 128 coding / 256 fineweb-edu, 50/50) | n/a |
+| `moe/kld_eval.py` | **W1 gate instrument**: full-vocab KLD (mean/p99/p99.9/max) + top-1 agreement, FP prefix teacher vs corrected student | n/a |
+| `moe/steer_probe.py` | **W3 runner**: hooks every `nn.Linear` input, scores it with `autogrid_ext.steer.deltaloss_linear` under the deployed quantizer, writes a ranked JSON | n/a |
+| `moe/qwen35_moe_proxy.py` | flags `--quant catq`, `--catq-*`, `--kd-filter-frac`, `--corpus-file`, `--agentic-frac`, `--top-logits`; `build_student` shared by train/eval/`kld_eval` | frozen v1 |
 | `autogrid_ext/steer.py` | DeltaLoss for a linear weight given calibration inputs | library only |
-| tests | `moe/tests/test_quant_methods.py` (10), `autogrid/tests/test_steer.py` (3) | green on CPU |
+| tests | `moe/tests/` (36), `autogrid/tests/test_steer.py` (3) | green on CPU |
 
 Measured observations (keep these honest):
 
@@ -61,6 +64,54 @@ Measured observations (keep these honest):
    agreement + **full-vocab KLD** on the prefix eval windows.
 4. Gate: KLD 99.9% and max must improve materially (tail plan's Step 1 gate).
 
+### Phase 1 result (2026-09-28): the gate FAILS, and top-k is not the reason
+
+4-layer prefix, 4096 windows, wikitext seed 999, 4088 eval tokens:
+
+| run | mean KLD | p99 | max | s-entropy | s-peak | sharper? |
+|---|---|---|---|---|---|---|
+| body (no branches) | 0.1452 | 0.6788 | 2.4232 | 10.83 | 0.0213 | no |
+| armA (top-50) | 1.6391 | 5.5072 | 6.8429 | 7.42 | 0.1475 | yes |
+| armC (top-512) | 1.3272 | 4.7196 | 5.8458 | 7.87 | 0.1475 | yes |
+
+teacher: entropy 10.77 nats, top-1 mass 0.0230.
+
+Top-k expansion does help — armC beats armA by 19% on mean, 14% on p99 and max.
+But both trained arms are ~10x worse than the *uncorrected body*, so the gate
+fails, and the diagnosis is that **the correction branches break the
+distribution, not the top-k budget**. They are trained on LM + top-k KD only,
+which never constrains the other 248k logits, so they sharpen without
+constraint: entropy 10.77 → 7.42 nats, top-1 mass 6x higher. PPL improves
+(83989 → 512) while full-vocab KLD worsens, which is the canary failure mode
+from the tail plan, now quantified.
+
+Consequence for the order below: **Step 2 of the tail plan (a tail term in the
+loss) is the binding constraint**, and more cache arms are not. W1 arms B/C
+should be re-read as "top-512 helps a little; nothing helps until the tail is in
+the objective." `kld_eval.py` reports `sharper_than_teacher` so this failure mode
+cannot be mistaken for a quantizer regression.
+
+`kld-*.json` in `$MOE_ARTIFACTS/qwen35/`. p99.9 was unresolved in all three runs
+(rank 5 of 4088) — the comparison was argued on `max` and the mean. The `top1_agreement`
+field in those files is teacher/student *logit* argmax, **not** router agreement;
+the routing number remains the in-run `router_agree` (0.74-0.79).
+
+**Read the gate number with its sample size.**  `kld_eval.py` reports
+`p999_rank`, the number of tokens at or above the p99.9 position, because that
+percentile sits n/1000-th from the top by construction: at the default 8 eval
+windows (4088 tokens) it is the 5th-worst token, so p99.9 and max are nearly the
+same measurement and `p999_resolved` is false.  Lean on `max` and
+`worst_tokens` (which record window and position, so a spike is inspectable
+rather than merely reported) until the instrument runs at >= 1e5 tokens.
+Resolving p99.9 properly needs more eval windows than host memory allows at a
+248k vocab — the parked teacher log-probs are 4 GB for 8 windows — so a real
+p99.9 wants teacher and student co-resident and streaming.  Follow-up, not this
+run.
+
+Prefix PPL is also not comparable to the 35B numbers: a 4-layer prefix with a
+real `lm_head` on truncated hidden states is not a language model, so its PPL
+(~10^2-10^3) is only meaningful arm-to-arm at fixed depth.
+
 ### W2 — CAT-Q body A/B
 
 - **W2a (cheap):** `--quant catq` vs `--quant lloyd`, same corrections;
@@ -76,8 +127,20 @@ Measured observations (keep these honest):
 
 - Rank STEER tensors on a prefix with `deltaloss_linear` and the deployed
   container quantizer; compare with the routing-drift placement findings.
-- Next CPU step: a thin `steer_probe.py` runner (hook first-layer inputs,
-  iterate modules).  The metric itself is CPU; the model wants a card.
+- `moe/steer_probe.py` is the runner (hook each linear's input, iterate modules,
+  write ranked JSON).  The metric is CPU; the model wants a card.  Scope: the
+  `nn.Linear` set the recipe leaves in FP — attention q/k/v/o, the GDN
+  projections, `mlp.shared_expert`, and `mlp.shared_expert_gate`.  The fused
+  expert banks and the router `mlp.gate` are the ternary *target*, not STEER
+  candidates, and are excluded.
+- **First run (4-layer prefix, 2 windows, lloyd g128, 35 linears):** by mean
+  normalised DeltaLoss, `gdn` 0.365 > `attn` 0.294 >> `shared_expert` 0.043.
+  Top tensors are `mlp.shared_expert_gate` (layers 0-1), then
+  `linear_attn.in_proj_b`/`in_proj_a`, then `self_attn.q_proj`.  Read as a
+  diagnostic only: 4 layers and 2 calibration windows is a very small sample,
+  DeltaLoss scales with tensor size, and nothing here is a routing result.  The
+  ordering does put the shared-expert gate and the GDN in-projections at the top,
+  which is worth a look against the E1 placement rule.
 
 ### W4 — loss filtering (free)
 
@@ -85,10 +148,21 @@ Measured observations (keep these honest):
 
 ## Order and gates
 
-1. W1 (A vs B vs C) → does the tail move?
-2. W4 folded into the winning W1 arm (free).
-3. W2a on the winning setup; W2b only if warranted.
-4. W3 anytime (diagnostic).
+Revised after the Phase 1 result above — the ordering changed because the
+binding constraint turned out not to be the one this list assumed.
+
+1. **Tail term in the loss** (tail plan Step 2: residual-mass, rank/margin, or
+   top-k expansion *plus* a tail constraint). This is now the blocker. Nothing
+   else moves the KLD tail while the objective leaves 248k logits unconstrained.
+2. W1 re-run on top of the tail term: A vs C, and B once traces exist. Top-512
+   alone bought 19% on mean KLD and is worth keeping, but it is not the fix.
+3. W4 (`--kd-filter-frac 0.001`) folded into the winning arm (free). Note it
+   filters the *largest* per-token KD losses, so it attacks the opposite end of
+   the problem from the tail term — treat it as a separate variable, not a
+   substitute.
+4. W2a on the winning setup; W2b only if warranted. CAT-Q changes the body
+   quantizer, so it cannot fix a loss-function gap; do not expect it to.
+5. W3 anytime (diagnostic).
 
 Trace generation gates **arm B only**: arms A/C, W2, W3 and W4 run without
 traces, and generation can be bundled into any pod session (it is minutes on
