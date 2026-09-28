@@ -24,7 +24,7 @@ sys.path.insert(0, str(MOE))
 TARGETS = {"kld": "kld_eval.py", "kld-body": "kld_eval.py", "steer": "steer_probe.py"}
 
 # stages that go through the proxy rather than a separate instrument
-PROXY_STAGES = {"ref", "cache", "train", "train-lmonly"}
+PROXY_STAGES = {"ref", "cache", "train", "train-lmonly", "train-kdw"}
 
 
 def _stage_blocks() -> dict[str, list[str]]:
@@ -179,7 +179,7 @@ def test_proxy_stages_flags_are_accepted(stage):
     # the proxy takes a positional stage name; the runner supplies it as the
     # first argument, so prepend a valid one
     sub = {"ref": "ref", "cache": "cache", "train": "train",
-           "train-lmonly": "train"}[stage]
+           "train-lmonly": "train", "train-kdw": "train"}[stage]
     parser = proxy.build_parser()
     try:
         parser.parse_args([sub, *flags])
@@ -199,3 +199,19 @@ def test_lmonly_ablation_actually_zeroes_kd():
     assert "prefix-top512.pt" in body
     # but keep the train-only knobs out of it
     assert "--kd-filter-frac" not in body
+
+
+def test_kdw_sweep_tags_by_weight():
+    """A sweep over --kd-weight must not overwrite itself.
+
+    Every weight lands in its own --tag, so kdw2 and kdw5 are separate
+    checkpoints. The arms differ only in the weight, so the tag is the only
+    thing keeping them apart.
+    """
+    body = "\n".join(_stage_blocks()["train-kdw"])
+    assert '"kdw$w"' in body, "train-kdw must derive --tag from the weight"
+    assert "prefix-top512.pt" in body, "sweep must hold the cache fixed"
+    # the weight comes from the caller, not a literal, so a sweep is possible
+    m = re.search(r'w="\$\{2:\?weight\}"', body)
+    assert m, "train-kdw must take the weight as an argument"
+    assert '"$w"' in body, "train-kdw must pass the weight through"

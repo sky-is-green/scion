@@ -79,6 +79,22 @@ train-lmonly)
       --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
   ;;
 
+train-kdw)
+  # Loss rebalance sweep, the experiment the ablation points at: --kd-weight 0
+  # tripled mean KLD (1.33 -> 4.54) and sharpened harder (entropy 7.87 -> 5.70),
+  # so the LM term is what collapses the tail.  This pushes the other way.
+  #   usage: phase1-w1.sh train-kdw <weight> [steps]
+  # Always tagged with the weight, so a sweep cannot overwrite itself.
+  w="${2:?weight}"
+  steps="${3:-4096}"
+  run "$PY" $PROXY train "${SHARED[@]}" --quant lloyd --branch-quant g128 \
+      --branch-target both --rank 512 --kd-weight "$w" --temp 2.0 \
+      --device-map cuda:0 --device cuda:0 \
+      --cache-file "$MOE/prefix-top512.pt" --ref-file "$MOE/eval-ref-w2.pt" \
+      --tag "kdw$w" \
+      --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
+  ;;
+
 kld)
   # the gate instrument: same prefix, same placement, checkpoint under test.
   # NB kld_eval takes its own (narrower) flag set -- only the prefix depth and
@@ -108,5 +124,6 @@ steer)
 
 *)
   echo "stages: ref | cache <a|c> | train <a|c> | train-lmonly [steps] |"
-  echo "        kld <ckpt> <tag> | kld-body | steer"; exit 2;;
+  echo "        train-kdw <weight> [steps] | kld <ckpt> <tag> | kld-body | steer"
+  exit 2;;
 esac
