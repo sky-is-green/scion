@@ -376,17 +376,26 @@ def load_full(args):
     return model, tok
 
 
-def stage_train(args):
-    patch_experts(args.group)
-    model, tok = load_full(args)
-    layers = text_layers(model)
+def ternarize_banks(model, args) -> None:
+    """Freeze the expert banks in place under the selected scale rule."""
     with torch.no_grad():
-        for layer in layers:
+        for layer in text_layers(model):
             quantize_bank_inplace(layer.mlp.experts.gate_up_proj, args.group,
                                   kind=args.quant, **_quant_kwargs(args))
             quantize_bank_inplace(layer.mlp.experts.down_proj, args.group,
                                   kind=args.quant, **_quant_kwargs(args))
             layer.mlp.experts._ternary = False          # banks already quantised
+
+
+def attach_branches(model, args) -> int:
+    """Wrap the MoE / attention outputs in correction branches.  Returns n_trainable.
+
+    Placement map (unchanged since v1): ``moe_out`` wraps ``layer.mlp``;
+    ``attn_out`` wraps the GDN ``linear_attn.out_proj`` (ssm_out in GGUF) or the
+    full-attention ``self_attn.o_proj`` (attn_output).  Both project
+    value_dim -> hidden, so the branch takes explicit in/out dims.
+    """
+    layers = text_layers(model)
     hidden = getattr(model.config, "hidden_size", None) or model.config.text_config.hidden_size
     target = args.branch_target
     for layer in layers:
@@ -395,24 +404,37 @@ def stage_train(args):
             layer.mlp = MoEWithCorrection(layer.mlp, hidden, args.rank,
                                           args.branch_quant, args.quant).to(dev)
         if target in ("attn_out", "both"):
-            # GDN layers project through linear_attn.out_proj (ssm_out in GGUF);
-            # full-attention layers through self_attn.o_proj (attn_output).
-            # Both map value_dim (4096) -> hidden (2048), so the branch needs
-            # separate in/out dims.
             if getattr(layer, "layer_type", "") == "linear_attention":
                 proj = layer.linear_attn.out_proj
                 layer.linear_attn.out_proj = MoEWithCorrection(
-                    proj, proj.in_features, args.rank, args.branch_quant, args.quant,
-                    out_dim=proj.out_features).to(dev)
+                    proj, proj.in_features, args.rank, args.branch_quant,
+                    args.quant, out_dim=proj.out_features).to(dev)
             else:
                 proj = layer.self_attn.o_proj
                 layer.self_attn.o_proj = MoEWithCorrection(
                     proj, proj.in_features, args.rank, args.branch_quant, args.quant,
                     out_dim=proj.out_features).to(dev)
     for name, p in model.named_parameters():
-        p.requires_grad_((".branch." in name) or (".gate." in name))
-    n_tr = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"trainable {n_tr/1e6:.2f}M (branches + routers) target {target}", flush=True)
+        p.requires_grad_(".branch." in name or ".gate." in name)
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def build_student(model, args) -> int:
+    """The deployable student: ternarised banks + correction branches.
+
+    Shared by the train/eval stages and ``kld_eval`` so the W1 gate instrument
+    cannot drift from the stage it is measuring.
+    """
+    ternarize_banks(model, args)
+    return attach_branches(model, args)
+
+
+def stage_train(args):
+    patch_experts(args.group)
+    model, tok = load_full(args)
+    n_tr = build_student(model, args)
+    print(f"trainable {n_tr/1e6:.2f}M (branches + routers) target {args.branch_target}",
+          flush=True)
 
     cache_path = Path(args.cache_file) if args.cache_file else CACHE
     cache = torch.load(cache_path, map_location="cpu")
@@ -484,10 +506,19 @@ def stage_train(args):
 
 
 def save(model, args, step):
+    """Write the branch state dict.
+
+    ``--tag`` is part of the filename because nothing else in it distinguishes
+    two arms: a top-50 and a top-512 run at the same rank/quant/step all want
+    ``qwen35-corr-r512-g128-step4096.pt`` and silently overwrite each other.
+    """
     sd = {k: v for k, v in model.state_dict().items()
           if ".branch." in k or ".gate." in k}
     tag = "" if args.branch_quant == "fp32" else f"-{args.branch_quant}"
-    p = OUT / f"qwen35-corr-r{args.rank}{tag}-step{step}.pt"
+    name = f"qwen35-corr-r{args.rank}{tag}-step{step}"
+    if getattr(args, "tag", ""):
+        name += f"-{args.tag}"
+    p = OUT / f"{name}.pt"
     torch.save(sd, p)
     print(f"saved {p}", flush=True)
 
@@ -502,33 +533,7 @@ def stage_eval(args):
 
     patch_experts(args.group)
     model, _ = load_full(args)
-    layers = text_layers(model)
-    with torch.no_grad():
-        for layer in layers:
-            quantize_bank_inplace(layer.mlp.experts.gate_up_proj, args.group,
-                                  kind=args.quant, **_quant_kwargs(args))
-            quantize_bank_inplace(layer.mlp.experts.down_proj, args.group,
-                                  kind=args.quant, **_quant_kwargs(args))
-            layer.mlp.experts._ternary = False
-    hidden = getattr(model.config, "hidden_size", None) or model.config.text_config.hidden_size
-    for layer in layers:
-        dev = next(layer.mlp.parameters()).device
-        if args.branch_target in ("moe_out", "both"):
-            layer.mlp = MoEWithCorrection(layer.mlp, hidden, args.rank,
-                                          args.branch_quant, args.quant).to(dev)
-        if args.branch_target in ("attn_out", "both"):
-            # same placement map as the train stage: GDN -> linear_attn.out_proj
-            # (ssm_out in GGUF), full attention -> self_attn.o_proj (attn_output)
-            if getattr(layer, "layer_type", "") == "linear_attention":
-                proj = layer.linear_attn.out_proj
-                layer.linear_attn.out_proj = MoEWithCorrection(
-                    proj, proj.in_features, args.rank, args.branch_quant, args.quant,
-                    out_dim=proj.out_features).to(dev)
-            else:
-                proj = layer.self_attn.o_proj
-                layer.self_attn.o_proj = MoEWithCorrection(
-                    proj, proj.in_features, args.rank, args.branch_quant, args.quant,
-                    out_dim=proj.out_features).to(dev)
+    build_student(model, args)
     if args.load:
         missing, unexpected = load_branch_state(model, args.load)
         print(f"loaded {args.load}: missing={len(missing)} unexpected={len(unexpected)}",
@@ -601,6 +606,9 @@ def main():
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--ckpt-every", type=int, default=500)
     ap.add_argument("--load", default="")
+    ap.add_argument("--tag", default="",
+                    help="suffix for checkpoint filenames; set it whenever two arms "
+                         "share rank/branch-quant/steps, or they overwrite each other")
     ap.add_argument("--resume", default="",
                     help="resume training from a branch checkpoint (step number from the filename)")
     args = ap.parse_args()
