@@ -1,7 +1,10 @@
 # Quant-methods plan — CAT-Q / AYOT / SignRoundV2 into the MoE line
 
-**Status:** CPU side landed 2026-09-28 (tests green); GPU steps queued behind
-the AMD/FreeToken window (single-card policy).
+**Status:** CPU side landed 2026-09-28 (tests green); Phase 1 (prefix arms A/C,
+gate, `lmonly` ablation) complete on `scion-test`. The W1 gate fails on the
+correction objective — the binding experiment is the loss rebalance, with the
+residual-mass term as the second build. DeepSeek-V4.1 pulls are folded in below,
+including the pre-rental expected-improvement gate.
 **Related:** [TAIL-EXPERIMENT-PLAN.md](TAIL-EXPERIMENT-PLAN.md) (the KLD-tail
 path), [MOE-EXTENSION.md](MOE-EXTENSION.md), `../moe/README.md`,
 `../moe/catq.py`, `../moe/kd_loss.py`, `../moe/ayot.py`, `autogrid_ext.steer`.
@@ -194,6 +197,112 @@ between the two loss terms**, not the size of k and not a missing tail term.
 Trace generation gates **arm B only**: arms A/C, W2, W3 and W4 run without
 traces, and generation can be bundled into any pod session (it is minutes on
 the teacher), so it does not have to be the first thing through the gate.
+
+## Folded in: DeepSeek-V4.1-Flash pulls (2026-09-28)
+
+The V4.1 technical report is a pretraining/serving report (no ternary or PTQ
+content), but four mechanisms transfer. The full item-by-item mapping lives in
+local design notes, not in this repo. What enters *this* plan, in the current
+order:
+
+### P0 — routing: bias-based load balancing (every router run)
+
+- Mechanism: select by `logits + bias_e`, weight by the raw softmax over the
+  selected experts; after each step `bias_e += delta * sign(load_e - mean)`
+  (delta ~1e-3); keep a tiny sequence-level balance loss (~1e-4) as a safety
+  net. V4.1 additionally keeps separate bias banks per modality.
+- Why here: the MoTE proxy measured the Switch aux loss actively pushing the
+  router toward redundant experts. Bias-based balancing removes that gradient
+  from the correction objective and costs nothing at inference (per-expert
+  scalar).
+- Executable step: `--balance bias` in the router path (OLMoE first, then the
+  qwen35 prefix), CPU unit tests for the update rule; A/B against the current
+  balancing on the prefix, reading load entropy, `router_agree`, PPL and KLD.
+  Orthogonal to the loss rebalance, so it runs as its own arm.
+
+### P0 — supervision shape: full-vocabulary, on-policy
+
+- V4.1's final post-training stage is full-vocabulary on-policy distillation
+  (40+ heterogeneous teachers). Our KD optimises a renormalised 512-support
+  distribution carrying 17% of teacher mass; the measured ~10x KLD regression
+  is what that blind spot predicts.
+- This is supporting evidence for the current Step 2 choices, not a new build:
+  (1) the `--kd-weight` rebalance, already the top experiment, and (2) the
+  sampled residual-mass term (tail plan 2a) — now the better second build.
+- On-policy is the third axis (AYOT arm B; traces already built). Keep it
+  deferred until the loss balance settles, per the current reading.
+
+### P1 — serving track (separate from the correction recipe)
+
+- **FP4 KV cache** (E2M1 + one E4M3 scale per 16 channels, no global scale;
+  quantise after RoPE; dequantise before attention; FP8 for SWA KV): update
+  `moe_tier`'s KV byte model and measure KV quantisation on Scion in the fork
+  (`q8_0`/`q4_0` first).
+- **DSpark drafter** (3-block SWA-128 drafter, frozen backbone,
+  confidence-scheduled verification): measure off-the-shelf draft acceptance
+  first; train a DSpark-shaped head only if the acceptance numbers justify it.
+- **SWA bounded replay / CSA2 / CED / mHC / Engram** are trained-in
+  architecture, not retrofittable to Qwen weights: design vocabulary for a
+  future consumer MoE, notes only.
+
+### Added 2026-09-28b — MoE-tricks sweep (K3 / GLM-5.3 / Hy4 / MiMo V2.6)
+
+- **P0 routing, second candidate: Quantile Balancing (Kimi K3).** Same slot as the
+  DS bias rule: auxiliary-loss-free, bias added only for Top-k *selection* and
+  omitted from the mixture weights. Difference is the update: instead of a
+  sign/step rule, each expert's bias is set from the `(1 − k/n)`-quantile of its
+  per-token margins `s_i,j + b_j − α_i` (α_i = the token's Top-k cutoff), so each
+  expert's expected load is `k/n`; the quantile is read from a histogram across
+  ranks (few hundred bins, one all-reduce) rather than gathering margins.
+  → run as a one-variable arm against the DS bias arm and the current balancing;
+  read load entropy, `router_agree`, PPL and KLD. Add a router z-loss arm
+  (OLMoE) as the cheap third point.
+- **Tier 1 serving (planner math, not training arms): cross-layer index/KV reuse
+  is now consensus** — GLM IndexShare (one indexer / 4 sparse layers, 2.9× FLOPs),
+  Tencent Hy4 IndexCache, DS CSA2. Add the reuse pattern to the planner's KV
+  model; watch MiMo V3's **HySparse2** (oracle full-attention layers select
+  tokens; sparse layers share their KV; 11:1 validated at 80B, 5× prefill /
+  4.5× KV at 1M) — unshipped, do not build on it yet.
+- **Tier 2 (after the objective is fixed): correction-branch read/write gates.**
+  Five current frontier models redesign the residual stream itself (Qwen Gated
+  Residual, DS and GLM mHC, Hy4 iHC with 4 streams, K3 Attention Residuals). Our
+  correction branches are a primitive of this surface; the foldable experiment is
+  an element-wise read gate + scalar write gate on each branch, tested on the
+  prefix against the plain additive branch.
+- **Tier 2: AAR-style features into router training** — attention-derived
+  statistics (sink/entropy over the last window) as extra router inputs, base
+  frozen, routing only. Two-line hook in the prefix harness; queue behind the
+  objective fix.
+- **Future build only:** LatentMoE (K3: experts in a 0.5×-hidden space, 896
+  experts top-16) and the no-shared-expert variant (MiMo V2.6 ships 384×8 with
+  none; K3 ships 2) — inputs to any upcycle/architecture decision, not
+  retrofittable to Scion.
+- **Not foldable:** KDA/Gated MLA/QSA/MSA/SiTU-GLU/sparse attention (trained-in);
+  Muon optimisers (frozen-body training does not need them); MiMo's 7k open RL
+  environments (agent-eval work for hivebench, not the compression recipe).
+- **Watchlist:** Qwen4 (in training), MiMo V3 (HySparse2), GLM-5.3-Pro,
+  MiniMax M3.5/M4 weights, Meta Avocado (2027, closed).
+
+### Parked — ToMoE expert masks (not a V4.1 pull)
+
+`moe/olmoe_masks.py` + its test are untracked and stay parked: masks are a
+*structure* change tested under an objective we now know is broken. Run them
+only after the loss shape is fixed, and with bias-based routing as the balancer.
+
+### Rental gate — expect the improvement before booking a pod
+
+No rented GPU run until a short expected-improvement memo exists, written from
+local evidence:
+
+- measured local effect sizes for each accepted recipe change (prefix KLD/PPL
+  deltas, per arm, with the coverage caveat);
+- the projected full-model effect, with assumptions and error bars stated;
+- a go/no-go threshold written down *before* the quote (e.g. "mean KLD <= body +
+  x, max <= y, PPL not worse than z");
+- cost per expected point of KLD, and what would falsify the projection.
+
+The pod only runs the memo; AYOT trace generation can be bundled once the memo
+says go.
 
 ## Non-goals
 

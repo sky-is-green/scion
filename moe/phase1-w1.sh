@@ -32,8 +32,11 @@ RECIPE=(--quant lloyd --branch-quant g128 --branch-target both --rank 512
 # the subset kld_eval.py actually accepts
 RECIPE_EVAL=(--quant lloyd --branch-quant g128 --branch-target both --rank 512)
 
+# CARD selects the GPU. Default 1 (the headless card). Set CARD=0 to use the
+# display card instead; the single-job-per-card rule still holds, so two
+# concurrent stages need two different CARD values.
 CARD="${CARD:-1}"
-run() { echo "### $*"; HIP_VISIBLE_DEVICES=$CARD "$@"; }
+run() { echo "### CARD=$CARD"; echo "### $*"; HIP_VISIBLE_DEVICES=$CARD "$@"; }
 
 mkdir -p "$MOE" logs
 
