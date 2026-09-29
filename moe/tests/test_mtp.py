@@ -251,3 +251,29 @@ def test_chained_acceptance_stops_when_rows_run_out():
     main = _onehot_main(T, V)
     accs = M.chained_acceptance(model, head, main, h_in, e_in, k=5)
     assert len(accs) == 2
+
+
+def test_release_head_forward_and_acceptance_tiny():
+    """CPU test of the release trainer's head math (no model, no GGUF)."""
+    import mtp_release_train as R
+    torch.manual_seed(0)
+    H, V = 8, 5
+    fc1 = torch.randn(2 * H, 2 * H) * 0.1
+    fc2 = torch.randn(H, 2 * H) * 0.1
+    norm_w = torch.ones(H)
+    output = torch.randn(V, H)
+    h = torch.randn(4, H)
+    e = torch.randn(4, H)
+    lg = R.head_forward(fc1, fc2, norm_w, output, h, e)
+    assert lg.shape == (4, V)
+    # a perfect draft is 1.0; top-k acceptance dominates top-1
+    assert R.acceptance(lg, lg.argmax(-1), topk=1) == pytest.approx(1.0)
+    tgt = (lg.argmax(-1) + 1) % V
+    assert 0.0 <= R.acceptance(lg, tgt, topk=1) <= R.acceptance(lg, tgt, topk=3) <= 1.0
+    # rms without weight is the plain normaliser the head input uses
+    x = torch.randn(3, H) * 3 + 1
+    y = R.rms(x)
+    assert torch.allclose(y.pow(2).mean(-1), torch.ones(3), atol=1e-4)
+    # and with a weight it scales
+    z = R.rms(x, torch.full((H,), 2.0))
+    assert torch.allclose(z, y * 2.0, atol=1e-5)
