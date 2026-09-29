@@ -653,9 +653,11 @@ def stage_train(args):
             loss.backward()
             opt.step()
             opt.zero_grad(set_to_none=True)
-            if args.balance in ("bias", "quantile", "cbqb"):
+            if args.balance in ("bias", "quantile", "cbqb", "cb"):
                 # ALF-LB / K3: one update per optimizer step, from the loads the
                 # forward just accumulated.  Returns the diagnostics before reset.
+                # ``cb`` has no buffer update; it rides along for the diagnostics
+                # (loadH + per-sequence load variance, its own axis).
                 bal = balance_update(model, args.balance, args.balance_delta)
             step += 1
             if (args.lr_half_every and step >= args.lr_decay_start
@@ -682,6 +684,9 @@ def stage_train(args):
                     extra += f" mtp {mtp.item():.4f}"
                 if bal is not None:
                     extra += f" loadH {bal['mean_load_entropy']:.3f}"
+                    seqv = bal.get("mean_seq_load_var", float("nan"))
+                    if math.isfinite(seqv):
+                        extra += f" seqvar {seqv:.5f}"
                 print(f"step {step} lm {lm.item():.4f} kd {kd.item():.4f} "
                       f"tail {0.0 if tail is None else tail.item():.4f} "
                       f"total {loss.item():.4f}{extra}", flush=True)

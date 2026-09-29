@@ -54,6 +54,29 @@ def _new_stats(n: int) -> dict:
             "z_terms": []}
 
 
+def _new_seq(n: int) -> dict:
+    """Per-sequence load accumulator (Welford; one sequence per forward row).
+
+    Lives outside ``_balance_stats`` so ``balance_reset`` does not clear it:
+    the variance is only meaningful *across* sequences, so it accumulates for
+    the whole run.  ``mean_seq_load_var`` is the CB arm's own axis — batch load
+    entropy can be uniform while individual sequences are lopsided.
+    """
+    return {"n": 0, "mean": torch.zeros(n, dtype=torch.float32),
+            "m2": torch.zeros(n, dtype=torch.float32)}
+
+
+def _seq_load_update(gate, row_idx) -> None:
+    c = torch.bincount(row_idx.detach().cpu().reshape(-1),
+                       minlength=gate.num_experts).to(torch.float32)
+    p = c / c.sum()
+    s = gate._balance_seq
+    s["n"] += 1
+    d = p - s["mean"]
+    s["mean"] += d / s["n"]
+    s["m2"] += d * (p - s["mean"])
+
+
 def _balanced_forward(self, hidden_states):
     """Stock forward + selection bias; mixture weights stay unbiased."""
     hidden = hidden_states.reshape(-1, self.hidden_dim)
@@ -75,6 +98,13 @@ def _balanced_forward(self, hidden_states):
         st = self._balance_stats
         st["counts"] = st["counts"] + torch.bincount(
             idx.reshape(-1).cpu(), minlength=self.num_experts)
+        # one sequence per batch row (a flat input is one sequence)
+        if hidden_states.dim() == 3:
+            rows = idx.reshape(hidden_states.shape[0], -1)
+        else:
+            rows = idx.reshape(1, -1)
+        for r in rows:
+            _seq_load_update(self, r)
         if kind == "quantile":
             st["margins"].append(margins(logits, bias, self.top_k).detach())
         elif kind == "cbqb":
@@ -104,6 +134,7 @@ def patch_gate(gate, kind: str, cb_eta: float = 0.05,
     gate._balance_cb_eta = cb_eta
     gate._balance_qb_damp = qb_damp
     gate._balance_stats = _new_stats(gate.num_experts)
+    gate._balance_seq = _new_seq(gate.num_experts)
 
 
 def patch_router_balance(model, kind: str, cb_eta: float = 0.05,
@@ -132,16 +163,26 @@ def patch_router_balance(model, kind: str, cb_eta: float = 0.05,
 
 
 def balance_diagnostics(model) -> dict:
-    """Load-entropy diagnostic over the gates (no reset)."""
+    """Load diagnostics over the gates (no reset).
+
+    ``mean_load_entropy`` is the batch-level balance (max ln n); the CB arm's
+    own axis is ``mean_seq_load_var`` — the across-sequence variance of each
+    expert's load share (NaN until 2 sequences have been seen).
+    """
     ents = []
+    seqvars = []
     for m in _patched(model):
         c = m._balance_stats["counts"].float()
-        if c.sum() == 0:
-            continue
-        p = c / c.sum()
-        ents.append(float(-(p * (p + 1e-12).log()).sum()))
+        if c.sum() > 0:
+            p = c / c.sum()
+            ents.append(float(-(p * (p + 1e-12).log()).sum()))
+        s = m._balance_seq
+        if s["n"] >= 2:
+            seqvars.append(float((s["m2"] / (s["n"] - 1)).mean()))
     return {"n_gates": len(_patched(model)),
-            "mean_load_entropy": (sum(ents) / len(ents)) if ents else float("nan")}
+            "mean_load_entropy": (sum(ents) / len(ents)) if ents else float("nan"),
+            "mean_seq_load_var": (sum(seqvars) / len(seqvars))
+            if seqvars else float("nan")}
 
 
 def balance_reset(model) -> None:
@@ -153,11 +194,16 @@ def balance_update(model, kind: str, delta: float = 1e-3) -> dict:
     """Apply one bias update from the stats the last forward accumulated.
 
     Call *after* ``opt.step()``.  Returns the load diagnostics before the reset
-    (the log wants them), then clears the stats for the next step.
+    (the log wants them), then clears the stats for the next step.  ``cb`` has
+    no persistent bias — its causal term is recomputed every forward — so its
+    "update" is diagnostics + reset only (the balcb arm trained without any
+    load logging because this path used to raise for ``cb``).
     """
-    if kind not in ("bias", "quantile", "cbqb"):
+    if kind not in ("bias", "quantile", "cbqb", "cb"):
         raise ValueError(f"no update for kind {kind!r}")
     for m in _patched(model):
+        if kind == "cb":
+            continue
         st = m._balance_stats
         with torch.no_grad():
             if kind == "bias":

@@ -1,6 +1,7 @@
 """CPU tests for the router-balance plumbing (fake gates + the real class)."""
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -210,3 +211,50 @@ def test_cb_flags_default_off():
     assert args.balance == "none"
     assert args.balance_cb_eta == 0.05
     assert args.balance_qb_damp == 1.0
+
+
+def test_cb_update_returns_diagnostics_and_resets():
+    """CB has no buffer update, but the log still needs its load diagnostics.
+
+    Pins the balcb gap: ``balance_update`` used to raise for ``cb``, the
+    trainer skipped it, and the arm trained with no ``loadH`` at all.
+    """
+    torch.manual_seed(8)
+    gate = FakeGate(n_experts=8, top_k=2)
+    x = torch.randn(512, 16)
+    rbia.patch_gate(gate, "cb", cb_eta=0.5)
+    model = FakeModel([gate])
+    gate(x)
+    before = gate.balance_bias.clone()
+    diag = rbia.balance_update(model, "cb")
+    assert "mean_load_entropy" in diag
+    assert not math.isnan(diag["mean_load_entropy"])
+    assert torch.equal(gate.balance_bias, before)          # nothing to carry
+    assert int(gate._balance_stats["counts"].sum()) == 0   # stats reset
+
+
+def test_per_sequence_load_variance_is_zero_for_identical_sequences():
+    torch.manual_seed(9)
+    gate = FakeGate(n_experts=8, top_k=2)
+    x = torch.randn(512, 16)
+    rbia.patch_gate(gate, "bias")
+    gate(x)
+    diag = rbia.balance_diagnostics(FakeModel([gate]))
+    assert math.isnan(diag["mean_seq_load_var"])           # one sequence: undefined
+    gate(x)
+    diag = rbia.balance_diagnostics(FakeModel([gate]))
+    assert diag["mean_seq_load_var"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_per_sequence_load_variance_sees_uneven_sequences():
+    """A constant shift tilts the router — two very different load vectors."""
+    torch.manual_seed(10)
+    gate = FakeGate(n_experts=8, top_k=2)
+    x = torch.randn(512, 16)
+    rbia.patch_gate(gate, "bias")
+    gate(x)
+    gate(x + 5.0)
+    diag = rbia.balance_diagnostics(FakeModel([gate]))
+    assert diag["mean_seq_load_var"] > 1e-3
+    # batch entropy can still look fine while sequences disagree
+    assert diag["mean_load_entropy"] > 1.5
