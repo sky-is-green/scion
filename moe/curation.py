@@ -84,7 +84,14 @@ def bipartite_mi(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-12) -> float:
 
     The L2M-style bipartite MI: pair ``x[i]`` with ``y[i]``, build the joint
     histogram, and subtract the product of the marginals.  Independent
-    sequences give ~0; ``y = x`` gives H(x).
+    sequences give ~0 (plug-in bias grows with the alphabet, so the honest
+    small-alphabet tests use a small vocabulary); ``y = x`` gives H(x).
+
+    Uses ``unique(return_counts=True)``, never ``bincount``, on the joint:
+    the joint code space is ``|X| * |Y|`` cells, and a real corpus has 10^4+
+    ids — the first wiki.test.raw run sat in that allocation for 23 minutes
+    (and 2.9 GB) before being killed.  ``unique`` touches only the observed
+    pairs.
     """
     x = x.reshape(-1).long()
     y = y.reshape(-1).long()
@@ -92,20 +99,17 @@ def bipartite_mi(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-12) -> float:
         raise ValueError("x and y must have equal length")
     if x.numel() == 0:
         raise ValueError("empty sequences")
-    xy = x * (int(y.max()) + 1) + y
-    j = torch.bincount(xy).float()
-    px = torch.bincount(x).float()
-    py = torch.bincount(y).float()
-    pj = j / j.sum()
-    px = px / px.sum()
-    py = py / py.sum()
-    nz = pj > 0
-    mi = (pj[nz] * (pj[nz].log() - eps)).sum()      # = -H(X, Y)
-    # subtract H(X)+H(Y) via the marginals of the observed pairs only
-    # (the joint's support is a subset; use the marginal entropies directly)
-    hx = -(px[px > 0] * (px[px > 0].log() - eps)).sum()
-    hy = -(py[py > 0] * (py[py > 0].log() - eps)).sum()
-    return float(hx + hy + mi)                       # H(X) + H(Y) - H(X,Y)
+    codes = x * (int(y.max()) + 1) + y
+    _, jc = torch.unique(codes, return_counts=True)
+    _, xc = torch.unique(x, return_counts=True)
+    _, yc = torch.unique(y, return_counts=True)
+    pj = jc.float() / jc.sum()
+    px = xc.float() / xc.sum()
+    py = yc.float() / yc.sum()
+    hxy = -(pj * (pj.log() - eps)).sum()
+    hx = -(px * (px.log() - eps)).sum()
+    hy = -(py * (py.log() - eps)).sum()
+    return float(hx + hy - hxy)                     # H(X) + H(Y) - H(X,Y)
 
 
 def chunk_mi_curve(tokens: list[int], lengths: list[int] | None = None) -> list[dict]:

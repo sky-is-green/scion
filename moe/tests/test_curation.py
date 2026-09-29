@@ -13,6 +13,7 @@ The three properties the probe's claims rest on:
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -73,6 +74,22 @@ def test_bipartite_mi_independent_is_zero_and_copy_is_entropy():
     y2[::2] = torch.randint(0, k, ((n + 1) // 2,))
     mi_part = cur.bipartite_mi(x, y2)
     assert 0.2 < mi_part < mi_copy
+
+
+def test_bipartite_mi_handles_sparse_large_id_spaces():
+    """Regression: the joint must use unique(), not bincount().
+
+    The joint code space is |X|*|Y| cells; a real corpus has 10^4+ ids, and
+    bincount would allocate ~10^8+ cells (the first wiki.test.raw run sat
+    there for 23 minutes).  This call must return, finite, immediately.
+    """
+    torch.manual_seed(2)
+    x = torch.randint(0, 100_000, (500,))
+    y = torch.randint(0, 100_000, (500,))
+    mi = cur.bipartite_mi(x, y)
+    assert math.isfinite(mi)
+    mi_copy = cur.bipartite_mi(x, x)
+    assert abs(mi_copy - math.log(500.0)) < 0.05    # all samples distinct
 
 
 def test_mig_rewards_a_relevant_unique_unit():
