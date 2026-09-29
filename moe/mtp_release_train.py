@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--batch-windows", type=int, default=4)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--eval-every", type=int, default=250)
+    ap.add_argument("--eval-train-n", type=int, default=0,
+                    help="also report acceptance on the first N *train* windows "
+                         "(diagnoses overfitting; 0 = off)")
     ap.add_argument("--chunk", type=int, default=128)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--init", default="", help="warm-start head checkpoint")
@@ -192,8 +195,19 @@ def main() -> None:
                     _, acc = loss_and_acc(h, e, tgt, want_acc=True)
                     accs.append(acc)
             a = sum(accs) / len(accs)
-            curve.append({"step": step, "accept": round(a, 4)})
-            print(f"  [eval] step {step} release acceptance {a:.4f}", flush=True)
+            at = None
+            if args.eval_train_n:
+                taccs = []
+                with torch.no_grad():
+                    for w in range(min(args.eval_train_n, args.n_train)):
+                        h, e, tgt = batch([w])
+                        _, acc = loss_and_acc(h, e, tgt, want_acc=True)
+                        taccs.append(acc)
+                at = sum(taccs) / len(taccs)
+            curve.append({"step": step, "accept": round(a, 4),
+                          "accept_train": None if at is None else round(at, 4)})
+            print(f"  [eval] step {step} release acceptance {a:.4f}"
+                  + ("" if at is None else f" (train {at:.4f})"), flush=True)
 
     with torch.no_grad():
         accs = []
