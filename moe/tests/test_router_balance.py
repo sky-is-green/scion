@@ -62,6 +62,22 @@ def test_quantile_bias_hits_k_over_n_load():
     assert (loads[-1] - target).abs().max() <= (loads[0] - target).abs().max()
 
 
+def test_quantile_bias_is_mean_centered_and_common_mode_invariant():
+    """K3 centers the new bias: ``b <- b_hat - mean(b_hat) * 1``.
+
+    A common offset leaves top-k selection unchanged (and the margins are
+    invariant to it), so centering is numerically free — but without it the
+    common mode can random-walk over a long run.  This also pins that the
+    update cannot depend on the absolute level of the incoming bias.
+    """
+    torch.manual_seed(1)
+    logits = torch.randn(300, 6) * 1.5
+    b1 = rb.quantile_bias_update(torch.zeros(6), logits, k=2)
+    assert abs(float(b1.mean())) < 1e-5
+    b2 = rb.quantile_bias_update(torch.full((6,), 3.0), logits, k=2)
+    assert torch.allclose(b1, b2, atol=1e-5)
+
+
 def test_quantile_bias_is_higher_for_weaker_experts():
     """A stronger-scoring expert must carry a lower bias (it needs no help)."""
     torch.manual_seed(1)

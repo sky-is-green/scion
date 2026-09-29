@@ -90,7 +90,12 @@ def quantile_bias_step(bias: torch.Tensor, marg: torch.Tensor, k: int,
     if not 0 < k <= n:
         raise ValueError(f"k={k} must be in (0, n_experts={n}]")
     q = torch.quantile(marg.float(), 1.0 - k / n, dim=0)
-    return bias - damp * q
+    b = bias - damp * q
+    # K3 mean-centers the new bias (`b <- b_hat - mean(b_hat) * 1`).  A common
+    # offset leaves top-k selection unchanged (and the margins are invariant to
+    # it), so this is numerically free -- it keeps the common mode from
+    # random-walking over a long run.  Pinned by a test.
+    return b - b.mean()
 
 
 def quantile_bias_update(bias: torch.Tensor, logits: torch.Tensor, k: int,
