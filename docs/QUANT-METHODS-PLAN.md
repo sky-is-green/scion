@@ -2,9 +2,10 @@
 
 **Status:** CPU side landed 2026-09-28 (tests green); Phase 1 (prefix arms A/C,
 gate, `lmonly` ablation) complete on `scion-test`. The W1 gate fails on the
-correction objective — the binding experiment is the loss rebalance, with the
-residual-mass term as the second build. DeepSeek-V4.1 pulls are folded in below,
-including the pre-rental expected-improvement gate.
+correction objective — the loss rebalance and the residual-mass term are now
+measured (`RESEARCH-HANDOFF.md` §3/§7.8), and the third chain-rule piece
+(TAD's D_KL2, sampled tail tokens) is built and queued. DeepSeek-V4.1 pulls are
+folded in below, including the pre-rental expected-improvement gate.
 **Related:** [TAIL-EXPERIMENT-PLAN.md](TAIL-EXPERIMENT-PLAN.md) (the KLD-tail
 path), [MOE-EXTENSION.md](MOE-EXTENSION.md), `../moe/README.md`,
 `../moe/catq.py`, `../moe/kd_loss.py`, `../moe/ayot.py`, `autogrid_ext.steer`.
@@ -185,6 +186,25 @@ between the two loss terms**, not the size of k and not a missing tail term.
    preferred tail term over rank/margin: the top-512 cache holds 17% of teacher
    mass, so 83% is available to match, and the failure is not specifically
    near-tie flips.
+   **BUILT (2026-09-28, session 2), unmeasured, and kdw 2.0 is the argument for
+   it:** kdw 2.0 moved the mean −25.3% and left p99/max flat (−1%), which is what
+   a term that can only see 17% of the mass predicts. Built as the marginal KL of
+   the two-way support/complement split — the piece of the gate's own metric that
+   the top-k renorm discards — so it is exact and per-token, not the sampled
+   estimator the tail plan first sketched. `--kd-tail-weight` (default 0.0),
+   `phase1-w1.sh train-tail <w>` with `--kd-weight` pinned at 1.0. Needs one
+   `phase1-w1.sh cache c` re-run first: the existing caches have no `w` field
+   and the term refuses to substitute a constant.
+   **MEASURED (2026-09-28/29).** The two levers compose on different axes:
+   kdw 2.0 mean −25.3% with p99/max flat; tailw 1.0 **p99 −26.0% / max −19.6%**
+   for +6.6% PPL; combo2t2 (kd 2.0 + tail 2.0) mean −38.6%, p99 −39.7%,
+   max −30.8% at +57% PPL — the current recipe candidate. The gate's chain-rule
+   decomposition then showed the remaining 81% of the absolute headroom is the
+   *tail-conditional* piece, so the third build (TAD's D_KL2, estimated from
+   sampled tail tokens — Sparse Logit Sampling) is **built and queued**:
+   `--kd-tailcond-weight` (default 0.0), `phase1-w1.sh cache-tail` +
+   `train-tailcond <w>`. Numbers: `RESEARCH-HANDOFF.md` §3/§7.8.
+
 3. W1 re-run on the winning configuration: A vs C, and B once traces exist.
    Top-512 alone bought 19% and is worth keeping, but it is not the fix.
 4. W4 (`--kd-filter-frac 0.001`) as a separate variable on the winning arm. It
@@ -208,9 +228,11 @@ order:
 ### P0 — routing: bias-based load balancing (every router run)
 
 - Mechanism: select by `logits + bias_e`, weight by the raw softmax over the
-  selected experts; after each step `bias_e += delta * sign(load_e - mean)`
-  (delta ~1e-3); keep a tiny sequence-level balance loss (~1e-4) as a safety
-  net. V4.1 additionally keeps separate bias banks per modality.
+  selected experts; after each step `bias_e -= delta * sign(load_e - mean)`
+  (delta ~1e-3; **sign corrected 2026-09-28 against arXiv 2408.15664 — overloaded
+  experts move *down*, the earlier draft had `+=`, which would diverge**); keep
+  a tiny sequence-level balance loss (~1e-4) as a safety net. V4.1 additionally
+  keeps separate bias banks per modality.
 - Why here: the MoTE proxy measured the Switch aux loss actively pushing the
   router toward redundant experts. Bias-based balancing removes that gradient
   from the correction objective and costs nothing at inference (per-expert

@@ -1,6 +1,7 @@
 # Tail experiment plan — KLD beyond the teacher's top-50
 
-**Status:** queued (needs a free GPU).  Written 2026-09-27, CPU-only prep.
+**Status:** Steps 0–1 done; Step 2a measured (works on the tail, handoff §3);
+Step 2d (the tail-conditional D_KL2 term) built 2026-09-29 and queued.
 **Related:** `QUANT-RETENTION-35B.md`, `QUANTIZATION-LANDSCAPE.md` §3.6/§7,
 `RELEASE-35B-MODEL-CARD.md`.
 
@@ -68,8 +69,46 @@ Pick one after seeing Step 1:
 
 - **a. residual-mass term** — match the teacher's remaining probability mass
   (sample k low-probability vocab entries per token; stochastic but unbiased);
+
+  **Status: BUILT (2026-09-28, session 2), unmeasured.** Built as the
+  *marginal* KL of the two-way support/complement split rather than a sampled
+  estimator: `kd_loss.support_mass` + `kd_loss.residual_mass_kl`, wired as
+  `--kd-tail-weight` (default 0.0) and `phase1-w1.sh train-tail <w>` (which
+  pins `--kd-weight` at 1.0 so the arm is one variable against armC). The
+  teacher-side mass is recorded per token by the cache stage as `w`, which is
+  free there because the `topk` already consumed the full-width logits — so the
+  aggregate is exact and per-token rather than sampled, with none of the
+  variance and none of the 3.7x error a corpus-mean target would carry
+  (measured support mass: 0.1704 mean, 0.0455 at p01, 0.0366 min). Read at
+  temp 1, the deployed distribution, not the KD term's temp 2.
+
+  **Blocker:** the existing caches (`prefix-top50.pt`, `prefix-top512.pt`) are
+  both `['idx','router','val']` and have no `w`. The term refuses to substitute
+  a constant and `SystemExit`s, so `phase1-w1.sh cache c` must be re-run once
+  (~7 min) before `train-tail` can run at all.
+
+  **Measured (2026-09-28/29).** The blocker was resolved with one
+  `phase1-w1.sh cache c` re-run. tailw 1.0: mean KLD −10.5%, **p99 −26.0% /
+  max −19.6%** for +6.6% PPL vs armC — the inverse trade to the kd-weight,
+  which moves the mean and leaves the tail. tailw 2.0: p99 −40.6% / max −25.9%
+  for +14.1% PPL. combo2t2 (kd 2.0 + tail 2.0): mean −38.6%, p99 −39.7%,
+  max −30.8% at +57% PPL — the levers compose, and this is the current recipe
+  candidate. The gate's chain-rule decomposition then measured 71–82% of the
+  arms' KLD as the *tail-conditional* piece, which a top-k cache cannot hold;
+  see (d).
+
 - **b. rank/margin term** — directly penalise near-tie flips (the canary mode);
 - **c. top-k expansion only** — already Step 1.
+- **d. tail-conditional term (TAD's D_KL2)** — **BUILT (2026-09-29), queued.**
+  The decomposition showed 71–82% of the gate's KLD is the tail-conditional
+  piece, which no weight lever reached. The term is the (1−w_t)-weighted KL on
+  the complement, estimated from 64 tokens per position sampled from the
+  teacher's own tail conditional (Sparse Logit Sampling; unbiased, no
+  importance weights): `kd_loss.sample_tail_tokens` / `tail_conditional_piece`,
+  `--kd-tailcond-weight` (default 0.0), `phase1-w1.sh cache-tail` +
+  `train-tailcond <w>`. Validated against `kld_eval --decompose-topk` (exact
+  under enumeration; ratio ~1.00 when sampled). First arm: weight 1.0 on
+  combo2t2, one variable.
 
 Implementation sketch: `--kd-tail-weight` in `moe/qwen35_moe_proxy.py`'s train
 loss; keep a CPU unit test.  Do not change the frozen v1 recipe.
