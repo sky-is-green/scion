@@ -52,8 +52,9 @@ from olmoe_proxy import gate_hook, ternary_ste, windows  # noqa: E402
 from ayot import load_traces, mix_windows, windows_from_texts  # noqa: E402
 from kd_loss import (kd_filtered, residual_mass_kl, sample_tail_tokens,  # noqa: E402
                      support_mass, support_mass_lse, tail_conditional_piece)
-from mtp import (MTPHead, chunked_ce, draft_acceptance,  # noqa: E402
-                 mtp_logits, mtp_targets)
+from mtp import (MTPHead, chunked_ce, chunked_kl, draft_acceptance,  # noqa: E402
+                 freeze_except_head, mtp_logits, mtp_targets,
+                 self_target_main)
 from router_bias import (balance_update, balance_z_loss,  # noqa: E402
                          patch_router_balance)
 
@@ -530,10 +531,18 @@ def stage_train(args):
     head = None
     if args.mtp_weight > 0:
         tcfg = getattr(model.config, "text_config", model.config)
-        head = MTPHead(int(tcfg.hidden_size)).to(args.device)
+        head = MTPHead(int(tcfg.hidden_size), layers=args.mtp_head_layers).to(args.device)
         model._mtp_head = head          # nn.Module attribute -> in model.parameters()
         print(f"MTP head: {sum(p.numel() for p in head.parameters()) / 1e6:.1f}M "
-              f"params, weight {args.mtp_weight}", flush=True)
+              f"params, layers {args.mtp_head_layers}, weight {args.mtp_weight}, "
+              f"target {args.mtp_target}", flush=True)
+        if args.mtp_only:
+            # Frozen-body drafter: the correction recipe is final, the head
+            # trains alone (no perturbation of the main gate) and only its
+            # loss backprops -- see the mtp block for the loss override.
+            n_head = freeze_except_head(model, head)
+            print(f"MTP-only: body frozen, {n_head/1e6:.1f}M head params train",
+                  flush=True)
 
     cache_path = Path(args.cache_file) if args.cache_file else CACHE
     cache = torch.load(cache_path, map_location="cpu")
@@ -632,13 +641,31 @@ def stage_train(args):
                 zl, bal = balance_z_loss(model, args.balance_z_coeff)
                 loss = loss + zl
             if head is not None:
-                # t+2 auxiliary supervision: the head sees h_t and emb(x_{t+1})
-                # and predicts x_{t+2}, through the frozen norm + lm_head.
+                # t+2 drafter training: the head sees h_t and emb(x_{t+1}) and
+                # predicts x_{t+2}, through the frozen norm + lm_head.  Target:
+                # the corpus token (the v1 auxiliary form) or the main model's
+                # own choice at the same position (self / self-soft) -- the
+                # quantity acceptance actually scores.
                 h_in, e_in, tgt = mtp_targets(h, ids)
+                if args.mtp_only:
+                    h_in = h_in.detach()   # frozen body: no backward into it
                 mlogits = mtp_logits(model, head, h_in,
                                      model.get_input_embeddings()(e_in))
-                mtp = chunked_ce(mlogits, tgt)
-                loss = loss + args.mtp_weight * mtp
+                if args.mtp_target == "corpus":
+                    mtp = chunked_ce(mlogits, tgt)
+                elif args.mtp_target == "self":
+                    mtp = chunked_ce(mlogits, self_target_main(logits))
+                else:  # self-soft: imitate the main model's own distribution
+                    mtp = chunked_kl(mlogits, logits[:, 1:-1].detach(),
+                                     args.mtp_self_temp)
+                if args.mtp_only:
+                    # Only the drafter trains; the main-model terms built into
+                    # `loss` above are diagnostics in this mode (their params
+                    # are frozen, so adding them would only pay a wasted
+                    # backward pass).
+                    loss = args.mtp_weight * mtp
+                else:
+                    loss = loss + args.mtp_weight * mtp
             if args.log_entropy:
                 # The sharpening signature the Phase 1 KLD gate found: entropy
                 # and peak top-1 mass, read straight off the training logits so a
@@ -849,6 +876,22 @@ def build_parser() -> argparse.ArgumentParser:
                          "item 11): trains a small head that shares the frozen "
                          "norm+lm_head and logs greedy draft acceptance at eval. "
                          "0 = off (frozen v1)")
+    ap.add_argument("--mtp-target", choices=("corpus", "self", "self-soft"),
+                    default="corpus",
+                    help="drafter target: 'corpus' = the true t+2 token (the v1 "
+                         "auxiliary form), 'self' = the main model's own greedy "
+                         "choice at that position, 'self-soft' = its distribution "
+                         "at --mtp-self-temp (the acceptance-oriented objective; "
+                         "only meaningful with --mtp-only)")
+    ap.add_argument("--mtp-self-temp", type=float, default=2.0,
+                    help="temperature for --mtp-target self-soft (default 2.0)")
+    ap.add_argument("--mtp-only", action="store_true",
+                    help="frozen-body drafter protocol: freeze every non-head "
+                         "parameter and backprop only the drafter loss (the main "
+                         "model cannot be perturbed)")
+    ap.add_argument("--mtp-head-layers", type=int, choices=(1, 2), default=1,
+                    help="drafter capacity: 1 = single linear (v1), 2 = one GELU "
+                         "hidden layer (default 1)")
     ap.add_argument("--eval-every", type=int, default=0)
     ap.add_argument("--ref-file", default="",
                     help="precomputed teacher router refs for the in-run eval "
