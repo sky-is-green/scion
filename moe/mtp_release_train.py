@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -36,6 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="dir with win_XX_h.bin / win_XX_argmax.bin / tokens.bin")
     ap.add_argument("--gguf", required=True,
                     help="the released model (token_embd/output_norm/output)")
+    ap.add_argument("--gguf-py", default="/home/penis/llama.cpp/gguf-py",
+                    help="path to the fork's gguf-py (for GGUF dequant)")
     ap.add_argument("--n-train", type=int, default=1024)
     ap.add_argument("--n-eval", type=int, default=16)
     ap.add_argument("--seq", type=int, default=512)
@@ -56,11 +59,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def load_gguf_tensor(path: str, name: str) -> torch.Tensor:
     """Dequantized fp32 tensor [out, in] from a GGUF (F32/Q8_0/... via gguf-py)."""
-    import sys
-
-    import numpy as np
-    from gguf import GGUFReader
-    from gguf.quants import dequantize
+    try:
+        from gguf import GGUFReader
+        from gguf.quants import dequantize
+    except ModuleNotFoundError as e:
+        raise SystemExit(
+            "gguf-py is not importable; pass --gguf-py <fork>/gguf-py "
+            f"(original error: {e})")
 
     r = GGUFReader(path)
     for t in r.tensors:
@@ -102,6 +107,8 @@ def acceptance(draft_logits: torch.Tensor, main_argmax: torch.Tensor,
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.gguf_py:
+        sys.path.insert(0, args.gguf_py)
     dev = args.device
     root = Path(args.probe_dir)
 
