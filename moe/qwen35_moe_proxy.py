@@ -247,7 +247,18 @@ def load_prefix(n_layers: int, device: str = "cuda:0", dtype=torch.bfloat16,
     tcfg.layer_types = list(tcfg.layer_types)[:n_layers]
     if hasattr(tcfg, "mtp_num_hidden_layers"):
         tcfg.mtp_num_hidden_layers = 0
-    model = Qwen3_5MoeTextModel(tcfg)
+    # Construct in bf16, not the default fp32: the fp32 construction doubles
+    # the host peak (17.5 GB vs 8.8 GB for the 4-layer prefix) and that peak is
+    # the binding host constraint for every prefix stage (kld_eval's memory
+    # guard reserves for it).  The GPU model is bf16 either way -- loading bf16
+    # into fp32 and converting back is an identity round-trip -- so the weights
+    # are bit-identical to the old path.
+    _prev_dtype = torch.get_default_dtype()
+    torch.set_default_dtype(torch.bfloat16)
+    try:
+        model = Qwen3_5MoeTextModel(tcfg)
+    finally:
+        torch.set_default_dtype(_prev_dtype)
     tok = AutoTokenizer.from_pretrained(model_dir)
 
     idx = json.loads((model_dir / "model.safetensors.index.json").read_text())["weight_map"]
@@ -278,13 +289,20 @@ def load_prefix(n_layers: int, device: str = "cuda:0", dtype=torch.bfloat16,
     if "lm_head.weight" in state:
         model.lm_head = torch.nn.Linear(tcfg.hidden_size,
                                         state["lm_head.weight"].shape[0], bias=False)
-    missing, unexpected = model.load_state_dict(state, strict=False)
+    # assign=True takes the loaded tensors directly instead of copying them
+    # into the constructed params: one resident copy instead of two (the
+    # 4-layer prefix holds 8.8 GB instead of ~17.5 GB through the load).
+    missing, unexpected = model.load_state_dict(state, strict=False, assign=True)
+    del state
     # A skipped shard can leave the final norm at its zero init; make it
-    # identity so the smoke's hidden states are meaningful.
+    # identity so the smoke's hidden states are meaningful.  Replace the
+    # parameter rather than filling it in place: with assign=True the loaded
+    # tensors may be backed by the safetensors mmap, and an in-place write
+    # would touch the checkpoint file.
     final_norm = getattr(model, "norm", None)
     if final_norm is not None and final_norm.weight.abs().sum().item() == 0:
-        with torch.no_grad():
-            final_norm.weight.fill_(1.0)
+        final_norm.weight = torch.nn.Parameter(
+            torch.ones_like(final_norm.weight), requires_grad=False)
     model.to(dtype=dtype, device=device)
     model.eval()
     return model, tok, missing, unexpected

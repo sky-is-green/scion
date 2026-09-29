@@ -173,7 +173,12 @@ def test_tail_sample_estimate_rejects_bad_k():
 
 
 def test_host_memory_guard_refuses_a_cache_that_cannot_coexist_with_the_reload(monkeypatch):
-    """The 00:20 OOM: 16 windows of cache + the ~17 GB prefix reload > 30 GB."""
+    """The guard protects the host peak, which the bf16 loader cut to ~7 GB.
+
+    Session-4 numbers: at 18 GB available the real gate cache (4.1 GB) fits
+    (18 - 9 = 9 >= 4.1), while an oversized 11 GB cache is refused.  The 00:20
+    OOM was 16 windows (~8 GB) on top of the old fp32 reload.
+    """
     import builtins
     import io
 
@@ -182,13 +187,13 @@ def test_host_memory_guard_refuses_a_cache_that_cannot_coexist_with_the_reload(m
     def fake_open(path, *a, **k):
         if path == "/proc/meminfo":
             return io.StringIO("MemTotal:       30000000 kB\n"
-                               "MemAvailable:   25000000 kB\n")
+                               "MemAvailable:   18000000 kB\n")
         return real_open(path, *a, **k)
 
     monkeypatch.setattr(builtins, "open", fake_open)
     with pytest.raises(SystemExit):
-        host_memory_guard(need_bytes=8_000_000_000)      # 8 GB > 25-18 GB budget
-    host_memory_guard(need_bytes=1_000_000_000)          # fits
+        host_memory_guard(need_bytes=11_000_000_000)     # 11 > 18-9 GB budget
+    host_memory_guard(need_bytes=4_100_000_000)          # the real gate: fits
 
 
 def test_tail_stats_flags_an_outlier_token():

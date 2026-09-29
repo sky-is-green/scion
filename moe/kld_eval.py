@@ -323,15 +323,18 @@ def top1_agreement(tlp: torch.Tensor, slp: torch.Tensor) -> float:
 
 # ------------------------------------------------------------------- run -----
 
-def host_memory_guard(need_bytes: int, reserve_gb: float = 18.0) -> None:
+def host_memory_guard(need_bytes: int, reserve_gb: float = 9.0) -> None:
     """Refuse a teacher cache that cannot coexist with the prefix reload.
 
-    ``load_prefix`` materialises the prefix in fp32 on the host (~17 GB for a
-    4-layer prefix) before moving it to the GPU, and the parked teacher
-    log-probs stay in host RAM for the whole student pass.  Sixteen windows at
-    seq 512 with a 248k vocab is ~8 GB of cache; together that OOM'd the 30 GB
-    box (session 3, 00:20).  Reads MemAvailable and refuses loudly instead of
-    dying mid-pass.
+    ``load_prefix`` loads the prefix on the host before moving it to the GPU,
+    and the parked teacher log-probs stay in host RAM for the whole student
+    pass.  Sixteen windows at seq 512 with a 248k vocab is ~8 GB of cache;
+    together with the old fp32 host construction that OOM'd the 30 GB box
+    (session 3, 00:20), which is where the original 18 GB reserve came from.
+    The loader now constructs in bf16 and uses ``assign=True``, and a measured
+    4-layer load peaks at **7.0 GB** (2026-09-29, session 4), so the reserve is
+    9 GB -- re-measure it if the loader changes again.  Reads MemAvailable and
+    refuses loudly instead of dying mid-pass.
     """
     try:
         with open("/proc/meminfo") as f:
