@@ -166,3 +166,12 @@ def test_mtp_drafter_flags_default_to_the_frozen_v1_behavior():
     assert args.mtp_self_temp == 2.0
     assert args.mtp_only is False
     assert args.mtp_head_layers == 1
+
+
+def test_mtp_eval_requires_a_checkpoint_and_defaults_are_stable():
+    import mtp_eval
+    with pytest.raises(SystemExit):
+        mtp_eval.build_parser().parse_args([])   # --load is required
+    a = mtp_eval.build_parser().parse_args(["--load", "x.pt"])
+    assert a.windows == 16 and a.seed == 999 and a.split == "wikitext"
+    assert a.mtp_head_layers == 1 and a.topk == 1 and a.seq == 512
