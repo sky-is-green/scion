@@ -50,7 +50,12 @@ from olmoe_corrections import (CorrectionBranch, MoEWithCorrection,  # noqa: E40
                                quantize_bank_inplace)
 from olmoe_proxy import gate_hook, ternary_ste, windows  # noqa: E402
 from ayot import load_traces, mix_windows, windows_from_texts  # noqa: E402
-from kd_loss import kd_filtered  # noqa: E402
+from kd_loss import (kd_filtered, residual_mass_kl, sample_tail_tokens,  # noqa: E402
+                     support_mass, support_mass_lse, tail_conditional_piece)
+from mtp import (MTPHead, chunked_ce, draft_acceptance,  # noqa: E402
+                 mtp_logits, mtp_targets)
+from router_bias import (balance_update, balance_z_loss,  # noqa: E402
+                         patch_router_balance)
 
 ART = Path(os.environ.get("MOE_ARTIFACTS", HERE / "artifacts"))
 MODEL = ART / "empero-hf"          # full or partial qwen3_5_moe checkpoint
@@ -137,6 +142,24 @@ def model_logits(model, ids):
     return logits
 
 
+def model_hidden_logits(model, ids):
+    """Hidden states + logits in one forward (the MTP head needs the hidden states).
+
+    Text-prefix only: the conditional wrapper does not expose
+    ``last_hidden_state`` without ``output_hidden_states``, and the MTP
+    experiment runs on the prefix.
+    """
+    out = model(input_ids=ids, use_cache=False)
+    h = getattr(out, "last_hidden_state", None)
+    if h is None:
+        raise AttributeError("model_hidden_logits needs a text model "
+                             "(no last_hidden_state on this output)")
+    logits = getattr(out, "logits", None)
+    if logits is None:
+        logits = model.lm_head(h)
+    return h, logits
+
+
 def _corpus_windows(tok, args):
     """Training windows; ``--corpus-file`` mixes in AYOT agentic traces."""
     data = windows(tok, args.windows, args.seq, args.seed, max_chars=args.corpus_chars)
@@ -155,6 +178,27 @@ def _quant_kwargs(args):
         return {}
     return {"catq_kw": {"steps": args.catq_steps, "lr": args.catq_lr,
                         "gamma": args.catq_gamma, "s0": args.catq_s0}}
+
+
+@torch.no_grad()
+def mtp_acceptance(model, head, data, args, topk: int = 1) -> float:
+    """Greedy draft acceptance of the MTP head on held-out windows.
+
+    ``main[:, t]`` predicts token ``t+1`` and the head at ``t`` predicts
+    ``t+2``; acceptance is the fraction where the head's argmax matches the main
+    model's argmax for the same token (``draft_acceptance``).
+    """
+    model.eval()
+    emb = model.get_input_embeddings()
+    accs = []
+    for i in range(len(data)):
+        ids = data[i:i + 1].to(args.device)
+        h, logits = model_hidden_logits(model, ids)
+        h_in, e_in, _ = mtp_targets(h, ids)
+        mlogits = mtp_logits(model, head, h_in, emb(e_in))
+        accs.append(draft_acceptance(logits, mlogits, topk))
+    model.train()
+    return sum(accs) / len(accs)
 
 
 @torch.no_grad()
@@ -327,11 +371,34 @@ def stage_cache(args):
         t_top = logits[:, :-1].topk(args.top_logits, dim=-1)
         router = {i: (store[i][2].cpu().to(torch.int16),
                       store[i][1].cpu().to(torch.float16)) for i in store}
-        recs.append({"idx": t_top.indices.cpu().to(torch.int32),
-                     "val": t_top.values.cpu().to(torch.float16),
-                     "router": router})
+        # wmass: the teacher's own mass on the support it was cached at.  The
+        # top-k KD term renormalises over the support and is blind to this
+        # number, which is the whole point of --kd-tail-weight (tail plan 2a).
+        # Recorded here because the full logsumexp is already in hand -- the
+        # topk above consumed the same full-width logits -- so it is free, and
+        # the tail term comes out exact instead of sampled.
+        wmass = support_mass(logits[:, :-1], t_top.indices)
+        rec = {"idx": t_top.indices.cpu().to(torch.int32),
+               "val": t_top.values.cpu().to(torch.float16),
+               "w": wmass.cpu().to(torch.float16),
+               "router": router}
+        if args.tail_logits:
+            # TAD's D_KL2 needs probabilities a top-k cache cannot hold, so the
+            # teacher's tail conditional is sampled here (Sparse Logit
+            # Sampling): m tokens per position + their conditional log-probs.
+            # The generator is seeded per window so a cache rebuilt with the
+            # same flags samples the same tokens -- same discipline as the
+            # window corpus itself.
+            gen = torch.Generator(device=logits.device).manual_seed(
+                int(args.seed) * 1_000_003 + w)
+            tidx, tlp = sample_tail_tokens(logits[:, :-1], t_top.indices,
+                                           args.tail_logits, generator=gen)
+            rec["tidx"] = tidx.cpu().to(torch.int32)
+            rec["tlp"] = tlp.cpu().to(torch.float16)
+        recs.append(rec)
         if w % 100 == 0:
-            print(f"cached {w}/{len(data)}", flush=True)
+            print(f"cached {w}/{len(data)} (teacher support mass "
+                  f"{float(wmass.mean()):.4f})", flush=True)
     OUT.mkdir(parents=True, exist_ok=True)
     path = Path(args.cache_file) if args.cache_file else CACHE
     torch.save(recs, path)
@@ -435,6 +502,19 @@ def stage_train(args):
     n_tr = build_student(model, args)
     print(f"trainable {n_tr/1e6:.2f}M (branches + routers) target {args.branch_target}",
           flush=True)
+    if args.balance != "none":
+        # Phase B: bias-based balancing patches the gate forward and keeps a
+        # per-expert bias buffer; the stock v1 path (none) is untouched.
+        n_gates = patch_router_balance(model, args.balance)
+        print(f"router balance: {args.balance} on {n_gates} gates "
+              f"(delta {args.balance_delta}, z {args.balance_z_coeff})", flush=True)
+    head = None
+    if args.mtp_weight > 0:
+        tcfg = getattr(model.config, "text_config", model.config)
+        head = MTPHead(int(tcfg.hidden_size)).to(args.device)
+        model._mtp_head = head          # nn.Module attribute -> in model.parameters()
+        print(f"MTP head: {sum(p.numel() for p in head.parameters()) / 1e6:.1f}M "
+              f"params, weight {args.mtp_weight}", flush=True)
 
     cache_path = Path(args.cache_file) if args.cache_file else CACHE
     cache = torch.load(cache_path, map_location="cpu")
@@ -464,8 +544,12 @@ def stage_train(args):
               flush=True)
     for epoch in range(args.epochs):
         for rec in cache:
+            bal, zl, mtp = None, None, None
             ids = data[step % len(data):step % len(data) + 1].to(args.device)
-            logits = model_logits(model, ids)
+            if head is not None:
+                h, logits = model_hidden_logits(model, ids)
+            else:
+                logits = model_logits(model, ids)
             lm = F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
                                  ids[:, 1:].reshape(-1))
             ti = rec["idx"].to(logits.device)
@@ -479,6 +563,63 @@ def stage_train(args):
                               F.log_softmax(tv.reshape(-1, tv.shape[-1]) / args.temp, dim=-1),
                               log_target=True, reduction="batchmean") * (args.temp ** 2)
             loss = lm + args.kd_weight * kd
+            tail, w_s, w_t, tcond = None, None, None, None
+            if args.kd_tail_weight > 0 or args.kd_tailcond_weight > 0:
+                # Both tail terms need the teacher's own support mass, recorded
+                # by the cache stage as rec["w"]; an older cache has no such key
+                # and the honest response is to refuse, not to substitute a
+                # constant (the per-token spread is 4x at the p01 tail, which is
+                # exactly where the gate's worst tokens live).
+                if "w" not in rec:
+                    raise SystemExit(
+                        f"--kd-tail-weight needs a cache with per-token teacher "
+                        f"support mass, and {cache_path} has none. Rebuild it: "
+                        f"moe/phase1-w1.sh cache c   (the 'w' field is free to "
+                        f"record -- the cache stage already holds the full "
+                        f"logits it topk'd)")
+                w_t = rec["w"].to(logits.device).float().reshape(-1)
+                # One full-vocab pass serves both tail terms: the marginal needs
+                # the mass, the tail-conditional also needs the normaliser.
+                w_s, lse_s = support_mass_lse(
+                    logits[:, :-1].reshape(-1, logits.shape[-1]),
+                    ti.reshape(-1, ti.shape[-1]))
+            if args.kd_tail_weight > 0:
+                # The marginal piece of the full-vocab KL that the top-k KD term
+                # cannot see.
+                tail = residual_mass_kl(w_s, w_t).mean()
+                loss = loss + args.kd_tail_weight * tail
+            if args.kd_tailcond_weight > 0:
+                # TAD's D_KL2: the tail-conditional piece, estimated from the
+                # sampled teacher-tail tokens (Sparse Logit Sampling).  An old
+                # cache cannot supply it, so refuse rather than skip a term the
+                # run's whole purpose is to measure.
+                if "tidx" not in rec or "tlp" not in rec:
+                    raise SystemExit(
+                        f"--kd-tailcond-weight needs a cache with sampled tail "
+                        f"tokens, and {cache_path} has none. Rebuild it: "
+                        f"moe/phase1-w1.sh cache-tail   (64 teacher-tail "
+                        f"samples per position, ~12% extra cache)")
+                m = rec["tidx"].shape[-1]
+                tcond = tail_conditional_piece(
+                    logits[:, :-1].reshape(-1, logits.shape[-1]),
+                    rec["tidx"].to(logits.device).reshape(-1, m),
+                    rec["tlp"].to(logits.device).float().reshape(-1, m),
+                    ti.reshape(-1, ti.shape[-1]), w_t,
+                    student_mass=w_s, student_lse=lse_s).mean()
+                loss = loss + args.kd_tailcond_weight * tcond
+            if args.balance == "zloss":
+                # OLMoE control arm: a differentiable scale penalty on the raw
+                # router logits, added to the loss like any other term.
+                zl, bal = balance_z_loss(model, args.balance_z_coeff)
+                loss = loss + zl
+            if head is not None:
+                # t+2 auxiliary supervision: the head sees h_t and emb(x_{t+1})
+                # and predicts x_{t+2}, through the frozen norm + lm_head.
+                h_in, e_in, tgt = mtp_targets(h, ids)
+                mlogits = mtp_logits(model, head, h_in,
+                                     model.get_input_embeddings()(e_in))
+                mtp = chunked_ce(mlogits, tgt)
+                loss = loss + args.mtp_weight * mtp
             if args.log_entropy:
                 # The sharpening signature the Phase 1 KLD gate found: entropy
                 # and peak top-1 mass, read straight off the training logits so a
@@ -493,6 +634,10 @@ def stage_train(args):
             loss.backward()
             opt.step()
             opt.zero_grad(set_to_none=True)
+            if args.balance in ("bias", "quantile"):
+                # ALF-LB / K3: one update per optimizer step, from the loads the
+                # forward just accumulated.  Returns the diagnostics before reset.
+                bal = balance_update(model, args.balance, args.balance_delta)
             step += 1
             if (args.lr_half_every and step >= args.lr_decay_start
                     and step % args.lr_half_every == 0):
@@ -503,12 +648,31 @@ def stage_train(args):
                 extra = ""
                 if args.log_entropy:
                     extra = f" H {ent:.3f} peak {peak:.4f}"
+                # w_s vs w_t is the tail term's own diagnostic, and it is the
+                # quantity the sharpening signature shows up in first: the
+                # trained arms put far more mass on the teacher's top-512 than
+                # the teacher does.  Logged whenever the term is on, for free.
+                if tail is not None:
+                    extra += (f" mass s {float(w_s.mean()):.4f}"
+                              f" t {float(w_t.mean()):.4f}")
+                if tcond is not None:
+                    extra += f" tcond {float(tcond):.4f}"
+                if zl is not None:
+                    extra += f" zl {zl.item():.2e}"
+                if mtp is not None:
+                    extra += f" mtp {mtp.item():.4f}"
+                if bal is not None:
+                    extra += f" loadH {bal['mean_load_entropy']:.3f}"
                 print(f"step {step} lm {lm.item():.4f} kd {kd.item():.4f} "
+                      f"tail {0.0 if tail is None else tail.item():.4f} "
                       f"total {loss.item():.4f}{extra}", flush=True)
             if args.eval_every and step % args.eval_every == 0 and ev is not None:
                 ppl, ag = quick_eval(model, ev, args, ref)
                 print(f"  [eval] step {step} ppl {ppl:.2f} router_agree {ag:.4f}",
                       flush=True)
+                if head is not None:
+                    acc = mtp_acceptance(model, head, ev, args)
+                    print(f"  [eval] step {step} mtp_accept {acc:.4f}", flush=True)
             if args.ckpt_every and step % args.ckpt_every == 0:
                 save(model, args, step)
             if args.steps and step >= args.steps:
@@ -527,7 +691,7 @@ def save(model, args, step):
     ``qwen35-corr-r512-g128-step4096.pt`` and silently overwrite each other.
     """
     sd = {k: v for k, v in model.state_dict().items()
-          if ".branch." in k or ".gate." in k}
+          if ".branch." in k or ".gate." in k or k.startswith("_mtp_head.")}
     tag = "" if args.branch_quant == "fp32" else f"-{args.branch_quant}"
     name = f"qwen35-corr-r{args.rank}{tag}-step{step}"
     if getattr(args, "tag", ""):
@@ -548,6 +712,9 @@ def stage_eval(args):
     patch_experts(args.group)
     model, _ = load_full(args)
     build_student(model, args)
+    if args.balance != "none":
+        n_gates = patch_router_balance(model, args.balance)
+        print(f"router balance: {args.balance} on {n_gates} gates", flush=True)
     if args.load:
         missing, unexpected = load_branch_state(model, args.load)
         print(f"loaded {args.load}: missing={len(missing)} unexpected={len(unexpected)}",
@@ -603,6 +770,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--top-logits", type=int, default=50)
+    ap.add_argument("--tail-logits", type=int, default=0,
+                    help="cache stage: sampled teacher-tail tokens per position "
+                         "for the D_KL2 term (0 = off, the frozen v1 cache; 64 "
+                         "is the validated size, ~12%% extra cache)")
     ap.add_argument("--steps", type=int, default=0)
     ap.add_argument("--epochs", type=int, default=1)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -614,6 +785,34 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--kd-filter-frac", type=float, default=0.0,
                     help="drop this fraction of the largest per-token KD losses "
                          "(SignRoundV2 uses 0.001; 0 = off)")
+    ap.add_argument("--kd-tail-weight", type=float, default=0.0,
+                    help="weight on the residual-mass (marginal) KL: match the "
+                         "student's mass on the cached top-k support to the "
+                         "teacher's, which the top-k KD term renormalises away. "
+                         "Needs a cache built with the 'w' field. 0 = off, and "
+                         "v1 stays off: this is a candidate, not a shipped default")
+    ap.add_argument("--kd-tailcond-weight", type=float, default=0.0,
+                    help="weight on TAD's D_KL2, the (1-w_t)-weighted "
+                         "tail-conditional KL: the third chain-rule piece of the "
+                         "full-vocab loss, estimated from the cache's sampled "
+                         "tail tokens (--tail-logits). 1.0 adds the exact "
+                         "measured piece; 0 = off (frozen v1)")
+    ap.add_argument("--balance", choices=["none", "bias", "quantile", "zloss"],
+                    default="none",
+                    help="router balancing (Phase B): none = frozen v1 (no "
+                         "balancing term); bias = DeepSeek aux-loss-free bias; "
+                         "quantile = K3 Quantile Balancing; zloss = OLMoE router "
+                         "z-loss. Bias arms save the per-expert bias in the "
+                         "checkpoint, so eval must pass the same --balance")
+    ap.add_argument("--balance-delta", type=float, default=1e-3,
+                    help="ALF-LB step size u (bias arm)")
+    ap.add_argument("--balance-z-coeff", type=float, default=1e-3,
+                    help="coefficient on the router z-loss (zloss arm)")
+    ap.add_argument("--mtp-weight", type=float, default=0.0,
+                    help="weight on the t+2 multi-token-prediction loss (Phase E "
+                         "item 11): trains a small head that shares the frozen "
+                         "norm+lm_head and logs greedy draft acceptance at eval. "
+                         "0 = off (frozen v1)")
     ap.add_argument("--eval-every", type=int, default=0)
     ap.add_argument("--ref-file", default="",
                     help="precomputed teacher router refs for the in-run eval "

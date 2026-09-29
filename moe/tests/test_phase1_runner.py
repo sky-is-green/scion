@@ -24,7 +24,8 @@ sys.path.insert(0, str(MOE))
 TARGETS = {"kld": "kld_eval.py", "kld-body": "kld_eval.py", "steer": "steer_probe.py"}
 
 # stages that go through the proxy rather than a separate instrument
-PROXY_STAGES = {"ref", "cache", "train", "train-lmonly", "train-kdw"}
+PROXY_STAGES = {"ref", "cache", "cache-tail", "train", "train-lmonly",
+                "train-kdw", "train-tail", "train-tailcond"}
 
 
 def _stage_blocks() -> dict[str, list[str]]:
@@ -211,8 +212,9 @@ def test_proxy_stages_flags_are_accepted(stage):
     assert flags, f"stage {stage} passes no flags"
     # the proxy takes a positional stage name; the runner supplies it as the
     # first argument, so prepend a valid one
-    sub = {"ref": "ref", "cache": "cache", "train": "train",
-           "train-lmonly": "train", "train-kdw": "train"}[stage]
+    sub = {"ref": "ref", "cache": "cache", "cache-tail": "cache",
+           "train": "train", "train-lmonly": "train", "train-kdw": "train",
+           "train-tail": "train", "train-tailcond": "train"}[stage]
     parser = proxy.build_parser()
     try:
         parser.parse_args([sub, *_with_values_for(parser, flags)])
@@ -249,3 +251,71 @@ def test_kdw_sweep_tags_by_weight():
     m = re.search(r'w="\$\{2:\?weight\}"', body)
     assert m, "train-kdw must take the weight as an argument"
     assert '"$w"' in body, "train-kdw must pass the weight through"
+
+
+def test_tail_sweep_tags_by_weight():
+    """Same reason as train-kdw: a sweep must not overwrite itself.
+
+    The tags have to differ from the kdw ones too, or the two sweeps would
+    collide on qwen35-corr-r512-g128-stepNNNN.pt and the number left on disk
+    would be whichever finished last.
+    """
+    body = "\n".join(_stage_blocks()["train-tail"])
+    assert '"tailw$w"' in body, "train-tail must derive --tag from the weight"
+    assert '"tailw$w"' != '"kdw$w"'
+    assert "prefix-top512.pt" in body, "sweep must hold the cache fixed"
+    assert re.search(r'w="\$\{2:\?weight\}"', body), \
+        "train-tail must take the weight as an argument"
+    assert '"$w"' in body, "train-tail must pass the weight through"
+
+
+def test_tail_arm_holds_kd_weight_at_v1():
+    """One variable only.
+
+    The tail term is a *second* build on top of the loss, not a second
+    rebalance.  If this stage also moved --kd-weight it would be measuring two
+    things at once and neither number would be attributable.
+    """
+    body = "\n".join(_stage_blocks()["train-tail"])
+    m = re.search(r"--kd-weight\s+([0-9.]+)", body)
+    assert m, "train-tail must pin --kd-weight explicitly, not inherit it"
+    assert float(m.group(1)) == 1.0, \
+        "train-tail must hold --kd-weight at the frozen v1 value of 1.0"
+    assert "--kd-tail-weight" in body
+    assert "--kd-filter-frac" not in body, \
+        "the tail arm must not also turn on loss filtering"
+
+
+def test_cache_tail_samples_the_tail_and_writes_its_own_file():
+    """The D_KL2 cache must not overwrite the v1 top-512 cache.
+
+    In-flight and repeatable arms (armC, kdw, tailw, combos) all read
+    prefix-top512.pt; if this stage rebuilt it with the two extra fields, every
+    historical number would silently change its input.  A separate file also
+    makes the +~12% size the only cost.
+    """
+    body = "\n".join(ln for ln in _stage_blocks()["cache-tail"]
+                     if not ln.strip().startswith("#"))
+    assert "--tail-logits 64" in body, \
+        "cache-tail must record the validated 64 sampled tail tokens"
+    assert "--top-logits 512" in body, "the support stays the v1 top-512"
+    assert "prefix-top512-tail64.pt" in body
+    assert "prefix-top512.pt" not in body, \
+        "cache-tail must not overwrite the v1 cache"
+
+
+def test_tailcond_stage_holds_the_combo_base_and_tags_by_weight():
+    """One variable against combo2t2, and a sweep cannot overwrite itself."""
+    body = "\n".join(_stage_blocks()["train-tailcond"])
+    m = re.search(r"--kd-weight\s+([0-9.]+)", body)
+    assert m and float(m.group(1)) == 2.0, \
+        "the base must be combo2t2 (kd 2.0), so the arm is one variable"
+    m = re.search(r"--kd-tail-weight\s+([0-9.]+)", body)
+    assert m and float(m.group(1)) == 2.0, "combo2t2 holds the tail weight at 2.0"
+    assert "--kd-tailcond-weight" in body
+    assert re.search(r'w="\$\{2:\?weight\}"', body), \
+        "train-tailcond must take the weight as an argument"
+    assert '"tailcond$w"' in body, "a sweep would otherwise overwrite itself"
+    assert "prefix-top512-tail64.pt" in body, \
+        "the term needs the cache with sampled tail tokens"
+    assert "--kd-filter-frac" not in body

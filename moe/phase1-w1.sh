@@ -76,7 +76,7 @@ run() { echo "### CARD=$CARD"; echo "### $*"; HIP_VISIBLE_DEVICES=$CARD "$@"; }
 mkdir -p "$MOE" logs
 
 case "${1:-all}" in
-ref|cache|train|train-lmonly|train-kdw|kld|kld-body|steer)
+ref|cache|cache-tail|train|train-lmonly|train-kdw|train-tail|train-tailcond|kld|kld-body|steer)
   # every stage loads the FP prefix, so all of them are exclusive
   acquire "${1:-all}"
   ;;
@@ -93,6 +93,19 @@ cache)
   k=50; [ "$arm" = c ] && k=512
   run "$PY" $PROXY cache "${SHARED[@]}" --device cuda:0 \
       --top-logits $k --cache-file "$MOE/prefix-top$k.pt"
+  ;;
+
+cache-tail)
+  # TAD's D_KL2 build (handoff §4 item 2): the tail-conditional piece needs
+  # probabilities over the ~248k-token complement, which a top-k cache cannot
+  # hold.  Sample them instead -- 64 tail tokens per position with their
+  # conditional log-probs (Sparse Logit Sampling) -- and keep the same
+  # top-512 support and SHARED window corpus, so this cache differs from
+  # prefix-top512.pt only by the two added fields (+~12% size).
+  #   usage: phase1-w1.sh cache-tail
+  run "$PY" $PROXY cache "${SHARED[@]}" --device cuda:0 \
+      --top-logits 512 --tail-logits 64 \
+      --cache-file "$MOE/prefix-top512-tail64.pt"
   ;;
 
 train)
@@ -143,6 +156,50 @@ train-kdw)
       --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
   ;;
 
+train-tail)
+  # Tail plan 2a: the residual-mass term.  --kd-weight stays at the frozen v1
+  # 1.0 so this is one variable against armC, not a second rebalance.
+  #
+  # The top-k KD term renormalises both sides over the cached support, so the
+  # support *mass* is unconstrained -- and the cache holds only 17% of teacher
+  # mass, so the other 83% is invisible to it.  This term matches the student's
+  # mass on the support to the teacher's, which is the marginal piece of the
+  # full-vocab KLD the gate measures.
+  #
+  # REQUIRES a cache with the per-token 'w' field, so run `cache c` once first;
+  # the stage fails loudly rather than substituting the corpus mean.
+  #   usage: phase1-w1.sh train-tail <weight> [steps]
+  w="${2:?weight}"
+  steps="${3:-4096}"
+  # The log carries the tail loss and (w_s vs w_t) either way, so the sweep
+  # self-diagnoses the same way --log-entropy makes the kd-weight one do.
+  run "$PY" $PROXY train "${SHARED[@]}" --quant lloyd --branch-quant g128 \
+      --branch-target both --rank 512 --kd-weight 1.0 --kd-tail-weight "$w" \
+      --temp 2.0 \
+      --device-map cuda:0 --device cuda:0 --log-entropy \
+      --cache-file "$MOE/prefix-top512.pt" --ref-file "$MOE/eval-ref-w2.pt" \
+      --tag "tailw$w" \
+      --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
+  ;;
+
+train-tailcond)
+  # TAD's D_KL2 (handoff §7.1a): the tail-conditional piece of the full-vocab
+  # KL -- 71-82% of the gate's measured KLD -- added with its exact chain-rule
+  # weight (1 - w_t).  Base is combo2t2, the current recipe candidate, so the
+  # arm is one variable: same kd 2.0 / tail 2.0, plus this term.  Needs the
+  # cache-tail cache (sampled tail tokens); fails loudly without them.
+  #   usage: phase1-w1.sh train-tailcond <weight> [steps]
+  w="${2:?weight}"
+  steps="${3:-4096}"
+  run "$PY" $PROXY train "${SHARED[@]}" --quant lloyd --branch-quant g128 \
+      --branch-target both --rank 512 --kd-weight 2.0 --kd-tail-weight 2.0 \
+      --kd-tailcond-weight "$w" --temp 2.0 \
+      --device-map cuda:0 --device cuda:0 --log-entropy \
+      --cache-file "$MOE/prefix-top512-tail64.pt" --ref-file "$MOE/eval-ref-w2.pt" \
+      --tag "tailcond$w" \
+      --epochs 1 --steps "$steps" --eval-every 1000 --ckpt-every 1000 --log-every 100
+  ;;
+
 kld)
   # the gate instrument: same prefix, same placement, checkpoint under test.
   # NB kld_eval takes its own (narrower) flag set -- only the prefix depth and
@@ -173,7 +230,9 @@ steer)
   ;;
 
 *)
-  echo "stages: ref | cache <a|c> | train <a|c> | train-lmonly [steps] |"
-  echo "        train-kdw <weight> [steps] | kld <ckpt> <tag> | kld-body | steer"
+  echo "stages: ref | cache <a|c> | cache-tail | train <a|c> | train-lmonly [steps] |"
+  echo "        train-kdw <weight> [steps] | train-tail <weight> [steps] |"
+  echo "        train-tailcond <weight> [steps] |"
+  echo "        kld <ckpt> <tag> [measure-topk] | kld-body | steer"
   exit 2;;
 esac
