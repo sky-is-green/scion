@@ -57,10 +57,15 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--eval-only", action="store_true",
                     help="skip training; evaluate --init on the eval (+ train) "
                          "windows and exit")
+    ap.add_argument("--n-eval-fineweb", type=int, default=0,
+                    help="of the last --n-eval windows, this many are held-out "
+                         "train-distribution (fineweb) windows, reported "
+                         "separately from the wikitext eval")
     ap.add_argument("--chunk", type=int, default=128)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--init", default="", help="warm-start head checkpoint")
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out", default="",
+                    help="head checkpoint to write (required for training)")
     ap.add_argument("--report", default="")
     return ap
 
@@ -190,23 +195,34 @@ def main() -> None:
                 accs.append(acc)
         return sum(accs) / len(accs)
 
+    def eval_split():
+        """(wikitext eval, held-out fineweb) acceptance over the eval range."""
+        k = args.n_eval_fineweb
+        fw = run_eval(range(args.n_train, args.n_train + k)) if k else None
+        wt = run_eval(range(args.n_train + k, args.n_train + args.n_eval))
+        return wt, fw
+
     if args.eval_only:
         if not args.init:
             raise SystemExit("--eval-only needs --init <head checkpoint>")
-        a = run_eval(range(args.n_train, args.n_train + args.n_eval))
+        a, af = eval_split()
         at = run_eval(range(min(args.eval_train_n, args.n_train))) \
             if args.eval_train_n else float("nan")
-        print(f"eval-only: eval acceptance {a:.4f} / train acceptance {at:.4f}",
-              flush=True)
+        print(f"eval-only: eval acceptance {a:.4f}"
+              + ("" if af is None else f" / fineweb-heldout {af:.4f}")
+              + (f" / train acceptance {at:.4f}" if at == at else ""), flush=True)
         if args.report:
             Path(args.report).write_text(json.dumps(
                 {"eval_only": True, "init": args.init, "eval_accept": round(a, 4),
+                 "fineweb_accept": None if af is None else round(af, 4),
                  "train_accept": None if at != at else round(at, 4)}, indent=2) + "\n")
         return
 
     t0 = time.time()
     curve = []
     step = 0
+    if not args.out:
+        raise SystemExit("--out is required for training")
     while step < args.steps:
         wl = [(step * args.batch_windows + j) % args.n_train
               for j in range(args.batch_windows)]
@@ -220,23 +236,29 @@ def main() -> None:
             print(f"step {step} loss {loss.item():.4f} "
                   f"({(time.time()-t0)/step:.2f}s/step)", flush=True)
         if args.eval_every and step % args.eval_every == 0:
-            a = run_eval(range(args.n_train, args.n_train + args.n_eval))
+            a, af = eval_split()
             at = run_eval(range(min(args.eval_train_n, args.n_train))) \
                 if args.eval_train_n else None
             curve.append({"step": step, "accept": round(a, 4),
+                          "accept_fineweb": None if af is None else round(af, 4),
                           "accept_train": None if at is None else round(at, 4)})
             print(f"  [eval] step {step} release acceptance {a:.4f}"
+                  + ("" if af is None else f" (fineweb-heldout {af:.4f})")
                   + ("" if at is None else f" (train {at:.4f})"), flush=True)
 
-    final = run_eval(range(args.n_train, args.n_train + args.n_eval))
+    final, final_fw = eval_split()
 
     sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
           "_mtp_head.fc2.weight": fc2.detach().cpu().float()}
     torch.save(sd, args.out)
     report = {"out": args.out, "gguf": args.gguf, "probe_dir": str(root),
               "n_train": args.n_train, "n_eval": args.n_eval,
+              "n_eval_fineweb": args.n_eval_fineweb,
               "steps": args.steps, "lr": args.lr, "layers": args.layers,
-              "final_accept": round(final, 4), "curve": curve,
+              "width_mult": args.width_mult, "weight_decay": args.weight_decay,
+              "final_accept": round(final, 4),
+              "final_fineweb": None if final_fw is None else round(final_fw, 4),
+              "curve": curve,
               "wall_s": round(time.time() - t0, 1)}
     if args.report:
         Path(args.report).write_text(json.dumps(report, indent=2) + "\n")
