@@ -54,6 +54,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--eval-train-n", type=int, default=0,
                     help="also report acceptance on the first N *train* windows "
                          "(diagnoses overfitting; 0 = off)")
+    ap.add_argument("--eval-only", action="store_true",
+                    help="skip training; evaluate --init on the eval (+ train) "
+                         "windows and exit")
     ap.add_argument("--chunk", type=int, default=128)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--init", default="", help="warm-start head checkpoint")
@@ -178,6 +181,29 @@ def main() -> None:
             return loss, None
         return loss, acceptance(lg, tgt, topk=1)
 
+    def run_eval(win_list):
+        accs = []
+        with torch.no_grad():
+            for w in win_list:
+                h, e, tgt = batch([w])
+                _, acc = loss_and_acc(h, e, tgt, want_acc=True)
+                accs.append(acc)
+        return sum(accs) / len(accs)
+
+    if args.eval_only:
+        if not args.init:
+            raise SystemExit("--eval-only needs --init <head checkpoint>")
+        a = run_eval(range(args.n_train, args.n_train + args.n_eval))
+        at = run_eval(range(min(args.eval_train_n, args.n_train))) \
+            if args.eval_train_n else float("nan")
+        print(f"eval-only: eval acceptance {a:.4f} / train acceptance {at:.4f}",
+              flush=True)
+        if args.report:
+            Path(args.report).write_text(json.dumps(
+                {"eval_only": True, "init": args.init, "eval_accept": round(a, 4),
+                 "train_accept": None if at != at else round(at, 4)}, indent=2) + "\n")
+        return
+
     t0 = time.time()
     curve = []
     step = 0
@@ -194,34 +220,15 @@ def main() -> None:
             print(f"step {step} loss {loss.item():.4f} "
                   f"({(time.time()-t0)/step:.2f}s/step)", flush=True)
         if args.eval_every and step % args.eval_every == 0:
-            accs = []
-            with torch.no_grad():
-                for w in range(args.n_train, args.n_train + args.n_eval):
-                    h, e, tgt = batch([w])
-                    _, acc = loss_and_acc(h, e, tgt, want_acc=True)
-                    accs.append(acc)
-            a = sum(accs) / len(accs)
-            at = None
-            if args.eval_train_n:
-                taccs = []
-                with torch.no_grad():
-                    for w in range(min(args.eval_train_n, args.n_train)):
-                        h, e, tgt = batch([w])
-                        _, acc = loss_and_acc(h, e, tgt, want_acc=True)
-                        taccs.append(acc)
-                at = sum(taccs) / len(taccs)
+            a = run_eval(range(args.n_train, args.n_train + args.n_eval))
+            at = run_eval(range(min(args.eval_train_n, args.n_train))) \
+                if args.eval_train_n else None
             curve.append({"step": step, "accept": round(a, 4),
                           "accept_train": None if at is None else round(at, 4)})
             print(f"  [eval] step {step} release acceptance {a:.4f}"
                   + ("" if at is None else f" (train {at:.4f})"), flush=True)
 
-    with torch.no_grad():
-        accs = []
-        for w in range(args.n_train, args.n_train + args.n_eval):
-            h, e, tgt = batch([w])
-            _, acc = loss_and_acc(h, e, tgt, want_acc=True)
-            accs.append(acc)
-        final = sum(accs) / len(accs)
+    final = run_eval(range(args.n_train, args.n_train + args.n_eval))
 
     sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
           "_mtp_head.fc2.weight": fc2.detach().cpu().float()}
