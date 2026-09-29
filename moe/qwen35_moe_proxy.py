@@ -46,7 +46,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from moe_proxy import ternary_absmean  # noqa: E402
 from olmoe_corrections import (CorrectionBranch, MoEWithCorrection,  # noqa: E402
-                               load_branch_state, moe_block,
+                               gate_stats, load_branch_state, moe_block,
                                quantize_bank_inplace)
 from olmoe_proxy import gate_hook, ternary_ste, windows  # noqa: E402
 from ayot import load_traces, mix_windows, windows_from_texts  # noqa: E402
@@ -484,22 +484,29 @@ def attach_branches(model, args) -> int:
     layers = text_layers(model)
     hidden = getattr(model.config, "hidden_size", None) or model.config.text_config.hidden_size
     target = args.branch_target
+    gate = getattr(args, "branch_gate", "none")
     for layer in layers:
         dev = next(layer.mlp.parameters()).device
         if target in ("moe_out", "both"):
             layer.mlp = MoEWithCorrection(layer.mlp, hidden, args.rank,
-                                          args.branch_quant, args.quant).to(dev)
+                                          args.branch_quant, args.quant,
+                                          gate=gate).to(dev)
         if target in ("attn_out", "both"):
             if getattr(layer, "layer_type", "") == "linear_attention":
                 proj = layer.linear_attn.out_proj
                 layer.linear_attn.out_proj = MoEWithCorrection(
                     proj, proj.in_features, args.rank, args.branch_quant,
-                    args.quant, out_dim=proj.out_features).to(dev)
+                    args.quant, out_dim=proj.out_features, gate=gate).to(dev)
             else:
                 proj = layer.self_attn.o_proj
                 layer.self_attn.o_proj = MoEWithCorrection(
                     proj, proj.in_features, args.rank, args.branch_quant, args.quant,
-                    out_dim=proj.out_features).to(dev)
+                    out_dim=proj.out_features, gate=gate).to(dev)
+    if gate != "none":
+        # Phase C build: gates are created 1+tanh(0) == 1, so the arm starts
+        # bit-identical to the ungated branch and the comparison is one-variable
+        # by construction.
+        print(f"branch gates: {gate} (identity at init)", flush=True)
     for name, p in model.named_parameters():
         p.requires_grad_(".branch." in name or ".gate." in name)
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -736,6 +743,17 @@ def stage_train(args):
         if args.steps and step >= args.steps:
             break
     save(model, args, step)
+    stats = gate_stats(model)
+    if stats:
+        # Phase C diagnostic: did the gates learn anything, and where?  A gate
+        # unchanged from init plus a flat distribution means the mechanism is a
+        # no-op on this arm -- a real answer, recorded as such.
+        OUT.mkdir(parents=True, exist_ok=True)
+        gpath = OUT / f"qwen35-branch-gates-{getattr(args, 'tag', '') or 'run'}.json"
+        gpath.write_text(json.dumps(stats, indent=2))
+        for r in stats:
+            print("gate " + json.dumps(r), flush=True)
+        print(f"wrote {gpath}", flush=True)
     print("training done", flush=True)
 
 
@@ -816,6 +834,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"], default="fp32")
     ap.add_argument("--branch-target", choices=["moe_out", "attn_out", "both"], default="both",
                     help="moe_out (block output), attn_out (ssm_out/o_proj), or both")
+    ap.add_argument("--branch-gate", choices=["none", "rw"], default="none",
+                    help="Phase C residual-stream gates: none = frozen v1 (plain "
+                         "additive branch); rw = per-channel read gate on the "
+                         "branch input + per-channel write gate on its output, "
+                         "1+tanh(r) with r=0 (identity at init, so the arm starts "
+                         "bit-identical to v1). Diagonal, folds into the factors "
+                         "at export -- no serving support needed")
     ap.add_argument("--windows", type=int, default=4096)
     ap.add_argument("--corpus-chars", type=int, default=50_000_000)
     ap.add_argument("--corpus-file", default="",

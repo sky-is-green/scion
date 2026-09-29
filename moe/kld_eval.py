@@ -470,6 +470,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--rank", type=int, default=512)
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"], default="g128")
     ap.add_argument("--branch-target", choices=["moe_out", "attn_out", "both"], default="both")
+    ap.add_argument("--branch-gate", choices=["none", "rw"], default="none",
+                    help="must match the checkpoint's training --branch-gate: "
+                         "'rw' builds the gated branch (Phase C) so a gated "
+                         "checkpoint's read_gate/write_gate tensors load")
     ap.add_argument("--load", default="", help="branch checkpoint (omit = uncorrected body)")
     ap.add_argument("--balance", choices=["none", "bias", "quantile", "zloss",
                                           "cb", "cbqb"],
@@ -515,7 +519,8 @@ def main() -> None:
     data = windows(tok, args.eval_windows, args.seq, args.seed, args.split)
     print(f"KLD eval: {args.prefix_layers}-layer prefix, vocab {vocab}, "
           f"{len(data)} windows x {args.seq} tokens, quant={args.quant} "
-          f"branch={args.branch_target}/{args.branch_quant} load={args.load or 'none'}",
+          f"branch={args.branch_target}/{args.branch_quant} "
+          f"gate={args.branch_gate} load={args.load or 'none'}",
           flush=True)
     # Refuse a teacher cache that cannot coexist with the prefix reload.  The
     # parked log-probs live in host RAM through the student pass, and load_prefix
@@ -658,6 +663,7 @@ def main() -> None:
         "quant": args.quant,
         "branch_target": args.branch_target,
         "branch_quant": args.branch_quant,
+        "branch_gate": args.branch_gate,
         "rank": args.rank,
         "eval_windows": args.eval_windows,
         "seq": args.seq,

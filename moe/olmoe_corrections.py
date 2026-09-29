@@ -67,15 +67,28 @@ class CorrectionBranch(nn.Module):
       - ``g128``  : ternary codes + fp16 group scales (the expert format)
       - ``rank``  : TAARDIS V3-style, one ternary scale per rank component,
                     folded from the down factor into the up factor
+
+    ``gate`` (Phase C, default ``none`` = frozen v1) adds the residual-stream
+    gates the frontier consensus puts on this surface: per-channel ``read_gate``
+    on the branch input and ``write_gate`` on its output, parameterised as
+    ``g = 1 + tanh(r)`` with ``r = 0`` so the gated arm starts **bit-identical**
+    to the ungated one.  Diagonal gates fold exactly into the factors
+    (``fold_gates``), so the exported rank-r container is unchanged.
     """
 
     def __init__(self, hidden: int, rank: int, quant: str = "fp32",
-                 quant_kind: str = "absmean", out_dim: int | None = None):
+                 quant_kind: str = "absmean", out_dim: int | None = None,
+                 gate: str = "none"):
         super().__init__()
         self.down = nn.Linear(hidden, rank, bias=False)
         self.up = nn.Linear(rank, out_dim or hidden, bias=False)
         self.quant = quant
         self.quant_kind = quant_kind
+        self.gate = gate
+        if "r" in gate:
+            self.read_gate = nn.Parameter(torch.zeros(hidden))
+        if "w" in gate:
+            self.write_gate = nn.Parameter(torch.zeros(out_dim or hidden))
         nn.init.normal_(self.down.weight, std=0.02)
         nn.init.zeros_(self.up.weight)
 
@@ -100,16 +113,69 @@ class CorrectionBranch(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         wd, wu = self._weights()
-        h = F.linear(x.float(), wd)
-        return F.linear(h, wu).to(x.dtype)
+        xf = x.float()
+        if "r" in self.gate:
+            # read gate: scale the branch input channels.  1 + tanh(0) == 1.0,
+            # and an fp32 multiply by exactly 1.0 is the identity, so init is
+            # bit-identical to the ungated arm.
+            xf = xf * (1.0 + torch.tanh(self.read_gate))
+        y = F.linear(F.linear(xf, wd), wu)
+        if "w" in self.gate:
+            # write gate: scale the branch output channels before the cast back.
+            y = y * (1.0 + torch.tanh(self.write_gate))
+        return y.to(x.dtype)
+
+
+def fold_gates(down: torch.Tensor, up: torch.Tensor,
+               read_gate: torch.Tensor | None = None,
+               write_gate: torch.Tensor | None = None
+               ) -> tuple[torch.Tensor, torch.Tensor]:
+    """Fold per-channel branch gates into the low-rank factors.
+
+    ``diag(g_w) B A diag(g_r)`` is still rank-r, so the merged/exported
+    container keeps its shape and the serving runtime needs no gate support.
+    This is the exact algebra of the gated forward; the deployed form quantises
+    the folded factors (fold-then-quantize), which is what the export writes.
+    """
+    if read_gate is not None:
+        down = down * (1.0 + torch.tanh(read_gate))[None, :]
+    if write_gate is not None:
+        up = up * (1.0 + torch.tanh(write_gate))[:, None]
+    return down, up
+
+
+@torch.no_grad()
+def gate_stats(model) -> list[dict]:
+    """Per-branch learned gate statistics (Phase C diagnostic).
+
+    ``g = 1 + tanh(r)``.  A gate that is unchanged from init plus a flat
+    distribution is a no-op, and that is a real answer to record alongside the
+    arm's KLD numbers.
+    """
+    out = []
+    for name, mod in model.named_modules():
+        if not isinstance(mod, CorrectionBranch) or mod.gate == "none":
+            continue
+        rec: dict = {"module": name}
+        if "r" in mod.gate:
+            g = 1.0 + torch.tanh(mod.read_gate)
+            rec.update(read_mean=float(g.mean()), read_std=float(g.std(unbiased=False)),
+                       read_min=float(g.min()), read_max=float(g.max()))
+        if "w" in mod.gate:
+            g = 1.0 + torch.tanh(mod.write_gate)
+            rec.update(write_mean=float(g.mean()), write_std=float(g.std(unbiased=False)),
+                       write_min=float(g.min()), write_max=float(g.max()))
+        out.append(rec)
+    return out
 
 
 class MoEWithCorrection(nn.Module):
     def __init__(self, mlp: nn.Module, hidden: int, rank: int, quant: str = "fp32",
-                 quant_kind: str = "absmean", out_dim: int | None = None):
+                 quant_kind: str = "absmean", out_dim: int | None = None,
+                 gate: str = "none"):
         super().__init__()
         self.mlp = mlp
-        self.branch = CorrectionBranch(hidden, rank, quant, quant_kind, out_dim)
+        self.branch = CorrectionBranch(hidden, rank, quant, quant_kind, out_dim, gate)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.mlp(x) + self.branch(x)

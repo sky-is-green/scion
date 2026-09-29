@@ -47,10 +47,56 @@ from gguf import GGUFWriter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from moe_proxy import ternary_absmean, ternary_lloyd  # noqa: E402
+from olmoe_corrections import fold_gates  # noqa: E402
+
+
+# checkpoint-key suffix -> (GGUF target tensor, slot).  ``read``/``write`` are
+# the Phase C gate tensors: they fold into the down/up factors at export, so
+# the exported LoRA container keeps its rank and the runtime is unchanged.
+_BRANCH_SUFFIXES = (
+    (".self_attn.o_proj.branch.down.weight", "attn_output.weight", "down"),
+    (".self_attn.o_proj.branch.up.weight", "attn_output.weight", "up"),
+    (".self_attn.o_proj.branch.read_gate", "attn_output.weight", "read"),
+    (".self_attn.o_proj.branch.write_gate", "attn_output.weight", "write"),
+    (".linear_attn.out_proj.branch.down.weight", "ssm_out.weight", "down"),
+    (".linear_attn.out_proj.branch.up.weight", "ssm_out.weight", "up"),
+    (".linear_attn.out_proj.branch.read_gate", "ssm_out.weight", "read"),
+    (".linear_attn.out_proj.branch.write_gate", "ssm_out.weight", "write"),
+    (".mlp.branch.down.weight", "ffn_moe_out.weight", "down"),
+    (".mlp.branch.up.weight", "ffn_moe_out.weight", "up"),
+    (".mlp.branch.read_gate", "ffn_moe_out.weight", "read"),
+    (".mlp.branch.write_gate", "ffn_moe_out.weight", "write"),
+)
 
 
 def layer_index(key: str) -> int:
     return int(re.search(r"layers\.(\d+)\.", key).group(1))
+
+
+def collect_branch_pairs(sd: dict, wanted: set) -> tuple[dict, dict]:
+    """Split a branch state dict into (down/up factor pairs, gate tensors).
+
+    Gate tensors are returned separately because they are not exported: they
+    fold into the factors (``fold_gates``), which is what keeps the exported
+    LoRA rank-r and the serving runtime gate-free.
+    """
+    pairs: dict = {}
+    gates: dict = {}
+    for key, tensor in sd.items():
+        for suffix, target, slot in _BRANCH_SUFFIXES:
+            if key.endswith(suffix):
+                break
+        else:
+            continue
+        if target not in wanted:
+            continue
+        k = (layer_index(key), target)
+        if slot in ("down", "up"):
+            pairs.setdefault(k, {})[slot] = tensor
+        else:
+            gates.setdefault(k, {})[slot] = tensor
+    pairs = {k: v for k, v in pairs.items() if "down" in v and "up" in v}
+    return pairs, gates
 
 
 def deploy_weights(down: torch.Tensor, up: torch.Tensor, quant: str,
@@ -169,31 +215,13 @@ def main():
 
     sd = torch.load(args.load, map_location="cpu")
     sd = {k.replace(".doctor.", ".branch."): v for k, v in sd.items()}
-    pairs = {}
-    for key, tensor in sd.items():
-        if key.endswith(".self_attn.o_proj.branch.down.weight"):
-            target, which = "attn_output.weight", "down"
-        elif key.endswith(".self_attn.o_proj.branch.up.weight"):
-            target, which = "attn_output.weight", "up"
-        elif key.endswith(".linear_attn.out_proj.branch.down.weight"):
-            # qwen3_5_moe GDN layers project through ssm_out in GGUF
-            target, which = "ssm_out.weight", "down"
-        elif key.endswith(".linear_attn.out_proj.branch.up.weight"):
-            target, which = "ssm_out.weight", "up"
-        elif key.endswith(".mlp.branch.down.weight"):
-            target, which = "ffn_moe_out.weight", "down"
-        elif key.endswith(".mlp.branch.up.weight"):
-            target, which = "ffn_moe_out.weight", "up"
-        else:
-            continue
-        if target in wanted:
-            pairs.setdefault((layer_index(key), target), {})[which] = tensor
-    pairs = {k: v for k, v in pairs.items() if "down" in v and "up" in v}
+    pairs, gates = collect_branch_pairs(sd, wanted)
     if not pairs:
         raise SystemExit(f"no branch tensors for target '{args.target}' found in {args.load}")
     rank = next(iter(pairs.values()))["down"].shape[0]
     print(f"exporting {len(pairs)} branch tensors, rank {rank}, "
-          f"deploy-quant {args.deploy_quant}/{args.branch_quant}")
+          f"deploy-quant {args.deploy_quant}/{args.branch_quant}, "
+          f"{len(gates)} gated branches")
 
     w = GGUFWriter(args.out, arch=args.arch)
     w.add_type("adapter")
@@ -221,7 +249,13 @@ def main():
     dense_dtype = np.float32 if args.dtype == "f32" else np.float16
 
     for (i, target), t in sorted(pairs.items()):
-        down, up = deploy_weights(t["down"], t["up"], args.branch_quant, args.deploy_quant)
+        down, up = t["down"], t["up"]
+        g = gates.get((i, target), {})
+        if "read" in g or "write" in g:
+            # Phase C: fold the gates before quantization; (D_w B)(A D_r) is
+            # still rank-r, so the container below is unchanged.
+            down, up = fold_gates(down, up, g.get("read"), g.get("write"))
+        down, up = deploy_weights(down, up, args.branch_quant, args.deploy_quant)
         # gguf-py reverses dims on write: passing [rank, in] / [out, rank]
         # stores ne [in, rank] / [rank, out], matching the reference adapters.
         add_factor(w, f"blk.{i}.{target}.lora_a", down, args.dtype, raw_qtype)
