@@ -277,3 +277,25 @@ def test_release_head_forward_and_acceptance_tiny():
     # and with a weight it scales
     z = R.rms(x, torch.full((H,), 2.0))
     assert torch.allclose(z, y * 2.0, atol=1e-5)
+
+
+def test_sidecar_head_forward_math_and_parser():
+    """The sidecar exporter's head math mirrors the runtime contract."""
+    import mtp_sidecar_export as S
+    torch.manual_seed(1)
+    H, W = 8, 16
+    fc1 = torch.randn(W, 2 * H) * 0.1
+    fc2 = torch.randn(H, W) * 0.1
+    h = torch.randn(3, H)
+    e = torch.randn(3, H)
+    out = S.head_forward(fc1, fc2, h, e)
+    assert out.shape == (3, H)
+
+    def rms(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + 1e-6)
+
+    ref = (fc2 @ torch.nn.functional.gelu(
+        fc1 @ torch.cat([rms(h), rms(e)], dim=-1).T)).T
+    assert torch.allclose(out, ref)
+    a = S.build_parser().parse_args(["--head", "x", "--out", "y"])
+    assert a.verify is False and a.source == "" and a.accept_fineweb is None
