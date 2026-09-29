@@ -41,9 +41,21 @@ def filtered_mean(losses: torch.Tensor, filter_frac: float = 0.0) -> torch.Tenso
 
 
 def kd_filtered(student_logits: torch.Tensor, teacher_logits: torch.Tensor,
-                temp: float = 2.0, filter_frac: float = 0.0) -> torch.Tensor:
-    """Output-KD term with optional loss filtering (`filter_frac` = 0 keeps all)."""
-    return filtered_mean(kl_per_token(student_logits, teacher_logits, temp), filter_frac)
+                temp: float = 2.0, filter_frac: float = 0.0,
+                token_weight: torch.Tensor | None = None) -> torch.Tensor:
+    """Output-KD term with optional loss filtering and per-token weighting.
+
+    ``token_weight`` (shape ``(...)``) multiplies each token's KL before the
+    mean.  The chain-rule weight for the support-conditional piece is the
+    teacher's own support mass ``w_t``, which turns this term into the support
+    half of TAD's exact coarsened D_KL1 (``marginal + w_t*conditional``); the
+    current recipe leaves it unweighted, which over-weights it by ~1/w_t
+    (w_t ~ 0.17 => ~6x) relative to the divergence the gate measures.
+    """
+    kl = kl_per_token(student_logits, teacher_logits, temp)
+    if token_weight is not None:
+        kl = kl * token_weight.reshape(kl.shape).to(kl.device).float()
+    return filtered_mean(kl, filter_frac)
 
 
 # --------------------------------------------------------- residual mass ----

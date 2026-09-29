@@ -583,29 +583,34 @@ def stage_train(args):
             ti = rec["idx"].to(logits.device)
             tv = rec["val"].to(logits.device).float()
             s_sel = logits[:, :-1].gather(-1, ti).reshape(-1, ti.shape[-1])
-            if args.kd_filter_frac > 0:
+
+            # the teacher's own support mass (cache 'w') is needed by the tail
+            # terms and by the exact D_KL1 support weighting; an older cache has
+            # no such key and the honest response is to refuse, not to substitute
+            # a constant (the per-token spread is 4x at the p01 tail, which is
+            # exactly where the gate's worst tokens live).
+            w_t = None
+            if args.kd_support_w == "wt" or args.kd_tail_weight > 0 or args.kd_tailcond_weight > 0:
+                if "w" not in rec:
+                    raise SystemExit(
+                        f"--kd-support-w/--kd-tail-* need a cache with per-token "
+                        f"teacher support mass, and {cache_path} has none. Rebuild it: "
+                        f"moe/phase1-w1.sh cache c   (the 'w' field is free to "
+                        f"record -- the cache stage already holds the full "
+                        f"logits it topk'd)")
+                w_t = rec["w"].to(logits.device).float().reshape(-1)
+
+            if args.kd_filter_frac > 0 or args.kd_support_w == "wt":
                 kd = kd_filtered(s_sel, tv.reshape(-1, tv.shape[-1]),
-                                 args.temp, args.kd_filter_frac)
+                                 args.temp, args.kd_filter_frac,
+                                 token_weight=w_t if args.kd_support_w == "wt" else None)
             else:
                 kd = F.kl_div(F.log_softmax(s_sel.float() / args.temp, dim=-1),
                               F.log_softmax(tv.reshape(-1, tv.shape[-1]) / args.temp, dim=-1),
                               log_target=True, reduction="batchmean") * (args.temp ** 2)
             loss = lm + args.kd_weight * kd
-            tail, w_s, w_t, tcond = None, None, None, None
+            tail, w_s, tcond = None, None, None
             if args.kd_tail_weight > 0 or args.kd_tailcond_weight > 0:
-                # Both tail terms need the teacher's own support mass, recorded
-                # by the cache stage as rec["w"]; an older cache has no such key
-                # and the honest response is to refuse, not to substitute a
-                # constant (the per-token spread is 4x at the p01 tail, which is
-                # exactly where the gate's worst tokens live).
-                if "w" not in rec:
-                    raise SystemExit(
-                        f"--kd-tail-weight needs a cache with per-token teacher "
-                        f"support mass, and {cache_path} has none. Rebuild it: "
-                        f"moe/phase1-w1.sh cache c   (the 'w' field is free to "
-                        f"record -- the cache stage already holds the full "
-                        f"logits it topk'd)")
-                w_t = rec["w"].to(logits.device).float().reshape(-1)
                 # One full-vocab pass serves both tail terms: the marginal needs
                 # the mass, the tail-conditional also needs the normaliser.
                 w_s, lse_s = support_mass_lse(
@@ -837,6 +842,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--kd-filter-frac", type=float, default=0.0,
                     help="drop this fraction of the largest per-token KD losses "
                          "(SignRoundV2 uses 0.001; 0 = off)")
+    ap.add_argument("--kd-support-w", choices=["one", "wt"], default="one",
+                    help="per-token weight on the support-conditional KD term: "
+                         "'one' (v1) leaves the top-k KL unweighted, 'wt' scales "
+                         "each token by the teacher's own support mass w_t, which "
+                         "is TAD's exact coarsened D_KL1 (marginal + w_t*conditional). "
+                         "Needs a cache built with the 'w' field")
     ap.add_argument("--kd-tail-weight", type=float, default=0.0,
                     help="weight on the residual-mass (marginal) KL: match the "
                          "student's mass on the cached top-k support to the "
