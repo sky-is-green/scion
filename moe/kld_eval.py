@@ -471,11 +471,17 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"], default="g128")
     ap.add_argument("--branch-target", choices=["moe_out", "attn_out", "both"], default="both")
     ap.add_argument("--load", default="", help="branch checkpoint (omit = uncorrected body)")
-    ap.add_argument("--balance", choices=["none", "bias", "quantile", "zloss"],
+    ap.add_argument("--balance", choices=["none", "bias", "quantile", "zloss",
+                                          "cb", "cbqb"],
                     default="none",
                     help="must match the checkpoint's training --balance: bias "
                          "arms carry a per-expert bias buffer in the checkpoint, "
-                         "and the model needs the same patched gate to load it")
+                         "and the model needs the same patched gate to load it "
+                         "(same --balance-cb-eta / --balance-qb-damp too)")
+    ap.add_argument("--balance-cb-eta", type=float, default=0.05,
+                    help="CB nudge scale (must match training)")
+    ap.add_argument("--balance-qb-damp", type=float, default=1.0,
+                    help="quantile step damping (must match training)")
     ap.add_argument("--split", default="wikitext")
     ap.add_argument("--seed", type=int, default=999,
                     help="window seed; 999 is the W1 gate's wikitext seed. Use a "
@@ -533,7 +539,8 @@ def main() -> None:
         # Same patched gate the training arm used, so the saved balance_bias
         # buffer exists and loads.  Default none leaves the instrument untouched.
         from router_bias import patch_router_balance
-        n_gates = patch_router_balance(model, args.balance)
+        n_gates = patch_router_balance(model, args.balance,
+                                       args.balance_cb_eta, args.balance_qb_damp)
         print(f"router balance: {args.balance} on {n_gates} gates", flush=True)
     n_tr = build_student(model, args)
     print(f"student built: trainable {n_tr/1e6:.2f}M", flush=True)

@@ -523,7 +523,8 @@ def stage_train(args):
     if args.balance != "none":
         # Phase B: bias-based balancing patches the gate forward and keeps a
         # per-expert bias buffer; the stock v1 path (none) is untouched.
-        n_gates = patch_router_balance(model, args.balance)
+        n_gates = patch_router_balance(model, args.balance,
+                                       args.balance_cb_eta, args.balance_qb_damp)
         print(f"router balance: {args.balance} on {n_gates} gates "
               f"(delta {args.balance_delta}, z {args.balance_z_coeff})", flush=True)
     head = None
@@ -652,7 +653,7 @@ def stage_train(args):
             loss.backward()
             opt.step()
             opt.zero_grad(set_to_none=True)
-            if args.balance in ("bias", "quantile"):
+            if args.balance in ("bias", "quantile", "cbqb"):
                 # ALF-LB / K3: one update per optimizer step, from the loads the
                 # forward just accumulated.  Returns the diagnostics before reset.
                 bal = balance_update(model, args.balance, args.balance_delta)
@@ -731,7 +732,8 @@ def stage_eval(args):
     model, _ = load_full(args)
     build_student(model, args)
     if args.balance != "none":
-        n_gates = patch_router_balance(model, args.balance)
+        n_gates = patch_router_balance(model, args.balance,
+                                       args.balance_cb_eta, args.balance_qb_damp)
         print(f"router balance: {args.balance} on {n_gates} gates", flush=True)
     if args.load:
         missing, unexpected = load_branch_state(model, args.load)
@@ -815,15 +817,26 @@ def build_parser() -> argparse.ArgumentParser:
                          "full-vocab loss, estimated from the cache's sampled "
                          "tail tokens (--tail-logits). 1.0 adds the exact "
                          "measured piece; 0 = off (frozen v1)")
-    ap.add_argument("--balance", choices=["none", "bias", "quantile", "zloss"],
+    ap.add_argument("--balance", choices=["none", "bias", "quantile", "zloss",
+                                          "cb", "cbqb"],
                     default="none",
                     help="router balancing (Phase B): none = frozen v1 (no "
                          "balancing term); bias = DeepSeek aux-loss-free bias; "
                          "quantile = K3 Quantile Balancing; zloss = OLMoE router "
-                         "z-loss. Bias arms save the per-expert bias in the "
-                         "checkpoint, so eval must pass the same --balance")
+                         "z-loss; cb = causal per-sequence mass bias (the "
+                         "routing-sweep follow-up); cbqb = cb + quantile. Bias "
+                         "arms save the per-expert bias in the checkpoint, so "
+                         "eval must pass the same --balance (and the same "
+                         "--balance-cb-eta / --balance-qb-damp)")
     ap.add_argument("--balance-delta", type=float, default=1e-3,
                     help="ALF-LB step size u (bias arm)")
+    ap.add_argument("--balance-cb-eta", type=float, default=0.05,
+                    help="CB nudge scale: a hot expert at twice the uniform "
+                         "score-mass rate is pushed down by eta (cb / cbqb)")
+    ap.add_argument("--balance-qb-damp", type=float, default=1.0,
+                    help="damping on the quantile coordinate step (quantile / "
+                         "cbqb); the trained arm's biases reached +-2, so the "
+                         "full step overshoots at a 511-token batch")
     ap.add_argument("--balance-z-coeff", type=float, default=1e-3,
                     help="coefficient on the router z-loss (zloss arm)")
     ap.add_argument("--mtp-weight", type=float, default=0.0,

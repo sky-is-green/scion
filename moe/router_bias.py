@@ -31,9 +31,11 @@ import types
 import torch
 import torch.nn.functional as F
 
-from router_balance import margins, quantile_bias_step, sign_bias_update
+from router_balance import (causal_mass_bias, margins,  # noqa: F401
+                            margins_from_scores, quantile_bias_step,
+                            sign_bias_update)
 
-KINDS = ("none", "bias", "quantile", "zloss")
+KINDS = ("none", "bias", "quantile", "zloss", "cb", "cbqb")
 
 
 def _router_class():
@@ -53,30 +55,40 @@ def _new_stats(n: int) -> dict:
 
 
 def _balanced_forward(self, hidden_states):
-    """Stock forward + bias on the selection scores; weights stay unbiased."""
+    """Stock forward + selection bias; mixture weights stay unbiased."""
     hidden = hidden_states.reshape(-1, self.hidden_dim)
     logits = F.linear(hidden, self.weight)                     # raw scores
+    kind = getattr(self, "_balance_kind", None)
     bias = getattr(self, "balance_bias", None)
-    choice = logits if bias is None else logits + bias         # selection scores
+    choice = logits
+    if bias is not None and kind in ("bias", "quantile", "cbqb"):
+        choice = choice + bias
+    if kind in ("cb", "cbqb"):
+        choice = choice + causal_mass_bias(
+            logits, getattr(self, "_balance_cb_eta", 0.05))
     probs = F.softmax(choice, dtype=torch.float, dim=-1)
     _, idx = torch.topk(probs, self.top_k, dim=-1)
     # mixture weights: raw softmax over the selected experts (bias never enters)
     weights = F.softmax(logits.gather(-1, idx).float(), dim=-1).to(probs.dtype)
 
-    kind = getattr(self, "_balance_kind", None)
     if kind is not None and self.training:
         st = self._balance_stats
         st["counts"] = st["counts"] + torch.bincount(
             idx.reshape(-1).cpu(), minlength=self.num_experts)
         if kind == "quantile":
             st["margins"].append(margins(logits, bias, self.top_k).detach())
+        elif kind == "cbqb":
+            # the buffer update must see the effective selection scores,
+            # including the per-token causal term
+            st["margins"].append(margins_from_scores(choice, self.top_k).detach())
         elif kind == "zloss":
             z = torch.logsumexp(logits.float(), dim=-1)
             st["z_terms"].append((z ** 2).mean())
     return probs, weights, idx
 
 
-def patch_gate(gate, kind: str) -> None:
+def patch_gate(gate, kind: str, cb_eta: float = 0.05,
+               qb_damp: float = 1.0) -> None:
     """Patch one gate: forward, bias buffer, stats, kind (idempotent)."""
     gate.forward = types.MethodType(_balanced_forward, gate)
     if not hasattr(gate, "balance_bias"):
@@ -89,15 +101,21 @@ def patch_gate(gate, kind: str) -> None:
             "balance_bias",
             torch.zeros(gate.num_experts, device=gate.weight.device))
     gate._balance_kind = kind
+    gate._balance_cb_eta = cb_eta
+    gate._balance_qb_damp = qb_damp
     gate._balance_stats = _new_stats(gate.num_experts)
 
 
-def patch_router_balance(model, kind: str) -> int:
+def patch_router_balance(model, kind: str, cb_eta: float = 0.05,
+                         qb_damp: float = 1.0) -> int:
     """Patch every gate in ``model`` for ``kind``; returns the gate count.
 
     Patches the class (so later instances behave) *and* rebinds the loaded
     instances, because ``device_map`` binds the pre-patch forward on each
-    module — the same reason ``patch_experts`` rebinds.
+    module — the same reason ``patch_experts`` rebinds.  ``cb_eta`` scales the
+    causal-bias arm's nudge; ``qb_damp`` scales the quantile step (the trained
+    quantile arm's biases reached +-2, i.e. the full step overshoots at our
+    511-token batch — damp < 1 is the direct fix).
     """
     if kind not in KINDS or kind == "none":
         raise ValueError(f"kind must be one of {KINDS[1:]}, got {kind!r}")
@@ -108,7 +126,7 @@ def patch_router_balance(model, kind: str) -> int:
     n = 0
     for m in model.modules():
         if isinstance(m, cls):
-            patch_gate(m, kind)
+            patch_gate(m, kind, cb_eta, qb_damp)
             n += 1
     return n
 
@@ -137,7 +155,7 @@ def balance_update(model, kind: str, delta: float = 1e-3) -> dict:
     Call *after* ``opt.step()``.  Returns the load diagnostics before the reset
     (the log wants them), then clears the stats for the next step.
     """
-    if kind not in ("bias", "quantile"):
+    if kind not in ("bias", "quantile", "cbqb"):
         raise ValueError(f"no update for kind {kind!r}")
     for m in _patched(model):
         st = m._balance_stats
@@ -150,12 +168,13 @@ def balance_update(model, kind: str, delta: float = 1e-3) -> dict:
                 # must happen on the buffer's device, so move the load over.
                 load = (st["counts"].float() / total).to(m.balance_bias.device)
                 m.balance_bias.copy_(sign_bias_update(m.balance_bias, load, delta))
-            else:
+            else:  # quantile / cbqb: one damped coordinate step
                 if not st["margins"]:
                     continue
                 marg = torch.cat(st["margins"], dim=0)
-                m.balance_bias.copy_(
-                    quantile_bias_step(m.balance_bias, marg, m.top_k))
+                m.balance_bias.copy_(quantile_bias_step(
+                    m.balance_bias, marg, m.top_k,
+                    damp=getattr(m, "_balance_qb_damp", 1.0)))
     diag = balance_diagnostics(model)
     balance_reset(model)
     return diag

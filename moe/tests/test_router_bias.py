@@ -167,3 +167,46 @@ def test_quantile_bias_step_matches_the_logits_version():
     direct = rb.quantile_bias_update(bias, logits, k=2)
     via_margins = rb.quantile_bias_step(bias, rb.margins(logits, bias, 2), 2)
     assert torch.allclose(direct, via_margins, atol=1e-6)
+
+
+# -------------------------------------------------------- causal-bias arms ---
+
+def test_cb_changes_selection_but_not_weights():
+    """CB steers selection from within-sequence mass; the weights stay unbiased."""
+    torch.manual_seed(6)
+    gate = FakeGate(n_experts=8, top_k=2)
+    x = torch.randn(512, 16)
+    _, _, stock_idx = gate(x)
+    rbia.patch_gate(gate, "cb", cb_eta=0.5)
+    _, weights, idx = gate(x)
+    assert not torch.equal(idx, stock_idx), "the causal bias must move selection"
+    h = x.reshape(-1, 16)
+    raw = torch.nn.functional.linear(h, gate.weight)
+    manual = torch.softmax(raw.gather(-1, idx), dim=-1)
+    assert torch.allclose(weights, manual, atol=1e-5)
+
+
+def test_cbqb_collects_margins_on_the_effective_scores_and_updates():
+    torch.manual_seed(7)
+    gate = FakeGate(n_experts=8, top_k=2)
+    x = torch.randn(512, 16)
+    rbia.patch_gate(gate, "cbqb", cb_eta=0.2, qb_damp=0.5)
+    model = FakeModel([gate])
+    gate(x)
+    assert gate._balance_stats["margins"], "cbqb must collect margins"
+    before = gate.balance_bias.clone()
+    rbia.balance_update(model, "cbqb")
+    assert not torch.equal(gate.balance_bias, before)
+    assert torch.isfinite(gate.balance_bias).all()
+    # the buffer update is mean-centred (K3) and the stats were reset
+    assert abs(float(gate.balance_bias.mean())) < 1e-5
+    assert int(gate._balance_stats["counts"].sum()) == 0
+
+
+def test_cb_flags_default_off():
+    """v1 stays numerically unchanged: every new knob is off by default."""
+    import qwen35_moe_proxy as proxy
+    args = proxy.build_parser().parse_args(["train"])
+    assert args.balance == "none"
+    assert args.balance_cb_eta == 0.05
+    assert args.balance_qb_damp == 1.0

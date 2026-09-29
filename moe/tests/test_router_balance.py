@@ -129,3 +129,57 @@ def test_switch_balance_loss_is_coeff_at_uniform_balance():
     idx = torch.stack([torch.arange(T) % n, (torch.arange(T) + 1) % n], dim=-1)
     val = rb.switch_balance_loss(scores, idx, n_experts=n, coeff=1e-4)
     assert val.item() == pytest.approx(1e-4, rel=1e-5)
+
+
+# ------------------------------------------------------------ causal bias ---
+
+def test_causal_mass_bias_is_causal_and_zero_at_the_first_token():
+    """Token t may depend only on tokens <= t-1; the first token has no history."""
+    torch.manual_seed(11)
+    logits = torch.randn(7, 5)
+    b = rb.causal_mass_bias(logits, eta=0.5)
+    assert b.shape == (7, 5)
+    assert torch.allclose(b[0], torch.zeros(5), atol=1e-6)
+    logits2 = logits.clone()
+    logits2[5:] += 10.0                     # perturb the future
+    b2 = rb.causal_mass_bias(logits2, eta=0.5)
+    assert torch.allclose(b[:5], b2[:5], atol=1e-6)
+
+
+def test_causal_mass_bias_pushes_a_hot_expert_down():
+    """An expert that absorbed the early mass is pushed down for the rest."""
+    logits = torch.zeros(10, 4)
+    logits[:5, 0] = 5.0                     # expert 0 owns the first half
+    b = rb.causal_mass_bias(logits, eta=1.0)
+    assert b[5:, 0].mean().item() < -0.5    # hot expert pushed down
+    assert (b[5:, 1:] > 0).float().mean().item() > 0.5   # cold experts pushed up
+    assert torch.allclose(b[0], torch.zeros(4), atol=1e-6)
+
+
+def test_causal_mass_bias_is_expert_count_invariant():
+    """The ``* n - 1`` normalisation makes eta independent of the expert count.
+
+    A uniform distribution must produce exactly zero bias at any n, and an
+    expert at twice the uniform rate must be pushed by exactly ``eta`` -- the
+    scale a fixed 256-expert model needs cannot be a different number.
+    """
+    for n in (4, 256):
+        logits = torch.zeros(20, n)
+        b = rb.causal_mass_bias(logits, eta=0.3)
+        assert b.abs().max().item() < 1e-6      # uniform -> no push
+    logits = torch.zeros(20, 4)
+    logits[:10, 0] = 3.0
+    b = rb.causal_mass_bias(logits, eta=0.3)
+    # expert 0 gets a large share of the early mass; bias approaches -eta
+    # (times overload-1), and must be negative and bounded by a few eta
+    assert -5.0 < b[10:, 0].mean().item() < -0.1
+
+
+def test_quantile_damp_scales_the_coordinate_step():
+    torch.manual_seed(12)
+    logits = torch.randn(64, 5)
+    b = torch.zeros(5)
+    marg = rb.margins(logits, b, 2)
+    full = rb.quantile_bias_step(b, marg, 2, damp=1.0)
+    half = rb.quantile_bias_step(b, marg, 2, damp=0.5)
+    assert torch.allclose(half, full * 0.5, atol=1e-6)

@@ -77,6 +77,45 @@ def margins(logits: torch.Tensor, bias: torch.Tensor, k: int) -> torch.Tensor:
     return selection_scores(logits, bias) - selection_cutoff(logits, bias, k)
 
 
+def margins_from_scores(scores: torch.Tensor, k: int) -> torch.Tensor:
+    """Margins for already-biased scores (the causal-bias arm).
+
+    ``scores`` is the full ``(..., E)`` selection score (router logits plus any
+    per-token bias); the cutoff is its k-th largest entry per token.  Needed
+    because the CB+QB arm's selection scores carry a per-token causal term that
+    ``margins`` (logits + a shared bias) cannot express.
+    """
+    s = _flat(scores)
+    return s - s.topk(k, dim=-1).values[:, -1:]
+
+
+def causal_mass_bias(logits: torch.Tensor, eta: float = 0.05) -> torch.Tensor:
+    """CB: per-token causal bias from the score mass of preceding tokens.
+
+    The causal-bias idea (routing sweep, handoff §7.7D item 3): an expert that
+    has already absorbed a lot of *score mass* earlier in the same sequence is
+    pushed down for the rest of it, so per-sequence balance is steered without
+    a batch statistic and without leakage::
+
+        b_t,e = -eta * ( mean_{s<t} softmax(logits_s)_e * n - 1 )
+
+    The ``* n - 1`` normalisation makes ``eta`` independent of the expert count
+    (a hot expert at twice the uniform rate is pushed by exactly ``eta``); the
+    blog's recurrence reads the mass from the *routed* scores, ours from the
+    raw scores in one vectorised pass -- the difference is second-order for a
+    heuristic, and the causality is exact (token t sees only tokens <= t-1,
+    first token gets zero bias).  ``eta`` is the nudge scale: the trained
+    quantile biases reach +-2, so 0.05 is a few-percent correction.
+    """
+    p = F.softmax(_flat(logits).float(), dim=-1)            # [T, E]
+    n = p.shape[-1]
+    cum = p.cumsum(0) - p                                    # sum_{s<t}
+    t = torch.arange(p.shape[0], device=p.device, dtype=p.dtype)
+    mean_mass = cum / t.clamp(min=1.0).unsqueeze(-1)         # [T, E]
+    hist = (t > 0).to(p.dtype).unsqueeze(-1)                 # no history -> no bias
+    return -eta * (mean_mass * n - 1.0) * hist
+
+
 def quantile_bias_step(bias: torch.Tensor, marg: torch.Tensor, k: int,
                        damp: float = 1.0) -> torch.Tensor:
     """Bias update from precomputed margins (the forward already has them).
