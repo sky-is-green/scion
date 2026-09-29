@@ -6,7 +6,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from kld_eval import (kld_from_logprobs, kld_per_token, log_probs, tail_stats,
+from kld_eval import (host_memory_guard, kld_decompose, kld_from_logprobs,
+                      kld_per_token, log_probs, tail_sample_estimate, tail_stats,
                       top1_agreement)
 from olmoe_proxy import windows
 
@@ -66,6 +67,128 @@ def test_kld_renormalises_an_unnormalised_student():
     lp = log_probs(t)
     shifted = lp + 3.0                      # not a valid log-distribution
     assert kld_from_logprobs(lp, shifted).abs().max().item() < 1e-6
+
+
+def test_decomposition_sums_to_the_full_kld():
+    """The three chain-rule pieces are the metric, exactly, token by token."""
+    torch.manual_seed(4)
+    t = log_probs(torch.randn(64, 37) * 2)
+    s = log_probs(torch.randn(64, 37) * 2)
+    dec = kld_decompose(t, s, k=7, chunk=8)
+    full = kld_from_logprobs(t, s, chunk=8)
+    assert torch.allclose(dec["full"], full, atol=1e-5)
+    assert torch.allclose(dec["marginal"] + dec["support"] + dec["tail"], full,
+                          atol=1e-5)
+    # pieces are non-negative, and the shares are a partition of the total
+    pieces = torch.stack([dec["marginal"], dec["support"], dec["tail"]])
+    assert (pieces >= -1e-5).all()
+    shares = pieces / full
+    assert torch.allclose(shares.sum(0), torch.ones(64), atol=1e-4)
+
+
+def test_decomposition_is_zero_at_a_match():
+    torch.manual_seed(6)
+    t = log_probs(torch.randn(16, 29))
+    dec = kld_decompose(t, t, k=5)
+    for name in ("marginal", "support", "tail", "full"):
+        assert dec[name].abs().max() < 1e-5
+
+
+def test_decomposition_puts_a_tail_only_error_in_the_tail_piece():
+    """A student wrong only on the complement must charge the tail piece.
+
+    This is the discrimination the measurement exists for: the top-k KD term
+    cannot see this error, so if the gate's remaining KLD lives here, the next
+    objective term has to be tail-conditional (TAD's D_KL2), not another top-k
+    rebalance.
+    """
+    torch.manual_seed(7)
+    t = torch.randn(8, 50) * 2
+    t_lp = log_probs(t)
+    idx = t.topk(10, dim=-1).indices
+    mask = torch.zeros_like(t, dtype=torch.bool).scatter_(-1, idx, True)
+    s = t.clone()
+    noise = torch.randn_like(s)
+    noise = noise - noise.mean()           # keep the mass shift small
+    s[~mask] = s[~mask] + noise[~mask]     # reshape the complement, not its mass
+    dec = kld_decompose(t_lp, log_probs(s), k=10)
+    assert dec["tail"].mean() > 0.0
+    assert dec["tail"].mean() > 10 * dec["support"].mean()
+    # the support conditional is untouched (its logits never moved), so the only
+    # other charge is the small mass shift
+    assert dec["support"].mean() < 1e-5
+    assert dec["marginal"].mean() < dec["tail"].mean()
+
+
+def test_decomposition_rejects_k_out_of_range():
+    t = log_probs(torch.randn(4, 8))
+    with pytest.raises(ValueError):
+        kld_decompose(t, t, k=8)
+    with pytest.raises(ValueError):
+        kld_decompose(t, t, k=0)
+
+
+def test_tail_sample_estimate_is_exact_when_the_tail_is_uniform():
+    """Uniform tail ⇒ the sample mean IS the p-weighted expectation."""
+    torch.manual_seed(8)
+    t = torch.randn(6, 20)
+    t[:, :5] += 5.0                      # top-5 guaranteed
+    t[:, 5:] = -3.0                      # uniform tail over the complement
+    s = log_probs(torch.randn(6, 20) * 2)
+    k = 5
+    tl = log_probs(t)
+    exact = kld_decompose(tl, s, k)["tail"]
+    est = tail_sample_estimate(tl, s, k, m=20 - k, replacement=False)
+    assert torch.allclose(est, exact, atol=1e-5)
+
+
+def test_tail_sample_estimate_is_exact_for_a_degenerate_tail():
+    """When the teacher's tail is one token, the sample must hit it and be exact."""
+    t = torch.full((3, 10), -30.0)
+    t[:, 0], t[:, 1], t[:, 7] = 0.0, -1.0, -2.0      # top-2 = {0,1}; tail = {7}
+    s = torch.full((3, 10), -30.0)
+    s[:, 0], s[:, 1], s[:, 8], s[:, 7] = -0.5, -1.5, -3.0, -4.0
+    tl, sl = log_probs(t), log_probs(s)
+    exact = kld_decompose(tl, sl, k=2)["tail"]
+    est = tail_sample_estimate(tl, sl, 2, m=4)
+    assert torch.allclose(est, exact, atol=1e-5)
+
+
+def test_tail_sample_estimate_converges_and_has_less_variance_with_more():
+    torch.manual_seed(9)
+    t = log_probs(torch.randn(256, 64) * 2)
+    s = log_probs(torch.randn(256, 64) * 2)
+    k = 8
+    exact = kld_decompose(t, s, k)["tail"]
+    few = tail_sample_estimate(t, s, k, m=2)
+    many = tail_sample_estimate(t, s, k, m=64)
+    assert many.std() < few.std()
+    assert abs(many.mean() - exact.mean()) < 0.1 * abs(exact.mean()) + 1e-3
+
+
+def test_tail_sample_estimate_rejects_bad_k():
+    t = log_probs(torch.randn(4, 8))
+    with pytest.raises(ValueError):
+        tail_sample_estimate(t, t, k=8, m=2)
+
+
+def test_host_memory_guard_refuses_a_cache_that_cannot_coexist_with_the_reload(monkeypatch):
+    """The 00:20 OOM: 16 windows of cache + the ~17 GB prefix reload > 30 GB."""
+    import builtins
+    import io
+
+    real_open = builtins.open
+
+    def fake_open(path, *a, **k):
+        if path == "/proc/meminfo":
+            return io.StringIO("MemTotal:       30000000 kB\n"
+                               "MemAvailable:   25000000 kB\n")
+        return real_open(path, *a, **k)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    with pytest.raises(SystemExit):
+        host_memory_guard(need_bytes=8_000_000_000)      # 8 GB > 25-18 GB budget
+    host_memory_guard(need_bytes=1_000_000_000)          # fits
 
 
 def test_tail_stats_flags_an_outlier_token():

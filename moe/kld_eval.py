@@ -94,6 +94,115 @@ def kld_per_token(teacher_logits: torch.Tensor, student_logits: torch.Tensor,
                              log_probs(student_logits, chunk), chunk)
 
 
+def kld_decompose(tlp: torch.Tensor, slp: torch.Tensor, k: int,
+                  chunk: int = 32) -> dict[str, torch.Tensor]:
+    """Chain-rule split of the full-vocab KLD over the teacher's top-k support.
+
+    ``tlp``/``slp`` are [T, V] log-prob blocks; ``slp`` is renormalised here
+    (same guard as ``kld_from_logprobs``).  For each token, with S = teacher
+    top-k and w = mass on S, the full-vocab KL splits exactly as::
+
+        KL(t||s) = KL_bin(w_t || w_s)                    <- "marginal"
+                 + w_t     * KL(p_t(.|S)  || p_s(.|S))   <- "support"
+                 + (1-w_t) * KL(p_t(.|~S) || p_s(.|~S))  <- "tail"
+
+    The returned tensors are the three *weighted* pieces (which sum to the
+    full-vocab KLD per token), the total, and the support masses.  This is the
+    measurement that decides which piece of the gate's own metric the next
+    objective term should target: the top-k KD loss optimises only "support",
+    the residual-mass term only "marginal", and "tail" is TAD's D_KL2 /
+    TA-OPD's lower-bound bias (see RESEARCH-HANDOFF §7.1a).  The complement
+    masses are computed in log space (``logsumexp`` of the masked log-probs),
+    never as ``1 - w`` in probability space.
+    """
+    if not 0 < k < tlp.shape[-1]:
+        raise ValueError(f"k={k} must be in (0, V={tlp.shape[-1]})")
+    out: dict[str, list[torch.Tensor]] = {name: [] for name in
+                                          ("marginal", "support", "tail", "full",
+                                           "w_t", "w_s")}
+    for i in range(0, tlp.shape[0], chunk):
+        t = tlp[i:i + chunk].float()
+        s = slp[i:i + chunk].float()
+        s = s - torch.logsumexp(s, dim=-1, keepdim=True)
+        idx = t.topk(k, dim=-1).indices
+        log_wt = torch.logsumexp(t.gather(-1, idx), dim=-1)
+        log_ws = torch.logsumexp(s.gather(-1, idx), dim=-1)
+        mask = torch.zeros_like(t, dtype=torch.bool).scatter_(-1, idx, True)
+        log_tt = torch.logsumexp(t.masked_fill(mask, float("-inf")), dim=-1)
+        log_ts = torch.logsumexp(s.masked_fill(mask, float("-inf")), dim=-1)
+
+        # marginal: binary KL between the support masses
+        marginal = (log_wt.exp() * (log_wt - log_ws)
+                    + log_tt.exp() * (log_tt - log_ts))
+
+        # support: teacher-weighted conditional KL on the support
+        tS, sS = t.gather(-1, idx), s.gather(-1, idx)
+        log_pt = tS - log_wt.unsqueeze(-1)
+        log_ps = sS - log_ws.unsqueeze(-1)
+        support = log_wt.exp() * (log_pt.exp() * (log_pt - log_ps)).sum(-1)
+
+        # tail: teacher-weighted conditional KL on the complement
+        log_pt_t = t - log_tt.unsqueeze(-1)
+        log_ps_t = s - log_ts.unsqueeze(-1)
+        kl_tail = ((log_pt_t.exp() * (log_pt_t - log_ps_t))
+                   .masked_fill(mask, 0.0).sum(-1))
+        tail = log_tt.exp() * kl_tail
+
+        for name, value in (("marginal", marginal), ("support", support),
+                            ("tail", tail), ("w_t", log_wt.exp()),
+                            ("w_s", log_ws.exp())):
+            out[name].append(value)
+        out["full"].append(marginal + support + tail)
+    return {name: torch.cat(parts) for name, parts in out.items()}
+
+
+def tail_sample_estimate(tlp: torch.Tensor, slp: torch.Tensor, k: int,
+                         m: int, chunk: int = 32,
+                         replacement: bool = True) -> torch.Tensor:
+    """Sample-based estimate of the tail-conditional KL (TAD's D_KL2).
+
+    The exact term needs per-token probabilities over the ~V-k complement,
+    which a top-k cache cannot store.  Drawing ``m`` tokens per position from
+    the *teacher's own tail conditional* gives an unbiased estimate of the KL::
+
+        KL(p_t(.|~S) || p_s(.|~S))
+            = E_{v ~ p_t(.|~S)}[ log p_t(v) - log p_s(v) ]  - log tail_t + log tail_s
+
+    (the first expectation is what the samples estimate; the normalisers are
+    exact logsumexps over the complement).  The result is weighted by the
+    teacher's tail mass, so it estimates the same "tail" piece as
+    ``kld_decompose`` and matches TAD's ``alpha_K * D_KL2``.  The teacher side
+    of the sampled expectation is a constant for the student, so its gradient is
+    unbiased too (Sparse Logit Sampling, ACL 2025).  ``replacement=False`` with
+    ``m`` equal to the complement size makes the estimate exact -- used by the
+    tests.
+
+    This is the eval-side validation of the estimator the cache stage would
+    store; the sampling is per-row multinomial over the masked tail.
+    """
+    if not 0 < k < tlp.shape[-1]:
+        raise ValueError(f"k={k} must be in (0, V={tlp.shape[-1]})")
+    out = []
+    for i in range(0, tlp.shape[0], chunk):
+        t = tlp[i:i + chunk].float()
+        s = slp[i:i + chunk].float()
+        s = s - torch.logsumexp(s, dim=-1, keepdim=True)
+        mask = torch.zeros_like(t, dtype=torch.bool)
+        mask.scatter_(-1, t.topk(k, dim=-1).indices, True)
+        t_masked = t.masked_fill(mask, float("-inf"))
+        s_masked = s.masked_fill(mask, float("-inf"))
+        log_tt = torch.logsumexp(t_masked, dim=-1, keepdim=True)
+        log_ts = torch.logsumexp(s_masked, dim=-1, keepdim=True)
+        probs = (t_masked - log_tt).exp()
+        idx = torch.multinomial(probs, m, replacement=replacement)
+        # log p_t(v) - log p_s(v) for the samples, with exact tail normalisers
+        diff = ((t.gather(-1, idx) - log_tt) - (s.gather(-1, idx) - log_ts))
+        # weight by the teacher's tail mass, matching kld_decompose's "tail"
+        # piece and TAD's alpha_K * D_KL2 (alpha_K = 1 - w_t)
+        out.append(diff.mean(-1) * log_tt.exp().squeeze(-1))
+    return torch.cat(out)
+
+
 #: percentiles reported by default; p99.9 and max are the gate, the rest is
 #: context so a tail move can be told apart from a uniform shift.
 PERCENTILES = (50.0, 90.0, 99.0, 99.9)
@@ -214,6 +323,30 @@ def top1_agreement(tlp: torch.Tensor, slp: torch.Tensor) -> float:
 
 # ------------------------------------------------------------------- run -----
 
+def host_memory_guard(need_bytes: int, reserve_gb: float = 18.0) -> None:
+    """Refuse a teacher cache that cannot coexist with the prefix reload.
+
+    ``load_prefix`` materialises the prefix in fp32 on the host (~17 GB for a
+    4-layer prefix) before moving it to the GPU, and the parked teacher
+    log-probs stay in host RAM for the whole student pass.  Sixteen windows at
+    seq 512 with a 248k vocab is ~8 GB of cache; together that OOM'd the 30 GB
+    box (session 3, 00:20).  Reads MemAvailable and refuses loudly instead of
+    dying mid-pass.
+    """
+    try:
+        with open("/proc/meminfo") as f:
+            avail = next(int(line.split()[1]) * 1024 for line in f
+                         if line.startswith("MemAvailable"))
+    except (OSError, StopIteration):
+        return
+    budget = avail - int(reserve_gb * 1e9)
+    if need_bytes > budget:
+        raise SystemExit(
+            f"teacher cache needs {need_bytes / 1e9:.1f} GB but only "
+            f"{budget / 1e9:.1f} GB is available after the ~{reserve_gb:.0f} GB "
+            f"prefix reload; lower --eval-windows (8 is safe on this host)")
+
+
 @torch.no_grad()
 def teacher_pass(model, data, device, chunk: int, vocab: int, top_k: int = 0):
     """Park fp32 teacher log-probs per window, plus the teacher's own entropy.
@@ -251,16 +384,21 @@ def teacher_pass(model, data, device, chunk: int, vocab: int, top_k: int = 0):
 
 
 @torch.no_grad()
-def student_pass(model, data, device, tcache, chunk: int):
+def student_pass(model, data, device, tcache, chunk: int, decompose_topk: int = 0,
+                 tail_samples: int = 0):
     """Per-token KLD, top-1 agreement, mean entropy and mean top-1 mass.
 
     Entropy and peak mass come along for free and are what make the KLD number
-    readable: see the note in ``main``.
+    readable: see the note in ``main``.  When ``decompose_topk`` is set, the
+    per-token chain-rule pieces are accumulated too and returned as a fifth
+    value; ``tail_samples`` additionally estimates the tail piece from that many
+    sampled tail tokens (``tail_sample_estimate``).
     """
     from qwen35_moe_proxy import model_logits
 
     per_token, agrees = [], []
     ents, tops = [], []
+    dec_parts: list[dict[str, torch.Tensor]] = []
     for i in range(len(data)):
         ids = data[i:i + 1].to(device)
         slp = log_probs(model_logits(model, ids)[0, :-1], chunk).cpu()
@@ -269,12 +407,23 @@ def student_pass(model, data, device, tcache, chunk: int):
         agrees.append(top1_agreement(tcache[i], slp))
         ents.append(float(-(slp.exp() * slp).sum(-1).mean()))
         tops.append(float(slp.exp().max(-1).values.mean()))
+        if decompose_topk:
+            dec = kld_decompose(tcache[i], slp, decompose_topk, chunk)
+            if tail_samples:
+                dec["tail_est"] = tail_sample_estimate(
+                    tcache[i], slp, decompose_topk, tail_samples, chunk)
+            dec_parts.append(dec)
         del slp
         print(f"  student {i+1}/{len(data)} mean kld {kld.mean():.4f} "
               f"max {kld.max():.4f} top1 {agrees[-1]:.4f} "
               f"H {ents[-1]:.3f} peak {tops[-1]:.4f}", flush=True)
-    return (torch.cat(per_token), sum(agrees) / len(agrees),
-            sum(ents) / len(ents), sum(tops) / len(tops))
+    result = (torch.cat(per_token), sum(agrees) / len(agrees),
+              sum(ents) / len(ents), sum(tops) / len(tops))
+    if decompose_topk:
+        dec = {name: torch.cat([d[name] for d in dec_parts])
+               for name in dec_parts[0]}
+        return result + (dec,)
+    return result
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -294,6 +443,19 @@ def build_parser() -> argparse.ArgumentParser:
                          "is what decides whether a sampled residual-mass tail term "
                          "is worth building, and it is only computable here, where "
                          "the full teacher pass already runs.")
+    ap.add_argument("--decompose-topk", type=int, default=0,
+                    help="also split the full-vocab KLD into the three chain-rule "
+                         "pieces (marginal / support-conditional / tail-conditional) "
+                         "over the teacher's top-k. 0 = off. Teacher and student are "
+                         "co-resident here, so it is one extra reduction per token, "
+                         "and it says which piece the next objective term should "
+                         "target (RESEARCH-HANDOFF §7.1a).")
+    ap.add_argument("--tail-samples", type=int, default=0,
+                    help="with --decompose-topk: estimate the tail-conditional piece "
+                         "from this many sampled tail tokens per position (unbiased; "
+                         "Sparse Logit Sampling) and report it against the exact "
+                         "piece. This validates the estimator before the cache stores "
+                         "samples for a D_KL2 loss term. 0 = off.")
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--chunk", type=int, default=32, help="token chunk for log_softmax")
     ap.add_argument("--group", type=int, default=128)
@@ -306,7 +468,16 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"], default="g128")
     ap.add_argument("--branch-target", choices=["moe_out", "attn_out", "both"], default="both")
     ap.add_argument("--load", default="", help="branch checkpoint (omit = uncorrected body)")
+    ap.add_argument("--balance", choices=["none", "bias", "quantile", "zloss"],
+                    default="none",
+                    help="must match the checkpoint's training --balance: bias "
+                         "arms carry a per-expert bias buffer in the checkpoint, "
+                         "and the model needs the same patched gate to load it")
     ap.add_argument("--split", default="wikitext")
+    ap.add_argument("--seed", type=int, default=999,
+                    help="window seed; 999 is the W1 gate's wikitext seed. Use a "
+                         "disjoint seed with --split fineweb for a training-side "
+                         "curriculum probe (see moe/curriculum.py)")
     ap.add_argument("--out", default="", help="write the stats JSON here")
     ap.add_argument("--model-dir", default="", help="override $MOE_ARTIFACTS/empero-hf")
     return ap
@@ -332,11 +503,18 @@ def main() -> None:
     cfg = AutoConfig.from_pretrained(model_dir)
     tcfg = getattr(cfg, "text_config", cfg)
     vocab = int(tcfg.vocab_size)
-    data = windows(tok, args.eval_windows, args.seq, 999, args.split)
+    data = windows(tok, args.eval_windows, args.seq, args.seed, args.split)
     print(f"KLD eval: {args.prefix_layers}-layer prefix, vocab {vocab}, "
           f"{len(data)} windows x {args.seq} tokens, quant={args.quant} "
           f"branch={args.branch_target}/{args.branch_quant} load={args.load or 'none'}",
           flush=True)
+    # Refuse a teacher cache that cannot coexist with the prefix reload.  The
+    # parked log-probs live in host RAM through the student pass, and load_prefix
+    # materialises the prefix in fp32 on the host (~17 GB for 4 layers) first --
+    # 16 windows OOM'd the 30 GB box at 00:20 (session 3); 8 windows is the
+    # tested-safe size.
+    need = sum(d.numel() - 1 for d in data) * vocab * 4
+    host_memory_guard(need)
 
     # ---- teacher: FP prefix, banks untouched, no branches
     model, _, _, _ = load_prefix(args.prefix_layers, args.device, model_dir=model_dir)
@@ -348,10 +526,18 @@ def main() -> None:
 
     # ---- student: same prefix, ternarised banks + branches + checkpoint
     model, _, _, _ = load_prefix(args.prefix_layers, args.device, model_dir=model_dir)
+    if args.balance != "none":
+        # Same patched gate the training arm used, so the saved balance_bias
+        # buffer exists and loads.  Default none leaves the instrument untouched.
+        from router_bias import patch_router_balance
+        n_gates = patch_router_balance(model, args.balance)
+        print(f"router balance: {args.balance} on {n_gates} gates", flush=True)
     n_tr = build_student(model, args)
     print(f"student built: trainable {n_tr/1e6:.2f}M", flush=True)
     if args.load:
         missing, unexpected = load_branch_state(model, args.load)
+        # an MTP head in the checkpoint is not part of the KLD instrument
+        unexpected = [k for k in unexpected if not k.startswith("_mtp_head.")]
         # The checkpoint only ever holds branch/router tensors, so
         # load_state_dict reports the whole frozen body as "missing" -- that is
         # expected and not a signal.  What matters is that every branch/gate
@@ -367,8 +553,17 @@ def main() -> None:
                 f"{len(got)} wanted branch/router tensor(s) did not load, "
                 f"{len(unexpected)} did not belong. Re-run with the same "
                 f"--prefix-layers/--branch-target/--rank as training.")
-    per_token, agree, ent, top1p = student_pass(model, data, args.device, tcache,
-                                                args.chunk)
+    if args.decompose_topk:
+        per_token, agree, ent, top1p, dec = student_pass(
+            model, data, args.device, tcache, args.chunk, args.decompose_topk,
+            args.tail_samples)
+    else:
+        if args.tail_samples:
+            raise SystemExit("--tail-samples needs --decompose-topk (the exact "
+                             "tail piece it is validated against)")
+        per_token, agree, ent, top1p = student_pass(
+            model, data, args.device, tcache, args.chunk)
+        dec = None
 
     res = tail_stats(per_token)
     if not res["p999_resolved"]:
@@ -409,6 +604,43 @@ def main() -> None:
         print(f"top-{args.measure_topk} mass: mean {cov['mean_topk_mass']:.8f} "
               f"min {cov['min_topk_mass']:.8f} "
               f"residual {cov['mean_residual_mass']:.3e}", flush=True)
+    if dec is not None:
+        # The chain-rule split of the gate's own metric: which piece of the
+        # full-vocab KLD does the next objective term need to target?  Shares
+        # are of the mean; the pieces sum to the full KLD per token.
+        pieces = ("marginal", "support", "tail")
+        total_mean = float(dec["full"].mean())
+        res["kld_decomposition"] = {
+            "top_k": args.decompose_topk,
+            "mean_full": total_mean,
+            "pieces": {
+                name: {
+                    "mean": float(dec[name].mean()),
+                    "share": float(dec[name].mean() / total_mean) if total_mean else None,
+                    "max": float(dec[name].max()),
+                } for name in pieces
+            },
+            "mean_support_mass_teacher": float(dec["w_t"].mean()),
+            "mean_support_mass_student": float(dec["w_s"].mean()),
+        }
+        for name in pieces:
+            p = res["kld_decomposition"]["pieces"][name]
+            print(f"KLD piece {name:8}: mean {p['mean']:.4f} "
+                  f"({p['share']:.1%} of {total_mean:.4f}) max {p['max']:.4f}",
+                  flush=True)
+        print(f"support mass: teacher {dec['w_t'].mean():.4f} "
+              f"student {dec['w_s'].mean():.4f}", flush=True)
+        if "tail_est" in dec:
+            est = float(dec["tail_est"].mean())
+            exact = float(dec["tail"].mean())
+            res["kld_decomposition"]["tail_estimate"] = {
+                "samples": args.tail_samples,
+                "mean": est,
+                "exact_mean": exact,
+                "ratio": (est / exact) if exact else None,
+            }
+            print(f"tail estimate: {est:.4f} from {args.tail_samples} samples "
+                  f"vs exact {exact:.4f} (ratio {est / exact:.3f})", flush=True)
     res.update({
         "top1_agreement": round(agree, 6),
         "checkpoint": args.load,
