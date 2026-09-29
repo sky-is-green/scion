@@ -43,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--n-eval", type=int, default=16)
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--layers", type=int, choices=(1, 2), default=2)
+    ap.add_argument("--width-mult", type=float, default=1.0,
+                    help="hidden width of the fc1/fc2 intermediate, as a multiple "
+                         "of 2H (capacity knob; 1.0 = the prefix head's width)")
+    ap.add_argument("--weight-decay", type=float, default=0.0)
     ap.add_argument("--steps", type=int, default=4096)
     ap.add_argument("--batch-windows", type=int, default=4)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -134,8 +138,9 @@ def main() -> None:
           for w in range(n_all)]
 
     torch.manual_seed(0)
-    fc1 = torch.empty(2 * hidden, 2 * hidden).normal_(0, 0.02)
-    fc2 = torch.empty(hidden, 2 * hidden).normal_(0, 0.02)
+    w1 = int(round(args.width_mult * 2 * hidden))
+    fc1 = torch.empty(w1, 2 * hidden).normal_(0, 0.02)
+    fc2 = torch.empty(hidden, w1).normal_(0, 0.02)
     if args.layers != 2:
         raise SystemExit("only --layers 2 is implemented for the release trainer")
     if args.init:
@@ -145,7 +150,8 @@ def main() -> None:
         print(f"warm start from {args.init}", flush=True)
     fc1 = torch.nn.Parameter(fc1.to(dev))
     fc2 = torch.nn.Parameter(fc2.to(dev))
-    opt = torch.optim.AdamW([fc1, fc2], lr=args.lr, weight_decay=0.0)
+    opt = torch.optim.AdamW([fc1, fc2], lr=args.lr,
+                            weight_decay=args.weight_decay)
 
     tok_gpu = tok_embd.to(dev)
     out_gpu = output.to(dev)
