@@ -80,7 +80,14 @@ def patch_gate(gate, kind: str) -> None:
     """Patch one gate: forward, bias buffer, stats, kind (idempotent)."""
     gate.forward = types.MethodType(_balanced_forward, gate)
     if not hasattr(gate, "balance_bias"):
-        gate.register_buffer("balance_bias", torch.zeros(gate.num_experts))
+        # The buffer must be born on the gate's device: patch_gate runs *after*
+        # device_map has placed the module, so a default-CPU buffer would make
+        # `logits + bias` a cross-device add on the first GPU forward (the
+        # balbias arm hit exactly that).  Tests are CPU-only; the device is
+        # taken from the weight so it follows the model.
+        gate.register_buffer(
+            "balance_bias",
+            torch.zeros(gate.num_experts, device=gate.weight.device))
     gate._balance_kind = kind
     gate._balance_stats = _new_stats(gate.num_experts)
 
@@ -139,7 +146,9 @@ def balance_update(model, kind: str, delta: float = 1e-3) -> dict:
                 total = int(st["counts"].sum())
                 if total == 0:
                     continue
-                load = st["counts"].float() / total
+                # counts live on CPU (bincount is cheapest there); the update
+                # must happen on the buffer's device, so move the load over.
+                load = (st["counts"].float() / total).to(m.balance_bias.device)
                 m.balance_bias.copy_(sign_bias_update(m.balance_bias, load, delta))
             else:
                 if not st["margins"]:

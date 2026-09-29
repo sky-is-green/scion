@@ -70,6 +70,20 @@ def test_bias_changes_selection_but_not_weights():
     assert torch.allclose(weights, manual, atol=1e-5)
 
 
+def test_bias_buffer_is_born_on_the_gates_device():
+    """``patch_gate`` runs after ``device_map``, so the buffer must follow the weight.
+
+    The balbias arm crashed on its first GPU forward with a cuda/cpu mismatch:
+    the buffer was created on CPU after the model had already been placed on
+    the card.  CPU tests cannot hold two devices, but they can pin the
+    invariant the GPU path depends on.
+    """
+    gate = FakeGate()
+    rbia.patch_gate(gate, "bias")
+    assert gate.balance_bias.device == gate.weight.device
+    assert gate.balance_bias.dtype == torch.float32
+
+
 def test_sign_update_moves_the_overloaded_expert_down():
     torch.manual_seed(2)
     gate = FakeGate(n_experts=6, top_k=2)
