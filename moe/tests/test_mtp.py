@@ -175,3 +175,79 @@ def test_mtp_eval_requires_a_checkpoint_and_defaults_are_stable():
     a = mtp_eval.build_parser().parse_args(["--load", "x.pt"])
     assert a.windows == 16 and a.seed == 999 and a.split == "wikitext"
     assert a.mtp_head_layers == 1 and a.topk == 1 and a.seq == 512
+    assert a.chain == 0
+
+
+class _ScriptedModel(torch.nn.Module):
+    """Identity norm + lm_head; the embedding is an identity map so a token id
+    is recoverable from its embedding (``e.argmax(-1)``)."""
+
+    def __init__(self, vocab):
+        super().__init__()
+        self.norm = torch.nn.Identity()
+        self.lm_head = torch.nn.Identity()
+        self.emb = torch.nn.Embedding(vocab, vocab)
+        with torch.no_grad():
+            self.emb.weight.copy_(torch.eye(vocab))
+
+    def get_input_embeddings(self):
+        return self.emb
+
+
+class _ScriptedHead(torch.nn.Module):
+    """One-hot for g(input token id); ignores the hidden state."""
+
+    def __init__(self, g, vocab):
+        super().__init__()
+        self.g, self.vocab = g, vocab
+        self._p = torch.nn.Parameter(torch.zeros(1))
+
+    def forward(self, h, e):
+        idx = e.argmax(-1).long()          # identity embedding -> token id
+        out = torch.full((*idx.shape, self.vocab), -10.0)
+        out.scatter_(-1, self.g(idx).unsqueeze(-1), 10.0)
+        return out
+
+
+def _onehot_main(T, V):
+    main = torch.full((1, T, V), -10.0)
+    for t in range(T):
+        main[0, t, t + 1] = 10.0
+    return main
+
+
+def test_chained_acceptance_perfect_chain_aligns_every_position():
+    T, V = 7, 8
+    ids = torch.arange(T).reshape(1, T)
+    h = torch.randn(1, T, V)
+    h_in, e_in, _ = M.mtp_targets(h, ids)
+    model = _ScriptedModel(V)
+    head = _ScriptedHead(lambda e: e + 1, V)
+    main = _onehot_main(T, V)
+    accs = M.chained_acceptance(model, head, main, h_in, e_in, k=3)
+    assert accs == pytest.approx([1.0, 1.0, 1.0])
+
+
+def test_chained_acceptance_position_one_matches_draft_acceptance():
+    T, V = 7, 8
+    ids = torch.arange(T).reshape(1, T)
+    h = torch.randn(1, T, V)
+    h_in, e_in, _ = M.mtp_targets(h, ids)
+    model = _ScriptedModel(V)
+    head = _ScriptedHead(lambda e: (e + 1) % V, V)
+    main = _onehot_main(T, V)
+    ml = M.mtp_logits(model, head, h_in, model.get_input_embeddings()(e_in))
+    assert M.chained_acceptance(model, head, main, h_in, e_in, k=1)[0] == \
+        pytest.approx(M.draft_acceptance(main, ml))
+
+
+def test_chained_acceptance_stops_when_rows_run_out():
+    T, V = 4, 8
+    ids = torch.arange(T).reshape(1, T)
+    h = torch.randn(1, T, V)
+    h_in, e_in, _ = M.mtp_targets(h, ids)          # only 2 rows exist
+    model = _ScriptedModel(V)
+    head = _ScriptedHead(lambda e: e + 1, V)
+    main = _onehot_main(T, V)
+    accs = M.chained_acceptance(model, head, main, h_in, e_in, k=5)
+    assert len(accs) == 2

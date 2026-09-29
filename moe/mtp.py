@@ -126,6 +126,33 @@ def freeze_except_head(model, head) -> int:
     return sum(p.numel() for p in head.parameters() if p.requires_grad)
 
 
+def chained_acceptance(model, head, main_logits, h_in, e_in, k: int = 2):
+    """Per-position greedy acceptance of an autoregressively chained draft.
+
+    Position 1 is the head's ``t+2`` prediction given the true ``x_{t+1}``
+    (identical to :func:`draft_acceptance`).  Position ``i > 1`` feeds the
+    previous *draft* token back through the same head with the same (stale)
+    ``h_t`` -- the naive chain whose recurrent-state version a multi-token
+    drafter would learn.  Alignment: head row ``j`` predicts ``x_{j+2}``, so
+    position ``i`` targets ``main_logits[:, i + j]``; rows run out as ``i``
+    grows and positions with no rows left are not reported.
+    """
+    emb = model.get_input_embeddings()
+    n_max = h_in.shape[1]
+    e = e_in
+    out = []
+    for i in range(1, k + 1):
+        n = n_max - (i - 1)
+        if n <= 0:
+            break
+        logits_i = mtp_logits(model, head, h_in[:, :n], emb(e[:, :n]))
+        draft = logits_i.argmax(-1)
+        tgt = main_logits[:, i:i + n].argmax(-1)
+        out.append(float((draft == tgt).float().mean()))
+        e = draft
+    return out
+
+
 def chunked_kl(logits: torch.Tensor, ref_logits: torch.Tensor,
                temp: float = 1.0, chunk: int = 64) -> torch.Tensor:
     """Chunked ``KL(ref || softmax(logits)) * temp**2``, mean over tokens.

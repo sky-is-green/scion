@@ -23,6 +23,8 @@ import argparse
 import json
 from pathlib import Path
 
+import torch
+
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
@@ -53,6 +55,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--topk", type=int, default=1,
                     help="also report acceptance when the main token is anywhere "
                          "in the draft's top-k (default 1 = top-1 only)")
+    ap.add_argument("--chain", type=int, default=0,
+                    help="autoregressively chain the head for K drafted positions "
+                         "(stale hidden; the naive multi-token approximation) and "
+                         "report per-position acceptance + ideal tokens/step")
     ap.add_argument("--out", default="", help="write the stats JSON here")
     return ap
 
@@ -108,6 +114,31 @@ def main() -> None:
         acc_k = mtp_acceptance(model, head, data, args, topk=args.topk)
         res["greedy_topk"] = {"k": args.topk, "acc": round(acc_k, 4)}
         print(f"top-{args.topk} acceptance: {acc_k:.4f}", flush=True)
+    if args.chain > 0:
+        from mtp import chained_acceptance, mtp_targets
+        from qwen35_moe_proxy import model_hidden_logits
+
+        accs = []
+        model.eval()
+        with torch.no_grad():
+            for i in range(len(data)):
+                ids = data[i:i + 1].to(args.device)
+                h, logits = model_hidden_logits(model, ids)
+                h_in, e_in, _ = mtp_targets(h, ids)
+                accs.append(chained_acceptance(model, head, logits, h_in, e_in,
+                                               args.chain))
+        n = min(len(a) for a in accs)
+        per_pos = [sum(a[j] for a in accs) / len(accs) for j in range(n)]
+        tps, prod = 1.0, 1.0
+        for a in per_pos:
+            prod *= a
+            tps += prod
+        res["chain"] = {"k": args.chain,
+                        "per_position": [round(a, 4) for a in per_pos],
+                        "ideal_tokens_per_step": round(tps, 3)}
+        print(f"chained draft acceptance per position: "
+              f"{[round(a, 4) for a in per_pos]} (ideal {tps:.2f} tokens/step)",
+              flush=True)
     if args.out:
         Path(args.out).write_text(json.dumps(res, indent=2) + "\n")
         print(f"wrote {args.out}", flush=True)
