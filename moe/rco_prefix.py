@@ -159,8 +159,10 @@ def main() -> None:
     ap.add_argument("--cache-file", default=str(MOE / "prefix-top512-tail64-cur05.pt"))
     ap.add_argument("--layers", type=int, default=4)
     ap.add_argument("--group", type=int, default=128)
-    ap.add_argument("--options", default="2,4,8",
-                    help="container bit levels (2 = ternary); memory grows with 6")
+    ap.add_argument("--options", default="2,4",
+                    help="container bit levels (2 = ternary).  6/8 are supported "
+                         "but their codes add ~2.4/3.2 GB of device memory for "
+                         "the 4-layer banks — use them only on a clear card")
     ap.add_argument("--budget-pct", type=float, default=125.0,
                     help="percent of the all-ternary (hand) total bits")
     ap.add_argument("--steps", type=int, default=150)
