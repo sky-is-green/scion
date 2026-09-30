@@ -1,7 +1,12 @@
 # Tail experiment plan — KLD beyond the teacher's top-50
 
-**Status:** Steps 0–1 done; Step 2a measured (works on the tail, handoff §3);
-Step 2d (the tail-conditional D_KL2 term) built 2026-09-29 and queued.
+**Status:** **resolved (negative) at full scale, 2026-09-30.** The prefix tail
+terms (`D_KL2 3.0` + bias + curriculum 0.05) did not transfer: the full 35B v2
+ties v1 (mean/median KLD marginally better, p99.9/max worse, PPL +2.3%). The
+full teacher puts 96–99% of its mass on the top-512 cache (vs 17–20% on the
+prefix), so the tail terms act at ~1/60 strength. Register entry: `FAILURES.md`
+D8; full numbers there and in the handoff §3c/§3d. The plan below is kept as the
+record of what was done.
 **Related:** `QUANT-RETENTION-35B.md`, `QUANTIZATION-LANDSCAPE.md` §3.6/§7,
 `RELEASE-35B-MODEL-CARD.md`.
 
