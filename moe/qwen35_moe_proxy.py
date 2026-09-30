@@ -463,13 +463,31 @@ def load_full(args):
 
 
 def ternarize_banks(model, args) -> None:
-    """Freeze the expert banks in place under the selected scale rule."""
+    """Freeze the expert banks in place under the selected scale rule.
+
+    ``--alloc-file`` (the RCO port, session 8) replaces the all-ternary hand
+    map with a per-bank bit assignment: 2 = the deployed Lloyd ternary rule,
+    4/6/8 = symmetric g128 integer codes with fp16 scales.  Default off, so
+    the frozen v1 path is untouched.
+    """
+    alloc = {}
+    if getattr(args, "alloc_file", ""):
+        from rco_alloc import quantize_grouped
+        alloc = json.loads(Path(args.alloc_file).read_text())
+        print(f"alloc: {len(alloc)} entries from {args.alloc_file}", flush=True)
     with torch.no_grad():
-        for layer in text_layers(model):
-            quantize_bank_inplace(layer.mlp.experts.gate_up_proj, args.group,
-                                  kind=args.quant, **_quant_kwargs(args))
-            quantize_bank_inplace(layer.mlp.experts.down_proj, args.group,
-                                  kind=args.quant, **_quant_kwargs(args))
+        for i, layer in enumerate(text_layers(model)):
+            for name, proj in (("gate_up", layer.mlp.experts.gate_up_proj),
+                               ("down", layer.mlp.experts.down_proj)):
+                key = f"blk.{i}.ffn_{name}_exps"
+                bits = int(alloc.get(key, 2))
+                if bits == 2:
+                    quantize_bank_inplace(proj, args.group, kind=args.quant,
+                                          **_quant_kwargs(args))
+                else:
+                    proj.copy_(quantize_grouped(proj, bits, args.group))
+                if alloc:
+                    print(f"  {key}: {bits}-bit", flush=True)
             layer.mlp.experts._ternary = False          # banks already quantised
 
 
@@ -825,6 +843,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--quant", choices=["absmean", "lloyd", "catq"], default="lloyd",
                     help="per-group scale rule for the frozen banks (lloyd = deployable; "
                          "catq = learned LM+ST reconstruction)")
+    ap.add_argument("--alloc-file", default="",
+                    help="RCO allocation map {tensor: bits} for the expert banks "
+                         "(2 = lloyd ternary, 4/6/8 = g128 integer); default off")
     ap.add_argument("--catq-steps", type=int, default=200,
                     help="CAT-Q reconstruction steps when --quant catq")
     ap.add_argument("--catq-lr", type=float, default=0.05)

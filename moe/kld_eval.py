@@ -463,6 +463,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--chunk", type=int, default=32, help="token chunk for log_softmax")
     ap.add_argument("--group", type=int, default=128)
     ap.add_argument("--quant", choices=["absmean", "lloyd", "catq"], default="lloyd")
+    ap.add_argument("--alloc-file", default="",
+                    help="RCO allocation map {tensor: bits} for the expert banks; "
+                         "must match the checkpoint's training allocation")
     ap.add_argument("--catq-steps", type=int, default=200)
     ap.add_argument("--catq-lr", type=float, default=0.05)
     ap.add_argument("--catq-gamma", type=float, default=0.8)
