@@ -323,8 +323,9 @@ def test_compact_class_dispatch_survives_lost_instance_forward(tiny, args_ns):
     assert torch.isfinite(out.last_hidden_state).all()
 
 
-def test_compact_forward_grad_checkpoint_exact_and_finite(tiny, args_ns):
-    """The per-expert decode checkpoint is exact and still backprops."""
+@pytest.mark.parametrize("mode", ["block", "expert", "group"])
+def test_compact_forward_grad_checkpoint_exact_and_finite(tiny, args_ns, mode):
+    """The decode checkpoint is exact and still backprops (all granularities)."""
     import torch.nn as nn
     model = copy.deepcopy(tiny)
     model.lm_head = nn.Linear(64, 1024, bias=False)
@@ -332,7 +333,7 @@ def test_compact_forward_grad_checkpoint_exact_and_finite(tiny, args_ns):
     ids = torch.randint(0, 1024, (1, 10))
     with torch.no_grad():
         ref = model(input_ids=ids, use_cache=False).last_hidden_state.clone()
-    n = q4.enable_grad_checkpointing(model)
+    n = q4.enable_grad_checkpointing(model, mode)
     assert n == len(q4.text_layers(model))
     model.train()
     out = model(input_ids=ids, use_cache=False).last_hidden_state
@@ -359,3 +360,226 @@ def test_compact_check_stage_registered():
     ap = q4.build_parser()
     a = ap.parse_args(["compact-check"])
     assert a.stage == "compact-check"
+
+
+def test_offload_saved_flag_default_off():
+    ap = q4.build_parser()
+    a = ap.parse_args(["train", "--cache-file", "/tmp/x.pt"])
+    assert a.offload_saved is False
+    b = ap.parse_args(["train", "--cache-file", "/tmp/x.pt", "--offload-saved"])
+    assert b.offload_saved is True
+
+
+def test_group_checkpoint_mode_parses():
+    ap = q4.build_parser()
+    a = ap.parse_args(["train", "--cache-file", "/tmp/x.pt",
+                       "--checkpoint-mode", "group"])
+    assert a.checkpoint_mode == "group"
+    assert a.expert_group_size == 32
+    b = ap.parse_args(["train", "--cache-file", "/tmp/x.pt",
+                       "--checkpoint-mode", "group", "--expert-group-size", "16"])
+    assert b.expert_group_size == 16
+
+
+@pytest.mark.parametrize("group_size", [1, 2, 3, 8])
+def test_compact_group_batched_matches_reference(tiny, args_ns, group_size):
+    """The batched expert-group forward (padded bmm) must match the reference
+    forward and keep finite branch grads for every group size (padding bugs
+    only show at non-divisible sizes)."""
+    import torch.nn as nn
+    model = copy.deepcopy(tiny)
+    model.lm_head = nn.Linear(64, 1024, bias=False)
+    q4.build_student(model, args_ns)
+    ids = torch.randint(0, 1024, (1, 10))
+    model.eval()
+    with torch.no_grad():
+        ref = model(input_ids=ids, use_cache=False).last_hidden_state.clone()
+    model.train()
+    n = q4.enable_grad_checkpointing(model, "group")
+    assert n == len(q4.text_layers(model))
+    for layer in q4.text_layers(model):
+        m = q4.moe_block(layer).experts
+        m._ckpt_group = group_size
+    out = model(input_ids=ids, use_cache=False).last_hidden_state
+    assert torch.allclose(out, ref, atol=1e-5, rtol=1e-4)
+    logits = model.lm_head(out)
+    F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
+                    ids[:, 1:].reshape(-1)).backward()
+    grads = [p for n_, p in model.named_parameters()
+             if ".branch." in n_ and p.grad is not None]
+    assert grads and all(bool(torch.isfinite(p.grad).all()) for p in grads)
+
+
+# ------------------------------------------------- placement (P2 L40S) -------
+
+def test_place_ple_non_table_keeps_the_table_host_side(tiny):
+    """Pin the P2 L40S bug: the PLE layer's own buffers/multipliers must follow
+    the activations; only the ngram table stays host-side.  The selector is
+    CPU-testable; the movement itself is covered by the cuda-gated test below."""
+    ple = next(l.ple for l in q4.text_layers(tiny)
+               if getattr(l, "ple", None) is not None)
+    keep = {id(t) for t in q4.ple_non_table_tensors(ple)}
+    named = list(ple.named_parameters()) + list(ple.named_buffers())
+    moved = {n for n, t in named if id(t) in keep}
+    assert "ple_embedding.ngram_embedding.weight" not in moved
+    assert len(moved) == len(keep) == len(named) - 1
+    assert "ple_embedding.ngram_heads_vocab_sizes" in moved
+    assert "ple_embedding.ngram_heads_offsets" in moved
+    assert "ple_embedding.layer_multipliers" in moved
+    assert "key_proj.weight" in moved
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(),
+                    reason="needs a CUDA/ROCm execution device")
+def test_ple_forward_after_harden_with_host_side_table(tiny):
+    """End-to-end: a CPU-placed PLE subtree + cuda activations forwards after
+    ``harden_placement`` (the exact L40S failure: cuda ``mixed_ids`` vs cpu
+    ``ngram_heads_vocab_sizes``)."""
+    model = copy.deepcopy(tiny).to("cuda")
+    for layer in q4.text_layers(model):
+        ple = getattr(layer, "ple", None)
+        if ple is not None:
+            ple.to("cpu")          # the native path's auto-offload position
+    moved = q4.harden_placement(model, "cuda")
+    assert moved > 0
+    ple = next(l.ple for l in q4.text_layers(model)
+               if getattr(l, "ple", None) is not None)
+    assert ple.ple_embedding.ngram_embedding.weight.device.type == "cpu"
+    assert ple.ple_embedding.ngram_heads_vocab_sizes.device.type == "cuda"
+    ids = torch.randint(0, tiny_config().vocab_size, (1, 8), device="cuda")
+    out = model(input_ids=ids, use_cache=False).last_hidden_state
+    assert torch.isfinite(out).all()
+
+
+def test_enable_layer_checkpointing_flags_and_backprops(tiny):
+    """Pin the P2 L40S fit path: the decoder layers get checkpointed (their
+    saved activations do not fit next to the compact student on 48 GB) and a
+    training step still backprops through the recompute."""
+    import torch.nn as nn
+    model = copy.deepcopy(tiny)
+    model.lm_head = nn.Linear(64, 1024, bias=False)
+    assert not any(getattr(l, "gradient_checkpointing", False)
+                   for l in q4.text_layers(model))
+    assert q4.enable_layer_checkpointing(model)
+    assert all(getattr(l, "gradient_checkpointing", False)
+               for l in q4.text_layers(model))
+    model.train()
+    ids = torch.randint(0, 1024, (1, 6))
+    out = model(input_ids=ids, use_cache=False).last_hidden_state
+    F.cross_entropy(model.lm_head(out)[:, :-1].reshape(-1, 1024),
+                    ids[:, 1:].reshape(-1)).backward()
+    assert model.lm_head.weight.grad is not None
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(),
+                    reason="needs a CUDA/ROCm execution device")
+def test_harden_placement_offloads_unused_visual(tiny):
+    """The multimodal vision tower (0.84 GiB) is never used by the text
+    stages; harden_placement must keep it off the card (P2 L40S fit)."""
+    import torch.nn as nn
+    model = copy.deepcopy(tiny).to("cuda")
+    model.visual = nn.Linear(8, 8).to("cuda")
+    q4.harden_placement(model, "cuda")
+    for name, p in model.named_parameters():
+        if "visual" in name:
+            assert p.device.type == "cpu", name
+    ids = torch.randint(0, tiny_config().vocab_size, (1, 5), device="cuda")
+    out = model(input_ids=ids, use_cache=False).last_hidden_state
+    assert out.device.type == "cuda"
+
+
+def test_chunked_cross_entropy_matches_full_value_and_grad():
+    """Pin the L40S loss-memory path: the chunked (recomputed) CE is the same
+    loss and gradient as the full-vocab CE it replaces."""
+    torch.manual_seed(0)
+    logits = torch.randn(23, 4096, requires_grad=True)
+    tgt = torch.randint(0, 4096, (23,))
+    full = F.cross_entropy(logits.float(), tgt)
+    g_full = torch.autograd.grad(full, logits, retain_graph=True)[0]
+    chunk = q4.chunked_cross_entropy(logits, tgt, chunk=8)
+    g_chunk = torch.autograd.grad(chunk, logits)[0]
+    assert torch.allclose(full, chunk, atol=1e-5, rtol=1e-4)
+    assert torch.allclose(g_full, g_chunk, atol=1e-5, rtol=1e-4)
+
+
+def test_offload_embed_tokens_matches_and_survives_harden(tiny):
+    """Pin the L40S fit lever: the frozen 1.18 GiB token table moves host-side
+    (lookups unchanged) and later harden passes must not pull it back."""
+    model = copy.deepcopy(tiny)
+    model.config.tie_word_embeddings = False
+    ids = torch.randint(0, 1024, (1, 7))
+    with torch.no_grad():
+        ref = model.embed_tokens(ids)
+    key = q4.offload_embed_tokens(model)
+    assert key is not None and key.endswith("embed_tokens")
+    assert isinstance(model.embed_tokens, q4.CpuEmbedding)
+    with torch.no_grad():
+        out = model.embed_tokens(ids)
+    assert torch.allclose(ref, out)
+    q4.harden_placement(model, "cpu")
+    assert model.embed_tokens.weight.device.type == "cpu"
+    assert q4.offload_embed_tokens(model) is None
+    tied = copy.deepcopy(tiny)
+    tied.config.tie_word_embeddings = True
+    assert q4.offload_embed_tokens(tied) is None
+
+
+def test_unmapped_small_modules_selection_and_place():
+    """The 48 GB full-forward fix: rotary/head/norms move, mapped blocks and
+    the PLE/visual/embedding subtrees do not."""
+    import torch.nn as nn
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.rotary_emb = nn.Module()
+            self.rotary_emb.register_buffer("inv_freq", torch.zeros(4))
+            self.lm_head = nn.Linear(8, 8, bias=False)
+            self.embed_tokens = nn.Embedding(4, 8)
+            self.ple_embedding = nn.Linear(8, 8, bias=False)
+            self.visual = nn.Linear(8, 8, bias=False)
+            self.big = nn.Linear(8, 8, bias=False)
+            self.layers = nn.ModuleList([nn.Linear(8, 8, bias=False)])
+            self.hf_device_map = {"layers.0": "cpu", "big": "cpu"}
+
+    m = M()
+    names = q4.unmapped_small_modules(m)
+    assert "rotary_emb" in names and "lm_head" in names
+    assert "embed_tokens" not in names and "ple_embedding" not in names
+    assert "visual" not in names and "big" not in names and "layers" not in names
+    # a module above the size cap is skipped even when unmapped
+    m.huge = nn.Linear(8, 8, bias=False)
+    m.huge.weight = nn.Parameter(torch.zeros(2048, 2048))
+    assert "huge" not in q4.unmapped_small_modules(m, max_gib=0.01)
+    # place is a no-op on cpu but reports what it would move
+    assert q4.place_unmapped_small(m, "cpu") == len(q4.unmapped_small_modules(m))
+    # rotary/head are forced even when accelerate mapped them to the host
+    m.hf_device_map = {"rotary_emb": "cpu", "lm_head": "cpu"}
+    assert set(q4.essential_module_names(m)) == {"rotary_emb", "lm_head"}
+    assert q4.place_essential(m, "meta") == 2
+
+
+def test_offload_saved_tensors_preserves_grads(tiny):
+    """The host-offload context (pack on save, unpack on use) must not change
+    the loss or any gradient -- the L40S fit path keeps saved activations in
+    host RAM.  Runs on cpu in the suite and on the real device under the ROCm
+    invocation."""
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    ids = torch.randint(0, 1024, (1, 8), device=dev)
+
+    def step(model):
+        out = model(input_ids=ids, use_cache=False).last_hidden_state
+        loss = out.float().pow(2).mean()
+        loss.backward()
+        return loss
+
+    ref = copy.deepcopy(tiny).to(dev).eval()
+    loss_ref = step(ref)
+    off = copy.deepcopy(tiny).to(dev).eval()
+    with q4.offload_saved_tensors(dev):
+        loss_off = step(off)
+    assert abs(float(loss_ref) - float(loss_off)) < 1e-4
+    for n, (p1, p2) in enumerate(zip(ref.parameters(), off.parameters())):
+        if p1.grad is not None or p2.grad is not None:
+            assert p1.grad is not None and p2.grad is not None, n
+            assert torch.allclose(p1.grad, p2.grad, atol=1e-5, rtol=1e-4), n

@@ -100,6 +100,19 @@ def student_pass(model, logits_fn, data, device, tcache_dir, chunk,
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--prefix-layers", type=int, default=2)
+    ap.add_argument("--full", action="store_true",
+                    help="pod path: load the full model from the official "
+                         "checkpoint (device_map auto + lazy PLE) instead of a "
+                         "local prefix; implies --prefix-layers 0")
+    ap.add_argument("--device-map", default="auto")
+    ap.add_argument("--force-gpu", action="store_true",
+                    help="full path only: after compact, pull every offloaded "
+                         "block onto the card (stage_train's harden)")
+    ap.add_argument("--compact-banks", action="store_true",
+                    help="full path only: store the frozen banks as 2-bit "
+                         "codes + fp16 scales (the deployable student)")
+    ap.add_argument("--fast-indexer", action="store_true")
+    ap.add_argument("--max-memory", default="")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--student-device", default="",
                     help="where the student model runs; default = --device. "
@@ -151,7 +164,14 @@ def main() -> None:
     model_dir = Path(args.model_dir) if args.model_dir else q4.MODEL
     if not (model_dir / "config.json").exists():
         raise SystemExit(f"no checkpoint at {model_dir}; pass --model-dir")
-    q4.patch_indexer()
+    if args.full:
+        # the 48-layer pod path: load_full() routes through the official
+        # checkpoint when prefix_layers == 0
+        args.prefix_layers = 0
+        print(f"full-model mode: official checkpoint, device_map "
+              f"{args.device_map}, compact={args.compact_banks} "
+              f"force_gpu={args.force_gpu}", flush=True)
+    q4.patch_indexer(fast=args.fast_indexer)
 
     from transformers import AutoConfig, AutoTokenizer
     tok = AutoTokenizer.from_pretrained(str(model_dir))
@@ -159,7 +179,8 @@ def main() -> None:
     tcfg = getattr(cfg, "text_config", cfg)
     vocab = int(tcfg.vocab_size)
     data = windows(tok, args.eval_windows, args.seq, args.seed, args.split)
-    print(f"KLD eval: {args.prefix_layers}-layer prefix, vocab {vocab}, "
+    scope = "full 48-layer model" if args.full else f"{args.prefix_layers}-layer prefix"
+    print(f"KLD eval: {scope}, vocab {vocab}, "
           f"{len(data)} windows x {args.seq} tokens, quant={args.quant} "
           f"branch={args.branch_target}/{args.branch_quant} "
           f"gate={args.branch_gate} load={args.load or 'none'}", flush=True)
@@ -171,6 +192,12 @@ def main() -> None:
                   else q4.OUT / f"tcache-{args.prefix_layers}l")
 
     def make(device=None):
+        if args.full:
+            # official checkpoint, accelerate offload + lazy PLE (pod path);
+            # force-gpu is applied *after* the compact re-encode, as in
+            # stage_train, because the dense teacher does not fit on the card
+            model, _ = q4.load_full(args)
+            return model
         ple_ids = torch.stack([data[i] for i in range(len(data))])
         model, _, _, _ = q4.load_fp8_prefix(
             args.prefix_layers, device or args.device, model_dir=model_dir,
@@ -205,12 +232,18 @@ def main() -> None:
     # finished model moves over (or stays on CPU when --student-device cpu and
     # the card is shared with the other session's local work).
     student_device = args.student_device or args.device
-    model = make(device="cpu")
+    if args.full:
+        # device_map already placed the model; build_student does the compact
+        # encode + harden (force_gpu) in place, exactly like stage_train
+        model = make()
+    else:
+        model = make(device="cpu")
     if args.balance != "none":
         n_gates = q4.patch_router_balance(model, args.balance,
                                           args.balance_cb_eta, args.balance_qb_damp)
         print(f"router balance: {args.balance} on {n_gates} gates", flush=True)
-    quant_dev = args.device if str(args.device).startswith("cuda") else None
+    quant_dev = (args.device
+                 if not args.full and str(args.device).startswith("cuda") else None)
     n_tr = q4.build_student(model, args, quant_work_device=quant_dev)
     print(f"student built: trainable {n_tr/1e6:.2f}M", flush=True)
     if args.load:
@@ -225,7 +258,7 @@ def main() -> None:
                 f"checkpoint does not match this prefix/placement: "
                 f"{len(got)} wanted tensor(s) did not load, "
                 f"{len(unexpected)} did not belong")
-    if str(student_device) != "cpu":
+    if not args.full and str(student_device) != "cpu":
         model.to(student_device)
     print(f"student on {next(model.parameters()).device}", flush=True)
     if args.decompose_topk:
@@ -275,6 +308,7 @@ def main() -> None:
         print(f"support mass: teacher {dec['w_t'].mean():.4f} "
               f"student {dec['w_s'].mean():.4f}", flush=True)
     res.update({"top1_agreement": round(agree, 6), "checkpoint": args.load,
+                "full": bool(args.full),
                 "prefix_layers": args.prefix_layers, "quant": args.quant,
                 "branch_target": args.branch_target,
                 "branch_quant": args.branch_quant,

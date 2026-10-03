@@ -209,6 +209,29 @@ def test_attach_branches_both_targets(tiny, args_ns):
     assert torch.isfinite(out.last_hidden_state).all()
 
 
+def test_quick_eval_through_correction_wrapper(tiny, args_ns):
+    """In-run eval must find the router gate inside the correction wrapper.
+
+    Regression for the P2b step-1000 crash: ``quick_eval`` read
+    ``layer.mlp.gate`` directly, but after ``attach_branches`` the block is a
+    ``MoEWithCorrection`` and the gate is one level down.  The wrapped model
+    is bit-identical at init, so the PPL must match the unwrapped call.
+    """
+    import copy
+    import torch.nn as nn
+    model = copy.deepcopy(tiny)
+    model.lm_head = nn.Linear(64, 1024, bias=False)
+    model.eval()
+    args_ns.device = "cpu"
+    data = torch.randint(0, 1024, (2, 9))
+    ppl0, _ = q4.quick_eval(model, data, args_ns)
+    for layer in q4.text_layers(model):
+        layer.mlp = q4.MoEWithCorrection(layer.mlp, 64, args_ns.rank).to("cpu")
+    ppl1, _ = q4.quick_eval(model, data, args_ns)
+    assert math.isfinite(ppl1)
+    assert ppl1 == pytest.approx(ppl0, rel=1e-5)
+
+
 # ------------------------------------------------------------ cache record ---
 
 def test_make_record_schema(args_ns):
@@ -573,3 +596,8 @@ def test_new_scripts_have_main_guards():
                               capture_output=True, text=True, timeout=180)
         assert proc.returncode == 0, f"{script} --help failed: {proc.stderr[-500:]}"
         assert "usage:" in proc.stdout
+    # the 48-layer pod gate needs the full-model path on the eval tool
+    proc = subprocess.run([sys.executable, str(HERE / "qwen4exp_eval.py"), "--help"],
+                          capture_output=True, text=True, timeout=180)
+    for flag in ("--full", "--compact-banks", "--force-gpu", "--device-map"):
+        assert flag in proc.stdout, f"qwen4exp_eval.py is missing {flag}"

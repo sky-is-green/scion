@@ -16,7 +16,9 @@
 #   bash box-run-flashnext.sh ref         # eval router refs
 #   bash box-run-flashnext.sh train       # cur05 mirror (primary)
 #   bash box-run-flashnext.sh eval        # prefix PPL + router agreement
-#   bash box-run-flashnext.sh ple-ab      # PLE precision A/B (release pricing)
+#   bash box-run-flashnext.sh gate-teacher # W1 48-layer KLD: teacher park
+#   bash box-run-flashnext.sh gate-student # W1 48-layer KLD: student gate
+#   bash box-run-flashnext.sh ple-ab      # W2 PLE precision A/B (release pricing)
 #
 # Budget discipline: Flash-Next cap $55, stop at 80% ($44) and report; release
 # the second GPU before training (the cache is on the volume).
@@ -52,7 +54,10 @@ acquire() {
         exit 3
     fi
     echo "$$" > "$LOCKDIR/pid"
+    # TERM/INT cleanup matters: the stage watchdog SIGTERMs the process group
+    # on a stall, and a leftover lock would refuse the relaunch (exit 3).
     trap 'rm -rf "$LOCKDIR"' EXIT
+    trap 'rm -rf "$LOCKDIR"; exit 143' TERM INT
 }
 
 case "$stage" in
@@ -135,12 +140,16 @@ train)
     # and force-gpu pulls the accelerate-offloaded blocks back on.
     # --compact-banks: the frozen banks live as 2-bit codes + fp16 scales and the
     # forward decodes per-expert slices, so the cur05-mirror fits one H200.
+    # --log-entropy is OFF for the L40S fit: the entropy telemetry alone needs
+    # ~1 GiB of fp32 logits transients and the 48 GB card runs with ~1-2 GiB of
+    # margin (monitoring-only flag; the trained objective is unchanged).
     time python moe/qwen4exp_proxy.py train --model-dir "$Q4_MODEL" \
         --device cuda:0 --device-map auto \
         --cache-file "$CACHE" --ref-file "$REF" --compact-banks --grad-checkpoint \
+        --checkpoint-mode group --expert-group-size 64 \
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --kd-weight 2.0 --kd-tail-weight 2.0 --kd-tailcond-weight 3.0 --temp 2.0 \
-        --balance bias --log-entropy --fast-indexer --force-gpu \
+        --balance bias --fast-indexer --force-gpu \
         --corpus-file "$MIXFILE" --agentic-frac 0.05 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
         --epochs 1 --steps 4096 --eval-every 1000 --ckpt-every 1000 \
@@ -158,9 +167,10 @@ train-kd5)
     time python moe/qwen4exp_proxy.py train --model-dir "$Q4_MODEL" \
         --device cuda:0 --device-map auto \
         --cache-file "$CACHE" --ref-file "$REF" --compact-banks --grad-checkpoint \
+        --checkpoint-mode group --expert-group-size 64 \
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --kd-weight 5.0 --kd-tail-weight 2.0 --kd-tailcond-weight 3.0 --temp 2.0 \
-        --balance bias --log-entropy --fast-indexer --force-gpu \
+        --balance bias --fast-indexer --force-gpu \
         --corpus-file "$MIXFILE" --agentic-frac 0.05 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
         --epochs 1 --steps 4096 --eval-every 1000 --ckpt-every 1000 \
@@ -181,6 +191,48 @@ eval)
     ls -la "$Q"/qwen4exp-eval-*.json 2>/dev/null || true
     ;;
 
+gate-teacher)
+    cd "$REPO"
+    acquire
+    # W1: 48-layer KLD gate, teacher half.  The native fp8 route CANNOT run on
+    # a 48 GB card: accelerate offloads fp8 blocks and the grouped W8A8 Triton
+    # kernel cannot execute on CPU ("Pointer argument cannot be accessed from
+    # Triton").  Use the manual loader instead: dequantise the official shards
+    # to bf16 on the host (2 TB RAM) -- the same path as every local gate --
+    # and park fp32 log-probs per window under $TCACHE.
+    CKPT="$Q/qwen4exp-corr-r512-g128-step3000-cur05-deployed.pt"
+    [ -f "$CKPT" ] || { echo "REFUSING: $CKPT missing -- upload the deployed" >&2
+        echo "step-3000 checkpoint first (w1w2-prep.sh writes it locally)." >&2; exit 4; }
+    TCACHE="$Q/tcache-48l"
+    time python moe/qwen4exp_eval.py \
+        --prefix-layers 48 --ple rows --device cpu \
+        --eval-windows 8 --seq 512 --seed 999 --split wikitext \
+        --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
+        --balance none --decompose-topk 512 \
+        --stage teacher --model-dir "$Q4_MODEL" --tcache-dir "$TCACHE" \
+        --out "$Q/qwen4exp-eval-kld-48l-step3000.json"
+    echo "teacher park done: $TCACHE (run gate-student next)"
+    ;;
+gate-student)
+    cd "$REPO"
+    acquire
+    # W1: 48-layer KLD gate, student half.  Fresh process: same dense load +
+    # compact-banks + harden as the P2b train path, then the deployed step-3000
+    # branch/router checkpoint; reads the parked teacher log-probs.
+    CKPT="$Q/qwen4exp-corr-r512-g128-step3000-cur05-deployed.pt"
+    [ -f "$CKPT" ] || { echo "REFUSING: $CKPT missing" >&2; exit 4; }
+    TCACHE="$Q/tcache-48l"
+    [ -f "$TCACHE/meta.json" ] || { echo "REFUSING: no teacher park at $TCACHE" >&2; exit 4; }
+    time python moe/qwen4exp_eval.py \
+        --full --compact-banks --force-gpu --fast-indexer --device-map "$DEVICE_MAP" \
+        --device cuda:0 --student-device cuda:0 \
+        --eval-windows 8 --seq 512 --seed 999 --split wikitext \
+        --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
+        --balance none --decompose-topk 512 --load "$CKPT" \
+        --stage student --model-dir "$Q4_MODEL" --tcache-dir "$TCACHE" \
+        --out "$Q/qwen4exp-eval-kld-48l-step3000.json"
+    ls -la "$Q/qwen4exp-eval-kld-48l-step3000.json"
+    ;;
 export)
     cd "$REPO"
     # dense f16 factors (no fork gguf-py needed on the pod); the substantive
@@ -201,8 +253,11 @@ export)
 ple-ab)
     cd "$REPO"
     acquire
+    # W2: PLE precision sweep on the pod fp8 route (2-layer prefix).  The
+    # output name matches the watchdogs' fetch pattern (qwen4exp-eval-*.json);
+    # the final artifact stops the spend guard.
     time python moe/qwen4exp_proxy.py ple-ab --model-dir "$Q4_MODEL" \
         --layers 2 --device cuda:0 --eval-windows 8 --ple-bits 8,4,2 \
-        --ple-group 32 --out "$Q/ple-ab-pod.json"
+        --ple-group 32 --out "$Q/qwen4exp-eval-ple-ab-pod.json"
     ;;
 esac

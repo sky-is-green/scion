@@ -74,6 +74,7 @@ what ships.  Branches and router stay dense with gradients.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import gc
 import json
 import math
@@ -538,6 +539,61 @@ def model_logits(model, ids):
     return logits
 
 
+def _ce_chunk_sum(logits_chunk, targets_chunk):
+    return F.cross_entropy(logits_chunk.float(), targets_chunk,
+                           reduction="sum")
+
+
+class offload_saved_tensors:
+    """Context: autograd saves its tensors in host RAM, fetch on use.
+
+    The L40S step needs ~3 GiB of saved activations that only exist to be read
+    back in backward; the pod has 188 GiB of host RAM.  ``pack`` copies every
+    saved tensor to CPU on save, ``unpack`` brings it back for the op that
+    needs it.  Wrap **forward and backward**: the recomputation inside
+    ``torch.utils.checkpoint`` saves tensors during ``backward()`` and those
+    must be offloaded too.
+    """
+
+    def __init__(self, device):
+        self.device = torch.device(device)
+
+    def __enter__(self):
+        dev = self.device
+
+        def pack(t):
+            return t.to("cpu", non_blocking=False)
+
+        def unpack(t):
+            return t.to(dev, non_blocking=False)
+
+        self._hooks = torch.autograd.graph.saved_tensors_hooks(pack, unpack)
+        self._hooks.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        return self._hooks.__exit__(*exc)
+
+
+def chunked_cross_entropy(logits, targets, chunk: int = 64):
+    """Cross-entropy without the full-vocab fp32 softmax buffers.
+
+    The 248k vocab at seq 512 needs a 486 MiB fp32 save in the forward plus a
+    486 MiB grad buffer in backward (P2 L40S: the 48 GB card was ~0.1 GiB short
+    of the full-CE backward).  Each chunk is recomputed in backward, so only
+    one chunk's softmax is live at a time.  Mathematically the same loss
+    (fp32 reduction order differs in the last bits).
+    """
+    flat = logits.reshape(-1, logits.shape[-1])
+    tgt = targets.reshape(-1)
+    total = flat.new_zeros(())
+    for i in range(0, tgt.numel(), chunk):
+        total = total + torch.utils.checkpoint.checkpoint(
+            _ce_chunk_sum, flat[i:i + chunk], tgt[i:i + chunk],
+            use_reentrant=False)
+    return total / tgt.numel()
+
+
 def ternarize_banks(model, args, work_device=None) -> None:
     """Freeze the expert banks in place under the selected scale rule.
 
@@ -722,6 +778,26 @@ class CompactBank(nn.Module):
     def decode_expert(self, e: int, dtype: torch.dtype | None = None) -> torch.Tensor:
         return decode_ternary(self.codes[e], self.scales[e], dtype or self.out_dtype)
 
+    def decode_experts(self, idx_list, dtype: torch.dtype | None = None,
+                       chunk: int = 8) -> torch.Tensor:
+        """Batched :meth:`decode_expert` for a list/tensor of expert indices.
+
+        Decodes ``chunk`` experts at a time so the fp32 decode transient stays
+        ~chunk x 13 MB while the per-call overhead is amortised (P2 L40S: the
+        per-expert decode loop was host-op bound).
+        """
+        idx = torch.as_tensor(idx_list, device=self.codes.device)
+        n = int(idx.numel())
+        out = torch.empty((n,) + tuple(self.codes.shape[1:-2])
+                          + (self.codes.shape[-2] * self.group,),
+                          dtype=dtype or self.out_dtype,
+                          device=self.codes.device)
+        for i in range(0, n, max(1, int(chunk))):
+            out[i:i + chunk] = decode_ternary(
+                self.codes[idx[i:i + chunk]], self.scales[idx[i:i + chunk]],
+                dtype or self.out_dtype)
+        return out
+
     def decode_all(self, dtype: torch.dtype | None = None) -> torch.Tensor:
         return decode_ternary(self.codes, self.scales, dtype or self.out_dtype)
 
@@ -743,6 +819,74 @@ def _compact_expert_mlp(experts, current_state, expert_idx):
     gate, up = F.linear(current_state, gu_e).chunk(2, dim=-1)
     h = experts.act_fn(gate) * up
     return F.linear(h, dn_e)
+
+
+def _compact_experts_group(experts, hidden_states, hit, top_k_weights,
+                           expert_mask):
+    """One checkpointed group of hit experts -> its partial block output.
+
+    Batched: the group's weights are decoded with one ``decode_experts`` call,
+    the group's (expert, token) pairs are padded into a ``[G, maxc, H]`` tensor
+    and the two expert projections run as two ``bmm``s.  This is ~75x fewer
+    host ops than the per-expert loop (P2 L40S: the per-expert loop was
+    host-op bound at >27 s/step) while the decoded weights stay bounded at
+    ~group x 9.8 MB (the reason for group checkpointing at all).
+    ``hit`` is a Python list, so no graph is kept for it.
+    """
+    dt = experts._compact_gu.out_dtype
+    dev = hidden_states.device
+    g = len(hit)
+    out = torch.zeros_like(hidden_states)
+    with torch.no_grad():
+        sub = expert_mask[torch.as_tensor(hit, device=dev)]      # [G, K, T]
+        g_idx, k_idx, t_idx = sub.nonzero(as_tuple=True)         # positions
+    if g_idx.numel() == 0:
+        return out
+    counts = torch.bincount(g_idx, minlength=g)
+    maxc = int(counts.max().item())
+    gu_w = experts._compact_gu.decode_experts(hit, dt)           # [G, 2F, H]
+    dn_w = experts._compact_dn.decode_experts(hit, dt)           # [G, H, F]
+    x = hidden_states[t_idx].to(dt)                              # [N, H]
+    x_pad = x.new_zeros(g, maxc, x.shape[-1])
+    w_pad = x.new_zeros(g, maxc)
+    starts = torch.cumsum(counts, 0) - counts
+    rank = torch.arange(g_idx.numel(), device=dev) - starts[g_idx]
+    x_pad[g_idx, rank] = x
+    w_pad[g_idx, rank] = top_k_weights[t_idx, k_idx].to(dt)
+    gu_out = torch.bmm(x_pad, gu_w.transpose(1, 2))              # [G, maxc, 2F]
+    gate, up = gu_out.chunk(2, dim=-1)
+    h = experts.act_fn(gate) * up
+    y = torch.bmm(h, dn_w.transpose(1, 2))                       # [G, maxc, H]
+    y = y * w_pad.unsqueeze(-1)
+    out.index_add_(0, t_idx, y[g_idx, rank].to(out.dtype))
+    return out
+
+
+def _compact_experts_block_grouped(experts, hidden_states, top_k_index,
+                                   top_k_weights, group_size: int = 32):
+    """The sparse block as a chain of checkpointed expert groups.
+
+    Memory is bounded by ``group_size`` decoded experts instead of the whole
+    hit set; the group partials are summed in float32 and cast back at the end
+    (sequential bf16 accumulation is not bit-reproducible across groupings
+    anyway).
+    """
+    with torch.no_grad():
+        expert_mask = torch.nn.functional.one_hot(top_k_index,
+                                                  num_classes=experts.num_experts)
+        expert_mask = expert_mask.permute(2, 1, 0)
+        hit = [int(e[0]) for e in
+               torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+               if int(e[0]) != experts.num_experts]
+    out = None
+    for i in range(0, len(hit), group_size):
+        part = torch.utils.checkpoint.checkpoint(
+            _compact_experts_group, experts, hidden_states, hit[i:i + group_size],
+            top_k_weights, expert_mask, use_reentrant=False)
+        out = part.float() if out is None else out + part.float()
+    if out is None:
+        return torch.zeros_like(hidden_states)
+    return out.to(hidden_states.dtype)
 
 
 def _compact_experts_block(experts, hidden_states, top_k_index, top_k_weights):
@@ -786,9 +930,14 @@ def compact_experts_forward(self, hidden_states, top_k_index, top_k_weights):
     ``grad_input`` (48 layers x up to 512 hit experts ~ 400 GiB).
     """
     if getattr(self, "_grad_checkpoint", False):
-        if getattr(self, "_ckpt_mode", "block") == "expert":
+        mode = getattr(self, "_ckpt_mode", "block")
+        if mode == "expert":
             return _compact_experts_loop(self, hidden_states, top_k_index,
                                          top_k_weights, checkpoint="expert")
+        if mode == "group":
+            return _compact_experts_block_grouped(
+                self, hidden_states, top_k_index, top_k_weights,
+                group_size=getattr(self, "_ckpt_group", 32))
         return torch.utils.checkpoint.checkpoint(
             _compact_experts_block, self, hidden_states, top_k_index,
             top_k_weights, use_reentrant=False)
@@ -1000,6 +1149,119 @@ def rebind_compact_forwards(model) -> int:
     return n
 
 
+def ple_non_table_tensors(ple):
+    """The PLE layer's own tensors: everything except the ngram table.
+
+    The table (47.7 GiB) is the only tensor allowed to stay host-side: the
+    upstream PLE forward moves the gathered ids to the table's device and the
+    rows back.  Everything else (head vocab sizes/offsets, layer multipliers,
+    projections, conv) must sit with the activations once the accelerate hooks
+    are gone (P2 L40S finding: cuda ``mixed_ids`` vs cpu
+    ``ngram_heads_vocab_sizes`` -> RuntimeError in the remainder at
+    ``modeling_qwen4_exp.py:1170``).
+    """
+    emb = getattr(getattr(ple, "ple_embedding", None), "ngram_embedding", None)
+    keep = set()
+    if emb is not None:
+        keep.update(id(t) for t in emb.parameters())
+        keep.update(id(t) for t in emb.buffers())
+    return [t for t in list(ple.parameters()) + list(ple.buffers())
+            if id(t) not in keep]
+
+
+def place_ple_non_table(model, device: str) -> int:
+    """Move every PLE tensor except the ngram table to ``device``.
+
+    Returns the number of tensors moved.
+    """
+    dev = torch.device(device)
+    moved = 0
+    for layer in text_layers(model):
+        ple = getattr(layer, "ple", None)
+        if ple is None:
+            continue
+        for t in ple_non_table_tensors(ple):
+            if t.is_meta or t.device == dev:
+                continue
+            try:
+                t.data = t.data.to(dev)
+                moved += 1
+            except (RuntimeError, NotImplementedError):
+                pass
+    return moved
+
+
+def offload_unused_vision(model) -> int:
+    """Move the multimodal vision tower to CPU: text-only stages never use it.
+
+    ``AutoModelForImageTextToText`` loads ``model.visual`` (0.84 GiB / 333
+    tensors) and ``device_map="auto"`` places it on the GPU; the text forward
+    never calls it.  On a 48 GB card the training step is ~3 GiB short, so
+    unused weights are pure loss (P2 L40S fit).
+    """
+    n = 0
+    with torch.no_grad():
+        for name, t in (list(model.named_parameters())
+                        + list(model.named_buffers())):
+            if "visual" not in name or t.is_meta or t.device.type == "cpu":
+                continue
+            try:
+                t.data = t.data.to("cpu")
+                n += 1
+            except (RuntimeError, NotImplementedError):
+                pass
+    return n
+
+
+class CpuEmbedding(nn.Module):
+    """``nn.Embedding`` whose weight stays on the host (rows move per call).
+
+    The 248k x 2560 token table is 1.18 GiB bf16 on the card and is fetched
+    exactly once per step (512 rows, ~2.6 MB HtoD); the L40S fit needs the GiB
+    back (P2: the backward OOMed 2 MiB short inside the expert-decode
+    recompute).  The weight is frozen (only branches/routers train), so the
+    lookup needs no autograd.
+    """
+
+    def __init__(self, emb: nn.Embedding):
+        super().__init__()
+        self.weight = nn.Parameter(emb.weight.data.detach().to("cpu").clone(),
+                                   requires_grad=False)
+        self.padding_idx = getattr(emb, "padding_idx", None)
+
+    @property
+    def num_embeddings(self) -> int:
+        return self.weight.shape[0]
+
+    @property
+    def embedding_dim(self) -> int:
+        return self.weight.shape[1]
+
+    def forward(self, ids: torch.Tensor) -> torch.Tensor:
+        dev = ids.device
+        with torch.no_grad():
+            out = F.embedding(ids.to("cpu"), self.weight)
+        return out.to(dev, non_blocking=True)
+
+
+def offload_embed_tokens(model) -> str | None:
+    """Replace ``embed_tokens`` with :class:`CpuEmbedding` (1.18 GiB freed).
+
+    Skipped when the LM head shares the embedding (tied weights).  Returns the
+    module key that was replaced, or None.
+    """
+    cfg = getattr(model, "config", None)
+    if cfg is not None and getattr(cfg, "tie_word_embeddings", False):
+        return None
+    for name, mod in model.named_modules():
+        if isinstance(mod, nn.Embedding) and name.endswith("embed_tokens"):
+            parent_name, _, leaf = name.rpartition(".")
+            parent = (model.get_submodule(parent_name) if parent_name else model)
+            setattr(parent, leaf, CpuEmbedding(mod))
+            return name
+    return None
+
+
 def harden_placement(model, device: str = "cuda:0") -> int:
     """Drop every accelerate hook and move every non-PLE weight to ``device``.
 
@@ -1009,16 +1271,20 @@ def harden_placement(model, device: str = "cuda:0") -> int:
     forward).  The PLE table stays host-side (48 GiB and lazy/meta).  Returns
     the number of tensors moved.
     """
-    from accelerate import hooks as ah
     try:
+        from accelerate import hooks as ah
         ah.remove_hook_from_module(model, recurse=True)
+    except ImportError:
+        pass
     except Exception:
         pass
     dev = torch.device(device)
     moved = 0
     with torch.no_grad():
         for name, p in model.named_parameters():
-            if p.is_meta or p.device.type == "cuda" or "ple" in name:
+            if (p.is_meta or p.device.type == "cuda"
+                    or "ple" in name or "visual" in name
+                    or "embed_tokens" in name):
                 continue
             try:
                 p.data = p.data.to(dev)
@@ -1026,13 +1292,17 @@ def harden_placement(model, device: str = "cuda:0") -> int:
             except (RuntimeError, NotImplementedError):
                 pass
         for name, b in model.named_buffers():
-            if b.is_meta or b.device.type == "cuda" or "ple" in name:
+            if (b.is_meta or b.device.type == "cuda"
+                    or "ple" in name or "visual" in name
+                    or "embed_tokens" in name):
                 continue
             try:
                 b.data = b.data.to(dev)
                 moved += 1
             except (RuntimeError, NotImplementedError):
                 pass
+    moved += offload_unused_vision(model)
+    moved += place_ple_non_table(model, device)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     return moved
@@ -1057,6 +1327,25 @@ def enable_grad_checkpointing(model, mode: str = "block") -> int:
     return n
 
 
+def enable_layer_checkpointing(model) -> bool:
+    """Checkpoint the decoder layers themselves (recompute in backward).
+
+    P2 L40S fit: the 48 layers' saved activations (~2.6 GiB) do not fit next
+    to the 41 GiB compact student on a 48 GB card -- the first forward OOMed
+    at 43.8 GiB.  This is exact (recompute) and costs one extra forward per
+    step; the compact experts' decode checkpoint nests inside it.
+    """
+    cfg = getattr(model, "config", None)
+    if cfg is not None and getattr(cfg, "use_cache", None):
+        cfg.use_cache = False
+    try:
+        model.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False})
+    except TypeError:
+        model.gradient_checkpointing_enable()
+    return True
+
+
 def build_student(model, args, quant_work_device=None) -> int:
     """The deployable student: ternarised banks + correction branches."""
     if getattr(args, "compact_banks", False):
@@ -1070,6 +1359,13 @@ def build_student(model, args, quant_work_device=None) -> int:
             n_re = rebind_compact_forwards(model)
             print(f"compact: harden-placement moved {moved} tensor(s) to "
                   f"{args.device}; re-bound {n_re} compact forwards", flush=True)
+            # the frozen 1.18 GiB token table is fetched once per step; host
+            # side it does not fit on the 48 GB card otherwise (P2 L40S).
+            emb_key = offload_embed_tokens(model)
+            if emb_key:
+                gc.collect()
+                torch.cuda.empty_cache()
+                print(f"compact: token embedding -> host ({emb_key})", flush=True)
             memory_report(model, args, "post-harden")
     else:
         ternarize_banks(model, args, work_device=quant_work_device)
@@ -1561,18 +1857,29 @@ def load_fp8_prefix(n_layers: int, device: str = "cpu",
     num_experts = int(tcfg.num_experts)
     ff = int(tcfg.moe_intermediate_size)
     hidden = int(tcfg.hidden_size)
+    # assign the non-expert state, then stream the expert banks one layer at a
+    # time.  Holding the full bf16 state (experts are ~121B params) next to the
+    # constructed model OOM-kills the 286 GB pod cgroup on the 48-layer teacher
+    # (2026-10-03); assign=True frees each layer's constructed originals as the
+    # real tensors take their place.
+    _missing, unexpected = model.load_state_dict(state, strict=False,
+                                                 assign=True)
+    del state
+    gc.collect()
     full_map = _load_index(model_dir)
     for layer_idx in plan["expert_layers"]:
-        state.update(_expert_state(layer_idx, num_experts, ff, hidden,
-                                   full_map, open_shard, dtype))
+        banks = _expert_state(layer_idx, num_experts, ff, hidden,
+                              full_map, open_shard, dtype)
+        _m, _u = model.load_state_dict(banks, strict=False, assign=True)
+        unexpected.extend(_u)
+        del banks
+        gc.collect()
         loaded += 2
     if verbose:
         print(f"fp8 prefix: {n_layers} layers, {loaded} checkpoint tensors, "
               f"{len(plan['shards'])} shards", flush=True)
-
-    missing, unexpected = model.load_state_dict(state, strict=False, assign=True)
-    del state
-    gc.collect()
+    missing = [k for k, p in model.named_parameters() if p.is_meta]
+    missing += [k for k, b in model.named_buffers() if b.is_meta]
 
     # PLE rows
     if plan["ple_layers"]:
@@ -1731,7 +2038,116 @@ def load_full(args):
         max_memory=mm)
     if getattr(args, "force_gpu", False):
         force_gpu_placement(model, args.device)
+        # On 48 GB cards auto-offload can leave the token table on the host
+        # (the move loop skips it when the card fills first); the wrapper
+        # moves ids/outputs across devices.  The student path got this from
+        # build_student; the teacher path needs it too (gate-teacher, first
+        # full-forward on a 48 GB card: CPU embedding + cuda ids -> index_select
+        # device error).
+        emb_key = offload_embed_tokens(model)
+        if emb_key:
+            print(f"load_full: token embedding -> host ({emb_key})", flush=True)
+        n_small = place_unmapped_small(model, args.device)
+        if n_small:
+            print(f"load_full: moved {n_small} unmapped small module(s) to "
+                  f"{args.device}", flush=True)
+        n_ess = place_essential(model, args.device)
+        if n_ess:
+            print(f"load_full: moved {n_ess} essential module(s) to "
+                  f"{args.device}", flush=True)
+        try:  # placement diagnostic for the 48 GB full path
+            emb = model.get_input_embeddings()
+            head = model.get_output_embeddings()
+            ew = getattr(emb, "weight", None)
+            hw = getattr(head, "weight", None)
+            print(f"load_full devices: embed={ew.device if ew is not None else None} "
+                  f"head={hw.device if hw is not None else None}", flush=True)
+        except Exception:
+            pass
     return model, tok
+
+
+def unmapped_small_modules(model, max_gib: float = 2.0) -> list[str]:
+    """Names of small modules accelerate did not map (rotary buffers, norms,
+    the output head).  These stay on the CPU with device_map=auto and break
+    the forward on 48 GB cards (first full-forward device errors: RoPE bmm,
+    head matmul).  Modules inside or above a mapped key are skipped so the
+    offloaded decoder blocks keep their hooks; PLE/visual stay host-side.
+    """
+    hm = set(getattr(model, "hf_device_map", None) or {})
+    out = []
+    for name, mod in model.named_modules():
+        if not name or "ple" in name or "visual" in name \
+                or "embed_tokens" in name:
+            continue
+        if name in hm or any(name.startswith(k + ".") for k in hm) \
+                or any(k.startswith(name + ".") for k in hm):
+            continue
+        nbytes = sum(p.numel() * p.element_size() for p in mod.parameters())
+        nbytes += sum(b.numel() * b.element_size() for b in mod.buffers())
+        if 0 < nbytes <= max_gib * 2**30:
+            out.append(name)
+    return out
+
+
+def place_unmapped_small(model, device: str, max_gib: float = 2.0) -> int:
+    """Move the unmapped small modules onto the execution device."""
+    moved = 0
+    for name in unmapped_small_modules(model, max_gib):
+        try:
+            model.get_submodule(name).to(device)
+            moved += 1
+        except (RuntimeError, ValueError) as exc:
+            print(f"place-small: keeping {name} off-device ({exc})", flush=True)
+    if moved and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    return moved
+
+
+def essential_module_names(model, max_gib: float = 2.0) -> list[str]:
+    """Rotary embeddings and the output head: small and essential, and their
+    accelerate hooks do not move the direct child-call inputs (position_ids /
+    hidden states), so they must sit on the execution device even when mapped
+    to the host."""
+    out = []
+    for name, mod in model.named_modules():
+        if not (name.endswith("rotary_emb") or name.endswith("lm_head")):
+            continue
+        if "visual" in name or "ple" in name:
+            continue
+        nbytes = sum(p.numel() * p.element_size() for p in mod.parameters())
+        nbytes += sum(b.numel() * b.element_size() for b in mod.buffers())
+        if 0 < nbytes <= max_gib * 2**30:
+            out.append(name)
+    return out
+
+
+def place_essential(model, device: str, max_gib: float = 2.0) -> int:
+    """Force the rotary/head modules onto the device (hook removed first)."""
+    try:
+        from accelerate import hooks as ah
+    except ImportError:
+        ah = None
+    dev = torch.device(device)
+    moved = 0
+    for name in essential_module_names(model, max_gib):
+        mod = model.get_submodule(name)
+        tensors = list(mod.parameters()) + list(mod.buffers())
+        if tensors and all(t.device.type == dev.type for t in tensors):
+            continue
+        if ah is not None:
+            try:
+                ah.remove_hook_from_module(mod, recurse=True)
+            except Exception:
+                pass
+        try:
+            mod.to(dev)
+            moved += 1
+        except (RuntimeError, ValueError) as exc:
+            print(f"place-essential: keeping {name} off-device ({exc})", flush=True)
+    if moved and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    return moved
 
 
 def force_gpu_placement(model, device: str, reserve_gib: float = 2.0) -> list[str]:
@@ -1773,6 +2189,9 @@ def force_gpu_placement(model, device: str, reserve_gib: float = 2.0) -> list[st
             except (RuntimeError, ValueError) as exc:
                 print(f"force-gpu: keeping the PLE table on device ({exc})",
                       flush=True)
+    n_ple = place_ple_non_table(model, device)
+    if n_ple:
+        print(f"force-gpu: moved {n_ple} PLE tensor(s) to {device}", flush=True)
     torch.cuda.empty_cache()
 
     def subtree_bytes(mod) -> int:
@@ -2028,6 +2447,111 @@ def stage_compact_check(args):
     print("compact-check ok", flush=True)
 
 
+def stage_qat_screen(args):
+    """PLE-QAT convergence screen: two short LM arms on the 2-layer mirror.
+
+    Arm ``qat0`` trains branches with full-precision PLE rows; arm ``qat2``
+    trains with the 2-bit STE hook (``apply_ple_qat``).  Each arm then reads
+    its 2-bit damage ``KLD(rows@2bit || rows@full)`` on held-out windows.
+    A working hook shows (a) both arms converging (LM falling, grads finite)
+    and (b) the QAT arm with the smaller damage number — the model adapted
+    to the quantized table.
+    """
+    from kld_eval import log_probs, kld_from_logprobs, top1_agreement
+    from transformers import AutoTokenizer
+    model_dir = Path(args.model_dir) if args.model_dir else MODEL
+    tok = AutoTokenizer.from_pretrained(str(model_dir))
+    train_data = windows(tok, args.qat_train_windows, args.seq, 1001, args.split)
+    eval_data = windows(tok, args.qat_eval_windows, args.seq, 999, "wikitext")
+    if args.qat_eval_same:
+        eval_data = train_data[:args.qat_eval_windows \
+            if args.qat_eval_windows <= len(train_data) else len(train_data)]
+    ple_ids = torch.stack([train_data[i] for i in range(len(train_data))] +
+                          [eval_data[i] for i in range(len(eval_data))])
+    out = {"layers": args.layers, "steps": args.qat_steps,
+           "rank": args.rank, "train_windows": len(train_data),
+           "eval_windows": len(eval_data),
+           "eval_same_as_train": bool(args.qat_eval_same), "arms": {}}
+
+    def run_arm(qat_bits):
+        patch_experts(args.group)
+        model, _, _, plan = load_fp8_prefix(
+            args.layers, args.device, model_dir=model_dir,
+            shard_dir=Path(args.shard_dir) if args.shard_dir else None,
+            ple="rows", ple_ids=ple_ids)
+        ternarize_banks(model, args)
+        n_br = attach_branches(model, args)
+        for name, p in model.named_parameters():
+            p.requires_grad_(".branch." in name or ".gate." in name)
+        params = [p for p in model.parameters() if p.requires_grad]
+        opt = torch.optim.Adafactor(params, lr=args.lr, weight_decay=0.0)
+        n_qat = apply_ple_qat(model, qat_bits, args.ple_qat_group)
+        model.train()
+        lms = []
+        finite = True
+        for step in range(1, args.qat_steps + 1):
+            ids = train_data[(step - 1) % len(train_data):
+                             (step - 1) % len(train_data) + 1].to(args.device)
+            logits = model_logits(model, ids)
+            lm = F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
+                                 ids[:, 1:].reshape(-1))
+            lm.backward()
+            grads = [p.grad for p in params if p.grad is not None]
+            finite = finite and bool(grads) and all(
+                bool(torch.isfinite(g).all()) for g in grads)
+            opt.step()
+            opt.zero_grad(set_to_none=True)
+            lms.append(float(lm.item()))
+            if step % 10 == 0 or step == 1:
+                print(f"qat-screen qat{qat_bits} step {step}: lm {lm.item():.4f}",
+                      flush=True)
+        # damage read: 2-bit rows vs the arm's own full-precision rows.
+        # (grads were already checked inside the loop, before each zero_grad;
+        # checking here would see only Nones from set_to_none=True.)
+        model.eval()
+        tables = [(model.layers[i].ple.ple_embedding.ngram_embedding, i)
+                  for i in plan["ple_layers"]]
+        base = [(t.ids_sorted.clone(), t.rows.clone()) for t, _ in tables]
+
+        def ev():
+            logps = []
+            with torch.no_grad():
+                for i in range(len(eval_data)):
+                    ids = eval_data[i:i + 1].to(args.device)
+                    logps.append(log_probs(model_logits(model, ids)[0, :-1],
+                                           args.chunk).cpu())
+            return logps
+
+        ref = ev()
+        for k, (tab, _) in enumerate(tables):
+            ids_sorted, rows = base[k]
+            deq, _ = quantize_rows(rows, 2, args.ple_group)
+            tab.set_rows(ids_sorted, deq)
+        cur = ev()
+        per_token = torch.cat([kld_from_logprobs(ref[i], cur[i], args.chunk)
+                               for i in range(len(eval_data))])
+        agree = sum(top1_agreement(ref[i], cur[i])
+                    for i in range(len(eval_data))) / len(eval_data)
+        return {"qat_tables": n_qat, "branches": n_br,
+                "lm_first": lms[0], "lm_last": lms[-1], "grads_finite": finite,
+                "dmg_mean": float(per_token.mean()),
+                "dmg_p99": float(torch.quantile(per_token, 0.99)),
+                "dmg_max": float(per_token.max()),
+                "dmg_top1": float(agree)}
+
+    for bits in (0, args.ple_qat_bits or 2):
+        arm = run_arm(bits)
+        out["arms"][f"qat{bits}"] = arm
+        print(f"qat-screen arm qat{bits}: lm {arm['lm_first']:.4f} -> "
+              f"{arm['lm_last']:.4f} grads_finite={arm['grads_finite']} "
+              f"2bit-damage mean {arm['dmg_mean']:.4f} "
+              f"p99 {arm['dmg_p99']:.4f} max {arm['dmg_max']:.4f} "
+              f"top1 {arm['dmg_top1']:.4f}", flush=True)
+    if args.out:
+        Path(args.out).write_text(json.dumps(out, indent=2))
+        print(f"wrote {args.out}", flush=True)
+
+
 @torch.no_grad()
 def stage_cache(args):
     model, tok = load_full(args)
@@ -2112,8 +2636,34 @@ def stage_train(args):
     if getattr(args, "grad_checkpoint", False):
         n_ck = enable_grad_checkpointing(
             model, getattr(args, "checkpoint_mode", "block"))
+        if getattr(args, "checkpoint_mode", "block") == "group":
+            # bound the decoded-weight saves inside the recompute (P2 L40S:
+            # block mode saves every hit expert's weights, ~5 GiB)
+            n_g = 0
+            for layer in text_layers(model):
+                m = moe_block(layer).experts
+                if getattr(m, "_compact", False):
+                    m._ckpt_group = max(1, int(getattr(args, "expert_group_size", 32)))
+                    n_g += 1
+            print(f"gradient checkpointing: group size "
+                  f"{getattr(args, 'expert_group_size', 32)} on {n_g} modules",
+                  flush=True)
         print(f"gradient checkpointing ({getattr(args, 'checkpoint_mode', 'block')}): "
               f"{n_ck} experts modules", flush=True)
+        if getattr(args, "offload_saved", False):
+            # the decoder layers are NOT checkpointed: autograd's saved tensors
+            # go to host RAM through offload_saved_tensors (the checkpoint's own
+            # recomputation hooks shadow any user hooks, so the layer saves
+            # must not be inside a checkpoint; the expert blocks stay
+            # checkpointed because their decoded weights would be huge).
+            print("gradient checkpointing: decoder layers not checkpointed; "
+                  "saved tensors -> host RAM", flush=True)
+        else:
+            # L40S fit without host offload: the decoder layers' saved
+            # activations (~2.6 GiB over 48 layers) do not fit next to the
+            # 41 GiB student; checkpoint them too (exact recompute).
+            enable_layer_checkpointing(model)
+            print("gradient checkpointing (decoder layers): enabled", flush=True)
 
     cache_path = Path(args.cache_file) if args.cache_file else CACHE
     cache = torch.load(cache_path, map_location="cpu")
@@ -2133,15 +2683,34 @@ def stage_train(args):
         opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=0.0)
     else:
         opt = torch.optim.Adafactor(params, lr=args.lr, weight_decay=0.0)
+    n_qat = apply_ple_qat(model, getattr(args, "ple_qat_bits", 0) or 0,
+                          getattr(args, "ple_qat_group", 32) or 32)
+    if n_qat:
+        print(f"PLE-QAT: {args.ple_qat_bits}-bit STE hook on {n_qat} tables",
+              flush=True)
+    start_step = 0
+    if getattr(args, "resume", ""):
+        start_step = load_resume_weights(model, args.resume, args)
+        lr0 = lr_at_step(args, start_step)
+        for g in opt.param_groups:
+            g["lr"] = lr0
+        print(f"resuming at step {start_step} (lr {lr0:.3e}; optimizer "
+              f"restarts fresh, branches/routers restored)", flush=True)
     model.train()
-    step = 0
+    step = start_step
+    start_offset = resume_offsets(start_step, len(cache))
     for epoch in range(args.epochs):
-        for rec in cache:
+        for ci, rec in enumerate(cache):
+            if epoch == 0 and ci < start_offset:
+                continue
             bal, zl = None, None
             ids = data[step % len(data):step % len(data) + 1].to(args.device)
-            logits = model_logits(model, ids)
-            lm = F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
-                                 ids[:, 1:].reshape(-1))
+            off_ctx = (offload_saved_tensors(args.device)
+                       if getattr(args, "offload_saved", False)
+                       else contextlib.nullcontext())
+            with off_ctx:
+                logits = model_logits(model, ids)
+                lm = chunked_cross_entropy(logits[:, :-1], ids[:, 1:])
             ti = rec["idx"].to(logits.device)
             tv = rec["val"].to(logits.device).float()
             s_sel = logits[:, :-1].gather(-1, ti).reshape(-1, ti.shape[-1])
@@ -2196,7 +2765,8 @@ def stage_train(args):
                     ent = float(-(lp.exp() * lp).sum(-1).mean())
                     peak = float(lp.exp().max(-1).values.mean())
                     del lp, flat
-            loss.backward()
+            with off_ctx:
+                loss.backward()
             opt.step()
             opt.zero_grad(set_to_none=True)
             if args.balance in ("bias", "quantile", "cbqb", "cb"):
@@ -2232,12 +2802,19 @@ def stage_train(args):
                 print(f"step {step} lm {lm.item():.4f} kd {kd.item():.4f} "
                       f"tail {0.0 if tail is None else tail.item():.4f} "
                       f"total {loss.item():.4f}{extra}", flush=True)
-            if args.eval_every and step % args.eval_every == 0 and ev is not None:
-                ppl, ag = quick_eval(model, ev, args, ref)
-                print(f"  [eval] step {step} ppl {ppl:.2f} "
-                      f"router_agree {ag:.4f}", flush=True)
+            # save before the (monitoring-only) eval: an eval bug must never
+            # cost the checkpoint (the step-1000 P2b crash lost the run this way)
             if args.ckpt_every and step % args.ckpt_every == 0:
                 save(model, args, step)
+            if args.eval_every and step % args.eval_every == 0 and ev is not None:
+                try:
+                    ppl, ag = quick_eval(model, ev, args, ref)
+                    print(f"  [eval] step {step} ppl {ppl:.2f} "
+                          f"router_agree {ag:.4f}", flush=True)
+                except Exception as exc:  # noqa: BLE001 - keep training
+                    model.train()
+                    print(f"  [eval] step {step} failed: {exc!r} "
+                          f"(training continues)", flush=True)
             if args.steps and step >= args.steps:
                 break
         if args.steps and step >= args.steps:
@@ -2255,13 +2832,16 @@ def stage_train(args):
 
 
 @torch.no_grad()
+@torch.no_grad()
 def quick_eval(model, data, args, ref=None):
     model.eval()
     total, ntok, agree = 0.0, 0, []
     for i in range(len(data)):
         ids = data[i:i + 1].to(args.device)
         store = {}
-        hs = [layer.mlp.gate.register_forward_hook(gate_hook(store, j))
+        # unwrap the correction wrapper: after attach_branches the block is a
+        # MoEWithCorrection and the gate lives one level down (P2b bug #12)
+        hs = [moe_block(layer).gate.register_forward_hook(gate_hook(store, j))
               for j, layer in enumerate(text_layers(model))]
         logits = model_logits(model, ids)
         for h in hs:
@@ -2290,6 +2870,73 @@ def save(model, args, step):
     p = OUT / f"{name}.pt"
     torch.save(sd, p)
     print(f"saved {p}", flush=True)
+
+
+def resume_offsets(start_step: int, cache_len: int) -> int:
+    """First-epoch cache offset for ``--resume`` (records before it are done)."""
+    if not start_step:
+        return 0
+    return start_step % max(1, cache_len)
+
+
+def parse_resume_step(path: str, explicit: int = 0) -> int:
+    """Step number for ``--resume``: explicit flag wins, else ``step<N>``."""
+    if explicit:
+        return int(explicit)
+    m = re.search(r"step(\d+)", Path(path).name)
+    if m:
+        return int(m.group(1))
+    raise SystemExit(f"--resume {path}: no step<N> in the filename and no "
+                     f"--resume-step given")
+
+
+def lr_at_step(args, step: int) -> float:
+    """Adafactor LR at an absolute step under the halving schedule.
+
+    Mirrors the training loop exactly: LR halves at every multiple of
+    ``lr_half_every`` at/after ``lr_decay_start`` (step 0 never triggers,
+    since the loop checks after incrementing).
+    """
+    base = float(args.lr)
+    every = int(getattr(args, "lr_half_every", 0) or 0)
+    start = int(getattr(args, "lr_decay_start", 0) or 0)
+    if not every or step < max(start, 1):
+        return base
+    first = ((max(start, 1) + every - 1) // every) * every
+    if first > step:
+        return base
+    return base * (0.5 ** (1 + (step - first) // every))
+
+
+def load_resume_weights(model, path: str, args) -> int:
+    """Load a branch+router checkpoint for ``--resume``; returns start step.
+
+    Verifies every checkpoint key exists in the model (rank/arch mismatch ->
+    SystemExit); shape mismatches raise from ``load_state_dict`` and are
+    re-reported as SystemExit.  Optimizer state is NOT stored (Adafactor
+    restarts fresh — the standard caveat, noted in the runlog); the LR is
+    recomputed by :func:`lr_at_step` at the call site.
+    """
+    try:
+        sd = torch.load(path, map_location="cpu")
+    except FileNotFoundError:
+        raise SystemExit(f"--resume {path}: file not found")
+    if not isinstance(sd, dict) or not sd:
+        raise SystemExit(f"--resume {path}: not a branch checkpoint dict")
+    have = set(model.state_dict())
+    unknown = [k for k in sd if k not in have]
+    if unknown:
+        raise SystemExit(f"--resume {path}: {len(unknown)} keys match no "
+                         f"model parameter (rank/arch mismatch?), e.g. "
+                         f"{unknown[0]}")
+    try:
+        model.load_state_dict(sd, strict=False)
+    except RuntimeError as exc:
+        raise SystemExit(f"--resume {path}: shape mismatch ({exc})")
+    n = sum(1 for k in sd if ".branch." in k or ".gate." in k)
+    print(f"resumed {len(sd)} tensors ({n} branch/router) from {path}",
+          flush=True)
+    return parse_resume_step(path, int(getattr(args, "resume_step", 0) or 0))
 
 
 @torch.no_grad()
@@ -2339,6 +2986,113 @@ def stage_eval(args):
 
 
 @torch.no_grad()
+def apply_ple_qat(model, bits: int = 0, group: int = 32,
+                  force: bool = False) -> int:
+    """Quantize PLE lookup outputs with a straight-through estimator (PLE-QAT).
+
+    When ``bits > 0``, every PLE n-gram table's forward output is replaced by
+    ``out + (dequant(quant(out)) - out.detach())``: the forward sees the
+    release quantization (default 2-bit group-32 rows), the backward passes
+    gradients through unchanged, so branches/routers adapt to the quantized
+    table.  The table itself is untouched (frozen); only rows actually looked
+    up are quantized, so the full-table cost never materializes.  With
+    ``force=False`` (default) the hook is a no-op outside training mode, so
+    monitoring evals stay full-precision; pass ``force=True`` to measure the
+    adapted operating point explicitly.
+    """
+    if not bits:
+        return 0
+    n = 0
+    try:
+        layers = text_layers(model)
+    except AttributeError:
+        return 0
+    for layer in layers:
+        ple = getattr(layer, "ple", None)
+        emb = getattr(ple, "ple_embedding", None)
+        tab = getattr(emb, "ngram_embedding", None)
+        if tab is None:
+            continue
+
+        def _qat_hook(mod, _args, output, _bits=bits, _group=group,
+                      _force=force):
+            if not _force and not mod.training:
+                return output
+            with torch.no_grad():
+                deq, _ = quantize_rows(output.detach(), _bits, _group)
+            return output + (deq - output.detach())
+
+        tab.register_forward_hook(_qat_hook)
+        n += 1
+    return n
+
+
+def alloc_mixed_bits(freq: torch.Tensor, spec: list[tuple[int, float]]
+                     ) -> torch.Tensor:
+    """Bits per row from a ``[(bits, fraction)]`` spec by corpus frequency.
+
+    Rows are ranked by descending ``freq`` (ties by row order); the top
+    ``fraction`` of rows gets ``bits``.  Fractions must sum to 1.  Pure,
+    CPU-testable; the stage applies the resulting per-row widths.
+    """
+    total = sum(f for _, f in spec)
+    if abs(total - 1.0) > 1e-9:
+        raise ValueError(f"mixed-precision fractions must sum to 1, got {total}")
+    n = int(freq.numel())
+    order = torch.argsort(freq, descending=True, stable=True)
+    out = torch.empty(n, dtype=torch.int64)
+    lo = 0
+    for bits, frac in spec:
+        hi = lo + int(round(frac * n))
+        hi = min(hi, n)
+        out[order[lo:hi]] = bits
+        lo = hi
+    out[order[lo:]] = spec[-1][0]  # rounding spill goes to the last bucket
+    return out
+
+
+def svd_compress(rows: torch.Tensor, rank: int) -> tuple[torch.Tensor, float]:
+    """Rank-``rank`` SVD reconstruction of a row matrix + bytes/row (fp16)."""
+    if rank <= 0 or rank >= min(rows.shape):
+        raise ValueError(f"SVD rank {rank} invalid for {tuple(rows.shape)}")
+    f = rows.float()
+    u, s, vh = torch.linalg.svd(f, full_matrices=False)
+    rec = (u[:, :rank] * s[:rank]) @ vh[:rank]
+    n, d = rows.shape
+    bpr = ((n * rank + rank + rank * d) * 2.0) / n
+    return rec.to(rows.dtype), bpr
+
+
+def quantize_mixed_rows(rows: torch.Tensor, bits: torch.Tensor, group: int = 32
+                        ) -> tuple[torch.Tensor, float]:
+    """Per-row-width re-quantisation for a mixed-precision allocation.
+
+    ``bits`` (int64, one width per row, values in {2, 4, 8}) selects the
+    ``quantize_rows`` codebook per row.  Returns ``(dequantized, mean
+    bytes/row)``.
+    """
+    uniq = sorted(set(bits.tolist()))
+    if any(b not in (2, 4, 8) for b in uniq):
+        raise ValueError(f"mixed widths must be in {{2, 4, 8}}, got {uniq}")
+    out = torch.empty_like(rows)
+    tot = 0.0
+    for b in uniq:
+        m = bits == b
+        dq, bpr = quantize_rows(rows[m], b, group)
+        out[m] = dq.to(out.dtype)
+        tot += bpr * int(m.sum())
+    return out, tot / rows.shape[0]
+
+
+def parse_mixed_spec(spec: str) -> list[tuple[int, float]]:
+    """``"8:0.1,4:0.6,2:0.3"`` -> ``[(8, 0.1), (4, 0.6), (2, 0.3)]``."""
+    out = []
+    for part in spec.split(","):
+        b, f = part.split(":")
+        out.append((int(b), float(f)))
+    return out
+
+
 def stage_ple_ab(args):
     """PLE precision A/B: re-quantise only the gathered n-gram rows.
 
@@ -2355,6 +3109,12 @@ def stage_ple_ab(args):
     tok = AutoTokenizer.from_pretrained(str(model_dir))
     data = windows(tok, args.eval_windows, args.seq, args.seed, args.split)
     ple_ids = torch.stack([data[i] for i in range(len(data))])
+    freq_data = None
+    if args.ple_freq_windows > 0:
+        freq_data = windows(tok, args.ple_freq_windows, args.seq,
+                            args.seed + 7919, args.split)
+        fall = torch.stack([freq_data[i] for i in range(len(freq_data))])
+        ple_ids = torch.cat([ple_ids, fall])
 
     model, _, _, plan = load_fp8_prefix(
         args.layers, args.device, model_dir=model_dir,
@@ -2365,25 +3125,50 @@ def stage_ple_ab(args):
                          f"{min(_ple_layer_ids(_q4_text_config(model_dir))) + 1}")
     tables = [(model.layers[i].ple.ple_embedding.ngram_embedding, i)
               for i in plan["ple_layers"]]
+    embs = [model.layers[i].ple.ple_embedding for i in plan["ple_layers"]]
     base_rows = [(tab.ids_sorted.clone(), tab.rows.clone()) for tab, _ in tables]
 
     def run():
         logps = []
-        for i in range(len(data)):
-            ids = data[i:i + 1].to(args.device)
-            logps.append(log_probs(model_logits(model, ids)[0, :-1], args.chunk).cpu())
+        with torch.no_grad():
+            for i in range(len(data)):
+                ids = data[i:i + 1].to(args.device)
+                logps.append(log_probs(model_logits(model, ids)[0, :-1], args.chunk).cpu())
         return logps
 
+    def entropy(logps):
+        hs = [float((-(p.exp() * p)).sum(-1).mean()) for p in logps]
+        return sum(hs) / len(hs)
+
+    def count_freq():
+        """Row-hit counts over eval + freq windows, per table (ids_sorted order)."""
+        counts = []
+        with torch.no_grad():
+            for (tab, _), emb in zip(tables, embs):
+                tab.start_recording()
+                for ids in ple_ids:
+                    emb(ids.unsqueeze(0).to(args.device), None)
+                seen = torch.cat(tab._seen).long().cpu()
+                tab.stop_recording()
+                pos = torch.searchsorted(tab.ids_sorted.cpu(), seen.clamp(min=0))
+                pos_c = pos.clamp(max=tab.n_rows() - 1)
+                hit = (tab.ids_sorted.cpu()[pos_c] == seen)
+                c = torch.zeros(tab.n_rows(), dtype=torch.int64)
+                c.index_add_(0, pos_c[hit],
+                             torch.ones(int(hit.sum()), dtype=torch.int64))
+                counts.append(c)
+        return counts
+
     ref = run()
+    ref_H = entropy(ref)
     print(f"PLE A/B: {args.layers} layers, {len(data)} windows, "
-          f"{total_rows(tables)} rows, group {args.ple_group}", flush=True)
+          f"{total_rows(tables)} rows, group {args.ple_group}, "
+          f"ref entropy {ref_H:.4f}", flush=True)
     out = {"layers": args.layers, "eval_windows": args.eval_windows,
-           "rows": total_rows(tables), "group": args.ple_group, "arms": {}}
-    for bits in [int(b) for b in str(args.ple_bits).split(",")]:
-        for k, (tab, _) in enumerate(tables):
-            ids_sorted, rows = base_rows[k]
-            deq, bpr = quantize_rows(rows, bits, args.ple_group)
-            tab.set_rows(ids_sorted, deq)
+           "freq_windows": args.ple_freq_windows, "rows": total_rows(tables),
+           "group": args.ple_group, "ref_entropy": ref_H, "arms": {}}
+
+    def score(name, bpr):
         cur = run()
         klds = [kld_from_logprobs(ref[i], cur[i], args.chunk) for i in range(len(data))]
         per_token = torch.cat(klds)
@@ -2392,11 +3177,47 @@ def stage_ple_ab(args):
                "p99": float(torch.quantile(per_token, 0.99)),
                "max": float(per_token.max()),
                "top1_agreement": float(agree),
-               "bytes_per_row": bpr}
-        out["arms"][str(bits)] = arm
-        print(f"PLE {bits:2d} bit: mean {arm['mean_kld']:.4f} "
+               "entropy": entropy(cur),
+               "bytes_per_row": float(bpr) if not isinstance(bpr, str) else bpr}
+        out["arms"][name] = arm
+        print(f"PLE {name}: mean {arm['mean_kld']:.4f} "
               f"p99 {arm['p99']:.4f} max {arm['max']:.4f} "
-              f"top1 {agree:.4f} bytes/row {bpr:.1f}", flush=True)
+              f"top1 {agree:.4f} H {arm['entropy']:.4f} "
+              f"bytes/row {arm['bytes_per_row']}", flush=True)
+
+    for bits in [int(b) for b in str(args.ple_bits).split(",")]:
+        for k, (tab, _) in enumerate(tables):
+            ids_sorted, rows = base_rows[k]
+            deq, bpr = quantize_rows(rows, bits, args.ple_group)
+            tab.set_rows(ids_sorted, deq)
+        score(f"{bits}bit", bpr)
+    if args.ple_mixed:
+        freq = count_freq()
+        for spec in str(args.ple_mixed).split(";"):
+            pairs = parse_mixed_spec(spec)
+            bprs = []
+            for k, (tab, _) in enumerate(tables):
+                ids_sorted, rows = base_rows[k]
+                bits = alloc_mixed_bits(freq[k], pairs)
+                deq, bpr = quantize_mixed_rows(rows, bits, args.ple_group)
+                tab.set_rows(ids_sorted, deq)
+                bprs.append(bpr)
+            score(f"mixed[{spec}]",
+                  sum(bprs) / len(bprs) if bprs else 0.0)
+    if args.ple_off:
+        for k, (tab, _) in enumerate(tables):
+            ids_sorted, rows = base_rows[k]
+            tab.set_rows(ids_sorted, torch.zeros_like(rows))
+        score("off", 0.0)
+    if args.ple_svd:
+        for rank in [int(r) for r in str(args.ple_svd).split(",")]:
+            bprs = []
+            for k, (tab, _) in enumerate(tables):
+                ids_sorted, rows = base_rows[k]
+                rec, bpr = svd_compress(rows.cpu(), rank)
+                tab.set_rows(ids_sorted, rec.to(rows.device))
+                bprs.append(bpr)
+            score(f"svd{rank}", sum(bprs) / len(bprs) if bprs else 0.0)
     for k, (tab, _) in enumerate(tables):       # restore full precision
         tab.set_rows(*base_rows[k])
     if args.out:
@@ -2527,7 +3348,8 @@ def stage_preflight(args):
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("stage", choices=["smoke", "cache", "ref", "train", "eval",
-                                      "ple-ab", "preflight", "compact-check"])
+                                      "ple-ab", "preflight", "compact-check",
+                                      "qat-screen"])
     ap.add_argument("--model-dir", default="",
                     help="checkpoint dir (default $Q4_MODEL or the local mirror)")
     ap.add_argument("--shard-dir", default="",
@@ -2561,6 +3383,20 @@ def build_parser() -> argparse.ArgumentParser:
                     help="train: checkpoint the decoder layers so the per-expert "
                          "decode is recomputed in backward (bounds the saved "
                          "decoded-weight memory; exact)")
+    ap.add_argument("--offload-saved", action="store_true",
+                    help="train: keep autograd's saved tensors in host RAM "
+                         "(pack on save / unpack on use) instead of "
+                         "checkpointing the decoder layers; the 48 GB card "
+                         "fits because the pod has 188 GB of host RAM")
+    ap.add_argument("--checkpoint-mode", choices=["block", "expert", "group"],
+                    default="block",
+                    help="granularity of the compact-decode checkpoint "
+                         "(block = one node per sparse block (default); expert "
+                         "= one per expert; group = one per expert-group, "
+                         "bounds the decoded-weight saves at ~group x 9.8 MB)")
+    ap.add_argument("--expert-group-size", type=int, default=32,
+                    help="train: experts per checkpointed group for "
+                         "--checkpoint-mode group (32 saves ~0.3 GiB)")
     ap.add_argument("--rank", type=int, default=512)
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"],
                     default="fp32")
@@ -2615,11 +3451,44 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--log-entropy", action="store_true")
     ap.add_argument("--load", default="")
     ap.add_argument("--tag", default="")
+    ap.add_argument("--resume", default="",
+                    help="train: branch+router checkpoint to resume from "
+                         "(e.g. a step-3000 ckpt); training continues at its "
+                         "step with the cache offset to match")
+    ap.add_argument("--resume-step", type=int, default=0,
+                    help="train: explicit start step (default: step<N> parsed "
+                         "from the --resume filename)")
     ap.add_argument("--ple-bits", default="8,4,2",
                     help="ple-ab: comma-separated bit widths to price")
     ap.add_argument("--ple-group", type=int, default=32,
                     help="ple-ab: quantization group along the row (160 must "
                          "divide it; 32 = 5 groups)")
+    ap.add_argument("--ple-mixed", default="",
+                    help="ple-ab: mixed-precision spec(s), e.g. "
+                         "\"8:0.1,4:0.6,2:0.3\" (bits:fraction by corpus "
+                         "frequency); ';'-separated for several")
+    ap.add_argument("--ple-off", action="store_true",
+                    help="ple-ab: add a zero-table (PLE-off) ablation arm")
+    ap.add_argument("--ple-svd", default="",
+                    help="ple-ab: comma-separated SVD ranks, e.g. \"16,32,64\"")
+    ap.add_argument("--ple-freq-windows", type=int, default=0,
+                    help="ple-ab: extra windows (past --eval-windows) whose "
+                         "row hits drive the mixed-precision frequencies")
+    ap.add_argument("--ple-qat-bits", type=int, default=0,
+                    help="train + qat-screen: PLE-QAT width (0 = off); the "
+                         "student forward sees release-quantized PLE rows "
+                         "with STE gradients so branches adapt")
+    ap.add_argument("--ple-qat-group", type=int, default=32,
+                    help="train + qat-screen: PLE-QAT group along the row")
+    ap.add_argument("--qat-steps", type=int, default=30,
+                    help="qat-screen: LM training steps per arm")
+    ap.add_argument("--qat-eval-windows", type=int, default=8,
+                    help="qat-screen: eval windows for the 2-bit damage read")
+    ap.add_argument("--qat-train-windows", type=int, default=8,
+                    help="qat-screen: distinct train windows (seed 1001)")
+    ap.add_argument("--qat-eval-same", action="store_true",
+                    help="qat-screen: eval on the train windows (in-sample "
+                         "damage; tests whether QAT adapts covered rows)")
     ap.add_argument("--native", action="store_true",
                     help="preflight: also load the full checkpoint through the "
                          "official from_pretrained route (native fp8, the cache "
@@ -2655,6 +3524,8 @@ def main():
         stage_ple_ab(args)
     elif args.stage == "compact-check":
         stage_compact_check(args)
+    elif args.stage == "qat-screen":
+        stage_qat_screen(args)
     else:
         stage_preflight(args)
 
