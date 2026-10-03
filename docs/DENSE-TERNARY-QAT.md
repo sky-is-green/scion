@@ -247,16 +247,33 @@ as `f8395a69b`.  External prior art (TAARDIS: same `Q1_0_g128` lineage, per-head
 GDN readout doctors, rotation-first pipeline) is surveyed in
 [`TAARDIS-PRIOR-ART.md`](TAARDIS-PRIOR-ART.md).
 
-## Status and next step (2026-10-03)
+## Held-out checkpoint: the bench parity is majority-class (2026-10-03)
 
-Packaging + bridge benchmark **done**, and the harness backend is **done**:
-`clef-ternary` (resident bridge + CPU head sidecar) scores **68/70 train,
-29/30 test** through `judge_eval --family ternary`, bit-exact with the offline
-benchmark and above bf16 Clef and Tiny-Jev.  Recorded caveat: corrected p is
-compressed into [0.57, 0.60] (accept cliff at 0.60), so 0.5 is safe but
-uncalibrated elsewhere; CPU latency ~17.9 s/check.  Menu: (1) longer f32
-rental run (needs approval) with a per-head GDN readout tap + damage-based rank
-allocation; (2) Clef V2 (rotation + Hessian GPTQ + self-distill) as the bigger
-quality lever; (3) optional latency lane (HIP bridge on the non-display card).
-Full context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md).  No push; rentals
-need approval.
+Before any release, the packaged artifact was scored on 27 correct answers
+outside cascade-bench-v1 plus 19 constructed negatives (harness backend,
+uncorrected body for contrast).  The result retracts the "above bf16" reading:
+
+| body | bench-train | bench-test | held-out 46 | AUC train / held-out |
+|---|---|---|---|---|
+| uncorrected PQ2_0 (thr 0.46) | 43/70 (0 FA, 27 FR) | 22/30 (0 FA, 8 FR) | 24/46 (13 FA, 9 FR) | 0.801 / 0.569 |
+| corrected (thr 0.40-0.55) | 68/70 (2 FA, 0 FR) | 29/30 (1 FA, 0 FR) | 27/46 (19 FA, 0 FR) | **0.412 / 0.435** |
+| always-accept | 68/70 | 29/30 | 27/46 | 0.500 |
+
+The corrected verdict counts equal always-accept on a 97%-positive bench; the
+corrections flatten the head's ranking into p≈0.58 and reject none of the
+held-out negatives.  The uncorrected body retains real ranking but is
+miscalibrated.  Diagnosis: the branch residual is O(hidden norm) (~110 vs ~120
+per token) and the pointwise decision KD on a mostly-positive set taught
+"accept".
+
+Status: packaging and the `clef-ternary` harness backend are **done** and
+bit-exact with the offline benchmark; **do not post the current corrections**.
+Menu: (1) free calibration-only baseline on the uncorrected body; (2) retrain
+with a ranking-aware/class-balanced decision loss + residual regularization +
+mixed corpus (rental, needs approval), with the frozen 46-record probe and a
+fresh holdout as acceptance tests; (3) Clef V2 (rotation + Hessian GPTQ +
+self-distill) as the bigger quality lever.  Evaluation protocol from now on:
+AUC / TPR-at-fixed-FPR / balanced accuracy + always-accept baseline, never
+verdict count alone.  Full context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md);
+license/release checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No
+push; rentals need approval.

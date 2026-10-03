@@ -84,8 +84,9 @@ Both taps packaged and benchmarked through the deployed CPU path (local, no
 spend): adapter export → `qwen35.cpp`/`llama-adapter.cpp` `blk.N.ffn_out`
 virtual target → `build-cpu` rebuild → merge into the body
 (`adapter.embedded=true`) → bridge (`hivebench/tools/clef-bridge/clef_embed`,
-CPU) → joint head sidecar (CPU torch f32). **The honest numbers land on the
-proxy almost exactly, with zero verdict flips:**
+CPU) → joint head sidecar (CPU torch f32). The bridge reproduces the proxy
+almost exactly, with zero verdict flips. **Read the held-out checkpoint below
+first: the corrected verdict counts are the majority class.**
 
 | split | uncorrected bridge | **corrected bridge** | corrected proxy | bf16 Clef | Tiny-Jev |
 |---|---|---|---|---|---|
@@ -103,11 +104,11 @@ proxy almost exactly, with zero verdict flips:**
   278-589-token record), model load 7.4 s once, head sidecar 40-90 ms/check.
   bf16 Clef was ~3.2 s/check in transformers, so the CPU lane is ~5-6x slower
   per check; the HIP bridge on the non-display card is the latency fallback.
-- **Harness backend done** (`clef-ternary`): `judge_eval --family ternary`
-  scores **68/70 train, 29/30 test** — identical confusion counts to the
-  offline bridge benchmark (max |Δp| 5e-5).  Caveat recorded: corrected p is
-  compressed into [0.57, 0.60] with the accept cliff at 0.60; 0.5 is safe but
-  uncalibrated elsewhere.
+- **Harness backend done** (`clef-ternary`): `ClefTernaryValidator` + resident
+  bridge serve + `judge_eval --family ternary`, bit-exact with the offline
+  benchmark (max |Δp| 5e-5).  **But the held-out checkpoint below fails the
+  artifact**: the corrected verdict counts are the majority class, so the
+  training objective — not the plumbing — is what must change.
 - Artifacts + JSONs: `models/clef-flash-ternary/corrections/packaged/`
   (`clef-flash-corr-r512-g128-step78.lora.gguf` 71 MB,
   `clef-flash-PQ2_0-corr-r512-g128-step78.gguf` 3.10 GiB,
@@ -119,21 +120,53 @@ proxy almost exactly, with zero verdict flips:**
 - Follow-up menu below; external prior art surveyed in
   [`../docs/TAARDIS-PRIOR-ART.md`](../docs/TAARDIS-PRIOR-ART.md).
 
-## Next-step menu (updated)
+## Held-out checkpoint: the parity number is majority-class (2026-10-03)
 
-1. ~~Package + bridge benchmark~~ — **done** (above); attn_out-only shortcut
-   (old item 2) is moot.
-2. ~~Harness integration~~ — **done**: `ClefTernaryValidator` (resident
-   bridge serve + CPU head) + `judge_eval --family ternary`; 68/70 / 29/30,
-   bit-exact with the offline benchmark. Open sub-decision only: keep the CPU
-   lane (~17.9 s/check) or build the HIP bridge for the non-display card.
-3. **Longer f32 rental run** (needs explicit approval): more epochs, LR decay,
-   generic corpus. Per TAARDIS prior art, spend the extra capacity on
-   (a) a **per-head GDN readout tap** (`blk.N.ssm_readout`; runtime hook already
-   in the fork, training/export missing) and (b) **rank allocation by measured
-   damage** instead of uniform rank 512. Corpus: reasoning-heavy rails +
-   sparse generic lanes with chunk-level holdout, not the validator tasks.
-4. **Clef V2 conversion** (the larger lever, no rental needed to prototype):
+Scored the packaged artifact on 27 correct answers outside cascade-bench-v1
+(reasoning/code/qa) plus 19 constructed negatives (same last-number
+perturbation rule as training, verified wrong by the checker), corrected and
+uncorrected bodies, through the harness backend:
+
+| body | operating point | bench-train | bench-test | held-out 46 | AUC train / held-out |
+|---|---|---|---|---|---|
+| uncorrected PQ2_0 | thr 0.46 (train-fit) | 43/70 (0 FA, 27 FR) | 22/30 (0 FA, 8 FR) | 24/46 (13 FA, 9 FR) | 0.801 / 0.569 |
+| corrected (candidate) | thr 0.40-0.55 | 68/70 (2 FA, 0 FR) | 29/30 (1 FA, 0 FR) | 27/46 (19 FA, 0 FR) | **0.412** / **0.435** |
+| always-accept | — | 68/70 | 29/30 | 27/46 | 0.500 |
+
+The corrected 68/70 & 29/30 equal the always-accept baseline on a 97%-positive
+bench: the corrections flatten the head's ranking into p≈0.58 (AUC below
+chance) and accept all 19 held-out negatives at 0.5.  The **uncorrected** body
+retains ranking (AUC 0.80 train / 0.57 held-out) but is miscalibrated.  The
+branch delta is O(hidden norm) (~110 vs ~120 per token): it is a learned bias
+that swamps fine structure, not a gentle correction.  The earlier "above bf16
+Clef" framing is retracted.
+
+Protocol from now on: AUC / TPR-at-fixed-FPR / balanced accuracy plus the
+always-accept baseline; never verdict count alone on this bench.  Freeze the
+46-record probe; fresh holdout per iteration.  **Do not post the current
+corrections to HF** — the license chain is clean
+([`../docs/HF-RELEASE-NOTES.md`](../docs/HF-RELEASE-NOTES.md)), the artifact is
+not.
+
+## Next-step menu (updated after the checkpoint)
+
+1. ~~Package + bridge benchmark~~ — **done** (plumbing validated end to end).
+2. ~~Harness integration~~ — **done** (`clef-ternary`; keep CPU lane or build
+   the HIP bridge later).
+3. **Calibration-only baseline (free, local)**: keep the uncorrected body and
+   fit a logistic/affine recalibration of the noul logit on bench-train, then
+   report bench-test + the frozen held-out probe with balanced metrics.  The
+   ranking ceiling is the uncorrected AUC (0.57 held-out), but it gives an
+   honest v0 and a clean comparison for the retrain.
+4. **Retrain corrections with an objective that can move ranking** (rental,
+   needs explicit approval): pairwise/AUC-style decision loss or
+   class-balanced decision KD, residual-magnitude regularization (or lower
+   effective rank/LR), mixed corpus with chunk-level holdout, and the frozen
+   probe + a fresh holdout as acceptance tests.  Per TAARDIS prior art, add
+   the per-head GDN readout tap (`blk.N.ssm_readout`) and allocate rank by
+   measured damage.  Success is **held-out AUC and FA/FR at a fixed operating
+   point**, not bench verdict count.
+5. **Clef V2 conversion** (the larger lever, no rental needed to prototype):
    re-quantize the f16 body with per-linear block-Hadamard rotation + Hessian
    GPTQ + self-distill + Doctors, the TAARDIS Qwen3.5-0.8B recipe. The deployed
    PQ2_0 has no rotation; TAARDIS's 27B/0.8B evidence says rotation is the
