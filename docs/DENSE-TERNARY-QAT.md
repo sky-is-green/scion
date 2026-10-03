@@ -76,3 +76,136 @@ corrections are the recipe.
 - Corpus: bench tasks alone may overfit the validator; mix in generic text
   (wikitext/fineweb slice) for backbone fidelity and keep a held-out decision
   set.
+
+## Stage A measured: reverse loader + the GDN kernel (2026-10-03)
+
+The HF `Cloudflare/clef-flash` backbone was not kept on disk (only the head +
+tokenizer), so the in-loop student is built by **reverse-mapping the deployed
+PQ2_0 GGUF** into a transformers `Qwen3_5TextModel` (no download). Code:
+`dense/clef_dense_load.py` (new sibling route to `moe/`; dense has no router
+and a different tap set, so it does not belong in the MoE harness). Findings,
+all reproduced on this box:
+
+- **Mapping is exact.** f16 GGUF -> torch, `missing=0 unexpected=0`; the whole
+  inverted converter (transpose orientation, zero-centred RMSNorm `w-1`,
+  `A_log=log(-x)`, `dt_bias`, conv squeeze, grouped->tiled V-head reorder) is
+  validated. The V reorder inverse is `reorder_v_heads` with the head counts
+  swapped (it is only an involution on the trailing axis).
+- **PQ2_0 dequant is byte-identical** to the fork's own
+  `dequantize_row_pq2_0` (max abs diff 0.0; `blk.0.ffn_gate.weight`), and the
+  Q4_K `token_embd` dequant is byte-identical to `gguf.quants.dequantize`. The
+  container is scale-first (`ggml_half d` + 32 code bytes), strict ternary
+  `{q-1}` (`quantize_row_pq2_0_lloyd_ref`), no rotation metadata.
+- **The runtime kernel is the lever.** transformers' default prefill uses
+  `torch_chunk_gated_delta_rule`; the deployed llama.cpp CPU path uses the
+  recurrent GDN. With chunked prefill, torch vs the CPU bridge decays over
+  positions (f16 per-token cos 1.0 -> 0.82 by token 39). Patching every
+  `Qwen3_5GatedDeltaNet` to `torch_recurrent_gated_delta_rule` gives
+  **f16 f32 cos 0.9975** (per-token >= 0.97) against the CPU bridge. Training
+  must use the recurrent form or the corrections will not transfer.
+- **OOM incident.** A full 9B load via the naive state-dict path (f32
+  intermediates + a full 18 GiB state dict on a 30 GB host) OOM'd the box.
+  The loader now casts per tensor; the full model must be **streamed onto the
+  GPU per tensor**, never materialised twice on the host. Host RAM is the
+  binding constraint, not VRAM.
+
+Open question resolved: the GDN tensors are safe under Lloyd (per-tensor cos
+~0.90 vs f16, same as the MLP/attention linears), so all 248 text linears stay
+at PQ2_0; only norms/conv/A_log/dt_bias stay non-quantised, as deployed.
+
+## Stage B: the dense correction stack (2026-10-03)
+
+`dense/` (sibling to `moe/`) now holds the route: `clef_dense_load.py` (streamed
+reverse loader + recurrent-GDN patch), `clef_head.py` (joint head + lm_head
+sidecar), `clef_cache.py` (teacher cache), `clef_corrections.py` (end-to-end
+trainer), `clef_eval.py` (decision parity + hidden cosine), `quant.py` (Lloyd
+branch quantizer).
+
+- **Head sidecar validated exact:** encode -> f16 bridge states -> joint head
+  reproduces the recorded bf16 `p_correct` to 4 dp (0.9219 on `gsm8k-0001`).
+- **Teacher cache** (smoke): 158 sequences (100 bench train+test + 58 hard
+  negatives), 0.52 GB, hidden states + head option logits, one `.npz` each.
+- **Prior-art constraints applied** (Bonsai-2 27B forensics): end-to-end only
+  (F6/F7), recurrent GDN (F4/Gate 2), clean holdout (F11), managed LR decay,
+  no exotic quantizer tricks.
+- **Single-card VRAM limit:** the deployed body is 15.9 GB in bf16; `both` taps
+  at rank 512 (268M branch params, fp32 masters + grads) OOM'd one 21.5 GB RX
+  7900 XT during backward (19.0 GB allocated, ~1.5 GB short). `attn_out`/rank
+  256 fits; the full `both`/rank 512 config needs the two-card split (one
+  model-parallel process, per the U2 policy) or CPU embedding offload.
+
+Fallback if corrections fall short: full end-to-end ternary QAT of the body
+(rotation + STE/KD + managed schedule) is the forensics' known dense lever
+(`recover.py`); our sidecar route is the cheaper Scion shape and was the MoE
+winner.
+
+## Stage C: rental pilot (2026-10-03)
+
+One A40 48 GB (RunPod, `clef-pilot`, ~$0.4-0.8/hr) runs the f32 correction pilot:
+f32 body (31.8 GB) + rank-512 branches on both taps + recurrent GDN + decision
+KD, 35.8 GB VRAM peak, ~15 s/step, stable (no NaN).  Artifacts uploaded:
+PQ2 GGUF, `hf-head/`, `lm_head.safetensors`, the teacher cache, the fork's
+`gguf-py`, and `dense/`.  `dense/preflight.py` runs first.
+
+**Preflight caveat (important).** On the A40, the PQ2 **f32 recurrent torch
+forward** matches the CPU ggml bridge at only **cos 0.948** (per-token
+0.91-0.99), versus 0.9975 for the *f16* body locally.  The ternary weights
+amplify the torch-vs-ggml kernel difference (forensics F4 again).  So the
+torch-eval parity is a **proxy**; the honest number must come from the
+llama.cpp bridge on the packaged artifact.  The pilot's purpose is to measure
+whether the correction signal survives that gap.
+
+**Pilot result (2026-10-03, one epoch / 78 steps, rank 512, both taps, f32
+recurrent torch).**  Decision parity vs the recorded bf16 p and the gold
+checker at 0.5:
+
+| split | uncorrected | **corrected** | bf16 Clef | Tiny-Jev |
+|---|---|---|---|---|
+| train correct | 26/70 (0 FA, 44 FR) | **68/70 (2 FA, 0 FR)** | 67/70 (0 FA, 3 FR) | 62/70 |
+| test correct | 7/30 (0 FA, 23 FR) | **29/30 (1 FA, 0 FR)** | 26/30 (1 FA, 3 FR) | 25/30 |
+| mean p train/test | 0.474/0.476 | 0.595/0.594 | 0.811/0.792 | — |
+| hidden cos train/test | 0.231/0.236 | 0.372/0.383 | 1.0 | — |
+
+The correction is decisive on the proxy: correct verdicts recover 26->68 and
+7->29, above both Tiny-Jev and bf16 Clef on verdict count (a different FA/FR
+mix: 2 train FAs vs bf16's 0).  Cost: ~$0.6 (A40, ~1 h), pod deleted.
+**Outstanding:** the honest deployment number requires packaging the branches
+(`attn_out` as a LoRA on `attn_output`/`ssm_out`; `mlp_out` needs the dense
+`qwen35` `ffn_out` fork hook) and re-running the benchmark through the CPU
+bridge.  The hidden cos (0.37) is still far from 1.0, so a longer run and the
+`both`-tap packaging are the natural next steps.
+
+**PQ2 bf16 torch forward is nondeterministically non-finite (2026-10-03).**
+The decisive local blocker: two identical chunked evaluations of the *same*
+uncorrected PQ2 body produced **different sets** of non-finite records (23 then
+50 of 70 train).  All deployed Weights are finite (max |w| 18.5), the raw
+forward is finite on a probed record, and the branch wrapper is finite on that
+record -- so the failure is ROCm/bf16 kernel nondeterminism at a numerical edge,
+not a mapping or wrapper bug.  llama.cpp (f32/f16 CPU accumulation) is stable on
+the same file.  **Consequence: torch-bf16 on this box cannot train or evaluate
+the 9B reliably.**  f32 fixes it (torch body 31.8 GB, does not fit 21.5 GB), so
+the production run needs the 48 GB rental; the local pilot lane is closed.
+
+**GDN backward instability (2026-10-03).** The deployed CPU runtime is the
+*recurrent* GDN, so training should use it for transfer.  But the transformers
+recurrent fallback unrolls the whole sequence and its backward NaN's within
+1-2 steps on this 9B (bf16 body, ROCm): the recurrence amplifies the branch
+perturbation (matches forensics F4).  Truncated BPTT (state detached every 64
+tokens) did not fix it; the **chunked** fallback is the stable training form
+(30+ steps, loss falling), at the cost of a forward that differs from the
+recurrent deployment (f16 per-token cos 0.82 at token 39).  The clean fix is a
+**48 GB rental with the body in fp32 and the recurrent forward**: f32 body is
+31.8 GB (does not fit locally), the recurrent backward is stable in f32, and the
+forward then matches the deployment exactly.  Local (21.5 GB) can only pilot the
+chunked form; transfer to the recurrent runtime must be measured through the CPU
+bridge.
+
+**Loop smoke passed (2026-10-03).** A bounded 2-layer prefix run
+(`--prefix-layers 2`, rank 16, both taps, 3 steps) under
+`systemd-run --scope -p MemoryMax=16G` with a VRAM preflight exercised the whole
+trainer: deployed-PQ2 load -> branch attach (g128 STE) -> recurrent GDN ->
+hidden KD -> CPU decision-KD grad bridge through the joint head -> double-grad
+backward with checkpointing -> Adafactor step -> checkpoint. Peak VRAM 4.94 GB,
+no OOM. Full-model VRAM remains the only unproven local quantity (~21 GB > one
+21.5 GB card), so the production run is slated for a 48 GB rental
+(`dense/RENTAL-RUNBOOK.md`), with `dense/preflight.py` as the first action.

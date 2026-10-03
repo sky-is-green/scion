@@ -1,0 +1,113 @@
+# `dense/` — dense-model ternary corrections (Clef-Flash test bed)
+
+This is the **dense route**, a sibling to `moe/` rather than part of it.  The
+MoE recipe repairs *routing* damage; a dense (or dense/hybrid) model has no
+router, so the failure is uniform function noise across every quantised
+linear, the placement rule is re-derived, and the shipped metric is
+**typed-decision parity** (accept/reject, `p_correct`) instead of PPL/KLD.
+
+The target is Cloudflare's **Clef-Flash** (Qwen3.5-9B + a joint schema head,
+Apache-2.0): a ternary `PQ2_0` body (`GGML_PQ2_0_LLOYD=1`) plus rank-512
+residual branches, evaluated through the joint head.  Plan:
+[`../docs/DENSE-TERNARY-QAT.md`](../docs/DENSE-TERNARY-QAT.md).
+
+## Contents
+
+| file | what |
+|---|---|
+| `clef_dense_load.py` | reverse-map a Clef GGUF (f16 or deployed `PQ2_0`) into a transformers `Qwen3_5TextModel`; streamed, memory-gated |
+| `clef_corrections.py` | *(next)* dense correction trainer: residual taps on `attn_out`/`mlp_out`, deployed quantizer in the loop |
+| `clef_cache.py` | *(next)* teacher hidden-state / decision cache builder |
+
+## Established on this box (2026-10-03)
+
+- **No HF backbone is kept on disk** — only the head/tokenizer — so the
+  in-loop student is built by reverse-mapping the deployed GGUF.  The inverted
+  converter is validated (`missing=0 unexpected=0`).
+- **`PQ2_0` dequant is byte-identical** to the fork's `dequantize_row_pq2_0`
+  (verified through a C harness), including the Q4_K embedding.
+- **The runtime kernel matters:** the deployed llama.cpp CPU path uses the
+  *recurrent* GDN prefill, while transformers defaults to the *chunked* one.
+  Training must switch `chunk_gated_delta_rule` →
+  `torch_recurrent_gated_delta_rule`, or the corrections will not transfer to
+  the CPU validator (chunked decays to cos 0.82 by token 39; recurrent holds
+  0.9975).
+- **Memory discipline:** never build a full fp32 state dict (36 GB) and never
+  hold two copies of the 9B model on the 30 GB host.  `load_text_model_streamed`
+  builds bf16 and adopts one tensor at a time.
+
+Runtime fork: `/home/penis/llama.cpp`, branch `moe-corr-runtime` (PQ2_0 +
+TAARDIS virtual targets, including the dense `qwen35` readout/`ffn_out` hooks).
+
+## Prior art: Bonsai 2 27B dense forensics (must-read)
+
+The dense route is not new here. `~/Desktop/work/bonsai2-ternary-forensics`
+(Scion's parent) already ran the experiment on a dense/hybrid Qwen3.5 27B and
+recorded what does and does not work. Load-bearing results for us:
+
+- **End-to-end training only.** Per-layer / block-wise KD is a *dead-end*
+  (F6 student-stream 1.25 M PPL; F7 teacher-forced 1.06 M PPL): "local per-layer
+  KD cannot control global compounding." Do **not** train the branches
+  layer-locally; the frozen body must be in the loop.
+- **The GDN recurrence amplifies small weight perturbations.** Patching only
+  layers 0+3 of 402 tensors cost 2.6x PPL (Gate 2/F4). This matches our finding
+  that the torch chunked GDN diverges from the CPU runtime; allocates correction
+  capacity to the recurrent (`linear_attn`) layers and match the runtime kernel.
+- **Clean holdout discipline.** The 1.7B STE+KD "1.10x" was retracted twice
+  (F11) to ~48% retention once evaluation stopped reading training windows.
+  Tune on the 70 train records, report the 30 test records, and never sample
+  the eval region.
+- **Full-master QAT needs rotation in the loop + a managed LR decay; higher LR
+  is worse; mirror-descent / one-well / gating / reprojection tricks are
+  falsified** (`docs/RECIPE-LEDGER.md`). Our route is different — residual
+  *sidecar* branches on an already-trained frozen ternary body — so rotation is
+  not available (the deployed Lloyd container has none), but the LR/decay and
+  no-exotic-tricks lessons carry over.
+- **Data selection (entropy/excess-loss) lost to random** (F8). Use a simple
+  mixed corpus; do not over-engineer selection.
+- **Structure is not quality** — matching sparsity/trit layout does not predict
+  retention (`RECIPE-LEDGER`); measure the deployed metric.
+- **`in_proj_a`/`in_proj_b` are exempt (BF16) in the released Prism format** and
+  "permutation plus drift" in Gate 1. Clef's deployed PQ2_0 *does* quantise them
+  (type 142), a Clef-specific difference worth watching in per-tensor sensitivity.
+- **One heavy ROCm process at a time** (U2: two contexts hang GPU1).
+
+Reusable code: `bonsai_forensics/recover.py` (`ternary_ste`, Adafactor recipe,
+holdout discipline), `bonsai_forensics/targets.py` `QWEN3_5` profile (the exact
+hybrid projection inventory), `bonsai_forensics/pq2_0.py` (codec).
+
+## Local GPU policy
+
+Use the **non-display** card: it carries no desktop VRAM and is more reliable.
+On this box the mapping is:
+
+| DRM | PCI | torch (unpinned) | role |
+|---|---|---|---|
+| card0 | `07:00.0` | device 1 | **free / use this** (`HIP_VISIBLE_DEVICES=1`) |
+| card1 | `03:00.0` | device 0 | display (desktop VRAM) |
+
+So every run pins `HIP_VISIBLE_DEVICES=1` and uses `--device cuda:0`.  Check
+free VRAM before any run: `cat /sys/class/drm/card0/device/mem_info_vram_used`.
+
+## Status: rental pilot done (2026-10-03), paused before packaging
+
+A one-epoch (78-step) f32 recurrent run on an A40 48 GB (rank-512 branches on
+both taps) recovered decision parity on the f32-recurrent **torch proxy** from
+**26/70 -> 68/70** train and **7/30 -> 29/30** test (vs bf16 Clef 67/70, 26/30
+and Tiny-Jev 62/70, 25/30); hidden cos 0.23 -> 0.37.  Artifacts:
+`models/clef-flash-ternary/corrections/pilot-rental/` (`eval-base.json`,
+`eval-corr.json`, `branches-r512-g128-step78.pt`).  Cost ~$0.6; pod deleted.
+
+**Not done (paused on the human's call):** packaging the branches and the
+honest CPU-bridge benchmark.  `attn_out` maps to a standard LoRA on
+`attn_output`/`ssm_out`; `mlp_out` needs a dense `qwen35` `ffn_out` hook in the
+fork.  The torch forward is ~5% off the bridge (cos 0.948), so the bridge number
+is the one that ships.  Hidden cos 0.37 leaves headroom for a longer run.
+
+## Validated on this box (2026-10-03)
+
+Full f16 reverse-load, streamed to one RX 7900 XT: **11.7 s, 426 params, VRAM
+15.9 GB (peak 17.9), host peak 17.4 GB (mostly reclaimable mmap page cache)**.
+With the recurrent GDN prefill, the torch post-norm hidden states match the
+**CPU ggml bridge at cos 0.99994** (GPU bridge 0.9997). That is the training
+forward we will use.
