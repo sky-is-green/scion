@@ -55,6 +55,17 @@ An earlier proof on the frozen proxy `allenai/OLMoE-1B-7B-0924`: the uncorrected
 mixed GGUF measured **566.7 PPL, and 14.48** with both placements and routers
 (2.12 GB body, 22.2 MB adapter), with CPU and HIP builds agreeing.
 
+## New route: dense models (2026-10-03)
+
+The recipe above repairs MoE routing damage. A dense variant is now open, with
+Cloudflare's **Clef-Flash** (Qwen3.5-9B + joint schema head) as the test bed:
+ternary body via `GGML_PQ2_0_LLOYD=1`, residual-stream corrections re-derived
+for a dense/hybrid stack, and a typed-decision metric (accept/reject parity
+against bf16) that the MoE PPL/KLD work did not have. Measured so far: absmax
+is broken (hidden-state cosine 0.007), Lloyd alone gives 0.417, and uncorrected
+decisions shift down ~0.43 - corrections are load-bearing here too. Plan:
+[`docs/DENSE-TERNARY-QAT.md`](docs/DENSE-TERNARY-QAT.md).
+
 ## Quickstart
 
 **Local and free: the OLMoE proxy.** Python 3.10 or newer, torch (ROCm or CUDA
