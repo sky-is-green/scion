@@ -101,8 +101,13 @@ proxy almost exactly, with zero verdict flips:**
   proxy (18/70 vs 26/70 train; 8/30 vs 7/30 test) — the module toggles cleanly.
 - **CPU latency: ~49 ms/token** (recurrent GDN prefill; 13.8-28.6 s per
   278-589-token record), model load 7.4 s once, head sidecar 40-90 ms/check.
-  bf16 Clef was ~3.2 s/check in transformers, so route D needs to accept a
-  ~5-8x slower CPU check or move the bridge to the non-display card.
+  bf16 Clef was ~3.2 s/check in transformers, so the CPU lane is ~5-6x slower
+  per check; the HIP bridge on the non-display card is the latency fallback.
+- **Harness backend done** (`clef-ternary`): `judge_eval --family ternary`
+  scores **68/70 train, 29/30 test** — identical confusion counts to the
+  offline bridge benchmark (max |Δp| 5e-5).  Caveat recorded: corrected p is
+  compressed into [0.57, 0.60] with the accept cliff at 0.60; 0.5 is safe but
+  uncalibrated elsewhere.
 - Artifacts + JSONs: `models/clef-flash-ternary/corrections/packaged/`
   (`clef-flash-corr-r512-g128-step78.lora.gguf` 71 MB,
   `clef-flash-PQ2_0-corr-r512-g128-step78.gguf` 3.10 GiB,
@@ -118,10 +123,10 @@ proxy almost exactly, with zero verdict flips:**
 
 1. ~~Package + bridge benchmark~~ — **done** (above); attn_out-only shortcut
    (old item 2) is moot.
-2. **Harness integration** (`clef-ternary` backend in
-   `hivebench/harness/cascade/validator.py`): bridge subprocess + head sidecar
-   on CPU. Decided: keep CPU (~20 s/check) or use the non-display card (needs
-   the HIP build and the one-heavy-process policy). Unblocked.
+2. ~~Harness integration~~ — **done**: `ClefTernaryValidator` (resident
+   bridge serve + CPU head) + `judge_eval --family ternary`; 68/70 / 29/30,
+   bit-exact with the offline benchmark. Open sub-decision only: keep the CPU
+   lane (~17.9 s/check) or build the HIP bridge for the non-display card.
 3. **Longer f32 rental run** (needs explicit approval): more epochs, LR decay,
    generic corpus. Per TAARDIS prior art, spend the extra capacity on
    (a) a **per-head GDN readout tap** (`blk.N.ssm_readout`; runtime hook already

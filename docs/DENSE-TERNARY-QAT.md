@@ -249,12 +249,14 @@ GDN readout doctors, rotation-first pipeline) is surveyed in
 
 ## Status and next step (2026-10-03)
 
-Packaging + bridge benchmark **done**: the correction route now has an honest
-deployment number (68/70 train, 29/30 test at 0.5, zero proxy flips) on the
-merged single-file release, above bf16 Clef and Tiny-Jev.  Menu: (1) the
-`clef-ternary` harness backend (unblocked; decide CPU ~20 s/check vs
-non-display-card bridge); (2) longer f32 rental run (needs approval) with a
-per-head GDN readout tap + damage-based rank allocation; (3) Clef V2
-(rotation + Hessian GPTQ + self-distill) as the bigger quality lever.  Full
-context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md).  No push; rentals need
-approval.
+Packaging + bridge benchmark **done**, and the harness backend is **done**:
+`clef-ternary` (resident bridge + CPU head sidecar) scores **68/70 train,
+29/30 test** through `judge_eval --family ternary`, bit-exact with the offline
+benchmark and above bf16 Clef and Tiny-Jev.  Recorded caveat: corrected p is
+compressed into [0.57, 0.60] (accept cliff at 0.60), so 0.5 is safe but
+uncalibrated elsewhere; CPU latency ~17.9 s/check.  Menu: (1) longer f32
+rental run (needs approval) with a per-head GDN readout tap + damage-based rank
+allocation; (2) Clef V2 (rotation + Hessian GPTQ + self-distill) as the bigger
+quality lever; (3) optional latency lane (HIP bridge on the non-display card).
+Full context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md).  No push; rentals
+need approval.
