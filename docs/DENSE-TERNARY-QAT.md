@@ -209,3 +209,13 @@ backward with checkpointing -> Adafactor step -> checkpoint. Peak VRAM 4.94 GB,
 no OOM. Full-model VRAM remains the only unproven local quantity (~21 GB > one
 21.5 GB card), so the production run is slated for a 48 GB rental
 (`dense/RENTAL-RUNBOOK.md`), with `dense/preflight.py` as the first action.
+
+## Status and next step (2026-10-03)
+
+Pilot done; the next uncompleted item is **packaging + the CPU-bridge
+benchmark** (local, no spend), which turns the torch proxy into the shippable
+number.  Full context for a fresh session: [`../dense/HANDOFF.md`](../dense/HANDOFF.md).
+Menu: (1) package both taps (dense `ffn_out` fork patch) + bridge benchmark;
+(2) `attn_out`-only package; (3) longer f32 rental run (needs approval);
+(4) the `clef-ternary` harness backend after packaging.  No push; rentals need
+approval.

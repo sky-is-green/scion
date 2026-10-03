@@ -111,3 +111,8 @@ Full f16 reverse-load, streamed to one RX 7900 XT: **11.7 s, 426 params, VRAM
 With the recurrent GDN prefill, the torch post-norm hidden states match the
 **CPU ggml bridge at cos 0.99994** (GPU bridge 0.9997). That is the training
 forward we will use.
+
+## Handoff
+
+Continuing this work?  Start at [`HANDOFF.md`](HANDOFF.md) — assets, findings,
+the pilot number, and the next-step menu.
