@@ -210,12 +210,51 @@ no OOM. Full-model VRAM remains the only unproven local quantity (~21 GB > one
 21.5 GB card), so the production run is slated for a 48 GB rental
 (`dense/RENTAL-RUNBOOK.md`), with `dense/preflight.py` as the first action.
 
+## Stage D: packaging + CPU-bridge benchmark (2026-10-03)
+
+Both taps packaged with `dense/clef_export.py` (all-ternary `Q1_0_g128` LoRA,
+71 MB), the dense `blk.N.ffn_out` virtual target added to the fork
+(`qwen35.cpp` + `llama-adapter.cpp`, anchored on `ffn_down`), `build-cpu`
+rebuilt, and the adapter merged into the body as a single file
+(`adapter.embedded=true`, 3.10 GiB).  The benchmark (`dense/clef_bridge_eval.py`)
+runs the bridge (CPU, batch mode) -> joint head sidecar (CPU torch f32) over all
+100 bench records, on both bodies.
+
+**The honest deployment numbers land on the torch proxy, with zero verdict
+flips:**
+
+| split | uncorrected bridge | **corrected bridge** | corrected proxy | bf16 Clef | Tiny-Jev |
+|---|---|---|---|---|---|
+| train | 18/70 (0 FA, 52 FR) | **68/70 (2 FA, 0 FR)** | 68/70 (2 FA, 0 FR) | 67/70 | 62/70 |
+| test | 8/30 (0 FA, 22 FR) | **29/30 (1 FA, 0 FR)** | 29/30 (1 FA, 0 FR) | 26/30 | 25/30 |
+| mean p | 0.471 / 0.471 | 0.586 / 0.588 | 0.595 / 0.594 | 0.811 / 0.792 | — |
+| hidden cos | 0.231 / 0.235 | 0.371 / 0.382 | 0.372 / 0.383 | 1.0 | — |
+
+Transfer proxy -> bridge (corrected): 0 flips on 100/100, max |Δp| 0.027,
+max |Δcos| 0.004.  The PQ2 f32 torch-vs-bridge cos gap (0.948) is a body-level
+artifact that cancels for the decision metric.  The uncorrected bridge is more
+conservative than the proxy (18/70 train vs 26/70), so the module toggle is
+measurable end to end.
+
+**CPU latency: ~49 ms/token** (recurrent GDN prefill; 13.8-28.6 s per
+278-589-token record), one-time model load 7.4 s, head sidecar 40-90 ms/check.
+The bf16 transformer validator was ~3.2 s/check, so the CPU lane is ~5-8x
+slower; the non-display card is the fallback for the harness backend.
+
+Artifacts: `models/clef-flash-ternary/corrections/packaged/` (adapter, merged
+release, `bridge-{uncorrected,corrected}.json`).  Fork patch committed locally
+as `f8395a69b`.  External prior art (TAARDIS: same `Q1_0_g128` lineage, per-head
+GDN readout doctors, rotation-first pipeline) is surveyed in
+[`TAARDIS-PRIOR-ART.md`](TAARDIS-PRIOR-ART.md).
+
 ## Status and next step (2026-10-03)
 
-Pilot done; the next uncompleted item is **packaging + the CPU-bridge
-benchmark** (local, no spend), which turns the torch proxy into the shippable
-number.  Full context for a fresh session: [`../dense/HANDOFF.md`](../dense/HANDOFF.md).
-Menu: (1) package both taps (dense `ffn_out` fork patch) + bridge benchmark;
-(2) `attn_out`-only package; (3) longer f32 rental run (needs approval);
-(4) the `clef-ternary` harness backend after packaging.  No push; rentals need
+Packaging + bridge benchmark **done**: the correction route now has an honest
+deployment number (68/70 train, 29/30 test at 0.5, zero proxy flips) on the
+merged single-file release, above bf16 Clef and Tiny-Jev.  Menu: (1) the
+`clef-ternary` harness backend (unblocked; decide CPU ~20 s/check vs
+non-display-card bridge); (2) longer f32 rental run (needs approval) with a
+per-head GDN readout tap + damage-based rank allocation; (3) Clef V2
+(rotation + Hessian GPTQ + self-distill) as the bigger quality lever.  Full
+context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md).  No push; rentals need
 approval.

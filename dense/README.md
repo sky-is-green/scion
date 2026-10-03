@@ -16,8 +16,11 @@ residual branches, evaluated through the joint head.  Plan:
 | file | what |
 |---|---|
 | `clef_dense_load.py` | reverse-map a Clef GGUF (f16 or deployed `PQ2_0`) into a transformers `Qwen3_5TextModel`; streamed, memory-gated |
-| `clef_corrections.py` | *(next)* dense correction trainer: residual taps on `attn_out`/`mlp_out`, deployed quantizer in the loop |
-| `clef_cache.py` | *(next)* teacher hidden-state / decision cache builder |
+| `clef_cache.py` | teacher hidden-state / decision cache builder |
+| `clef_corrections.py` | dense correction trainer: residual taps on `attn_out`/`mlp_out`, deployed quantizer in the loop |
+| `clef_eval.py` | torch-proxy decision parity + hidden cosine |
+| `clef_export.py` | export trained branches as an all-ternary `Q1_0_g128` llama.cpp LoRA (`ssm_out`, `attn_output`, `ffn_out` targets) |
+| `clef_bridge_eval.py` | honest CPU-bridge benchmark: bridge -> CPU-f32 head sidecar -> parity + latency |
 
 ## Established on this box (2026-10-03)
 
@@ -89,20 +92,27 @@ On this box the mapping is:
 So every run pins `HIP_VISIBLE_DEVICES=1` and uses `--device cuda:0`.  Check
 free VRAM before any run: `cat /sys/class/drm/card0/device/mem_info_vram_used`.
 
-## Status: rental pilot done (2026-10-03), paused before packaging
+## Status: packaged and benchmarked honestly (2026-10-03)
 
-A one-epoch (78-step) f32 recurrent run on an A40 48 GB (rank-512 branches on
-both taps) recovered decision parity on the f32-recurrent **torch proxy** from
-**26/70 -> 68/70** train and **7/30 -> 29/30** test (vs bf16 Clef 67/70, 26/30
-and Tiny-Jev 62/70, 25/30); hidden cos 0.23 -> 0.37.  Artifacts:
-`models/clef-flash-ternary/corrections/pilot-rental/` (`eval-base.json`,
-`eval-corr.json`, `branches-r512-g128-step78.pt`).  Cost ~$0.6; pod deleted.
+One-epoch (78-step) f32 recurrent pilot on an A40 48 GB (rank-512 branches on
+both taps), then packaging + the CPU-bridge benchmark.  The honest deployment
+numbers on the merged single-file release **match the torch proxy with zero
+verdict flips** (max |Δp| 0.027):
 
-**Not done (paused on the human's call):** packaging the branches and the
-honest CPU-bridge benchmark.  `attn_out` maps to a standard LoRA on
-`attn_output`/`ssm_out`; `mlp_out` needs a dense `qwen35` `ffn_out` hook in the
-fork.  The torch forward is ~5% off the bridge (cos 0.948), so the bridge number
-is the one that ships.  Hidden cos 0.37 leaves headroom for a longer run.
+| split | uncorrected bridge | corrected bridge | bf16 Clef | Tiny-Jev |
+|---|---|---|---|---|
+| train | 18/70 (0 FA, 52 FR) | **68/70 (2 FA, 0 FR)** | 67/70 | 62/70 |
+| test | 8/30 (0 FA, 22 FR) | **29/30 (1 FA, 0 FR)** | 26/30 | 25/30 |
+| hidden cos | 0.231 / 0.235 | 0.371 / 0.382 | 1.0 | — |
+
+CPU latency ~49 ms/token (recurrent GDN prefill): 13.8-28.6 s per record plus
+40-90 ms head.  Artifacts: `models/clef-flash-ternary/corrections/`
+(`pilot-rental/` for the checkpoint, `packaged/` for the adapter, merged body,
+and bridge JSONs).  Cost ~$0.6; pod deleted.  Hidden cos 0.37 still leaves
+headroom; see [`HANDOFF.md`](HANDOFF.md) and
+[`../docs/TAARDIS-PRIOR-ART.md`](../docs/TAARDIS-PRIOR-ART.md) for the next
+levers (per-head GDN readout tap, damage-based rank allocation, rotation-first
+V2).
 
 ## Validated on this box (2026-10-03)
 
