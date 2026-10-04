@@ -43,7 +43,8 @@ sys.path.insert(0, str(WORKSPACE / "bonsai2-ternary-forensics"))
 
 from quant import ternary_absmean, ternary_lloyd  # noqa: E402
 from clef_export import pack_q1_0_g128  # noqa: E402
-from bonsai_forensics import rotation as bf_rotation  # noqa: E402
+from bonsai_forensics import gptq, rotation as bf_rotation  # noqa: E402
+from bonsai_forensics.run_quant import rotate_hessian  # noqa: E402
 
 try:
     from gguf import GGMLQuantizationType, GGUFReader, GGUFValueType, GGUFWriter, Keys
@@ -60,15 +61,18 @@ ROTATED = re.compile(
 UNROTATED_TERNARY = re.compile(r"^blk\.\d+\.ssm_out\.weight$")
 
 
-def rotations_for(width: int, block: int = BLOCK) -> list[np.ndarray]:
+def rotations_for(width: int, seed: int = -1, block: int = BLOCK) -> list[np.ndarray]:
+    """Per-block sign vectors; ``seed < 0`` gives identity signs (plain WHT)."""
     if width % block:
         raise ValueError(f"width {width} is not a multiple of block {block}")
-    return [np.ones(block, dtype=np.float64) for _ in range(width // block)]
+    if seed < 0:
+        return [np.ones(block, dtype=np.float64) for _ in range(width // block)]
+    return bf_rotation.rotations_for(width, int(seed), block=block)
 
 
-def fold(w: np.ndarray, block: int = BLOCK) -> np.ndarray:
+def fold(w: np.ndarray, seed: int = -1, block: int = BLOCK) -> np.ndarray:
     """``W' = W Rᵀ`` for the runtime's ``x' = R x`` transform."""
-    return bf_rotation.absorb_input(w, rotations_for(w.shape[-1], block))
+    return bf_rotation.absorb_input(w, rotations_for(w.shape[-1], seed, block))
 
 
 def pack_ternary(w: np.ndarray, rule: str = "lloyd", group: int = 128) -> np.ndarray:
@@ -77,25 +81,77 @@ def pack_ternary(w: np.ndarray, rule: str = "lloyd", group: int = 128) -> np.nda
     return pack_q1_0_g128(q)
 
 
-def runtime_transform(x: np.ndarray, block: int = BLOCK) -> np.ndarray:
+def quantize_target(name: str, w: np.ndarray, rots: list[np.ndarray] | None,
+                    hessian_dir: Path | None, args) -> tuple[np.ndarray, bool]:
+    """GPTQ when a Hessian exists for this tensor, else deployed Lloyd RTN.
+
+    ``w`` is already folded when ``rots`` is not None; the hessian is rotated
+    with the same basis (``R H Rᵀ``) before GPTQ optimises the folded weight.
+    """
+    hp = (hessian_dir / f"{name}.hessian.npy") if hessian_dir else None
+    if hp is not None and hp.is_file():
+        h = np.load(hp).astype(np.float32)
+        if rots is not None:
+            h = np.ascontiguousarray(rotate_hessian(h, rots), dtype=np.float32)
+        res = gptq.gptq_quantize(
+            torch.from_numpy(np.ascontiguousarray(w)),
+            torch.from_numpy(h),
+            group_size=128,
+            damp=args.gptq_damp,
+            act_order=args.gptq_act_order,
+            block_size=args.gptq_block,
+            refine_iters=args.gptq_refine,
+        )
+        scales = res.scales.float().repeat_interleave(res.group_size, dim=-1)
+        values = (res.codes.float() * scales[:, : w.shape[1]]).numpy()
+        return pack_q1_0_g128(torch.from_numpy(values)), True
+    return pack_ternary(w, args.rule), False
+
+
+def runtime_transform(x: np.ndarray, seed: int = -1, block: int = BLOCK) -> np.ndarray:
     """Emulate the fork on an activation ``x`` shaped ``[input, tokens]``.
 
     ``llama_mul_mat_hadamard`` reshapes the contiguous input axis into blocks
     and applies ``H (S ⊙ ·) / √g`` per block; ``apply_rotation`` works on the
     last axis, so transpose in and out.
     """
-    rots = rotations_for(x.shape[0], block)
+    rots = rotations_for(x.shape[0], seed, block)
     return bf_rotation.apply_rotation(
         np.ascontiguousarray(x.T), rots, transpose=False).T
 
 
-def add_prism_metadata(writer: GGUFWriter, rotated_names: list[str]) -> None:
+def add_prism_metadata(writer: GGUFWriter, rotated_names: list[str],
+                       sign_widths: list[int] | None = None,
+                       sign_values: list[int] | None = None) -> None:
     writer.add_uint32("prism.hadamard.version", 1)
     writer.add_uint32("prism.hadamard.block_size", BLOCK)
     writer.add_string("prism.hadamard.transform", "normalized-sylvester-walsh-hadamard")
     writer.add_string("prism.hadamard.axis", "input-last-dimension")
-    writer.add_string("prism.hadamard.sign_mode", "identity")
+    if sign_widths:
+        writer.add_string("prism.hadamard.sign_mode", "explicit")
+        # the C++ loader reads these into std::vector<int32_t>; force the type
+        writer.add_key_value("prism.hadamard.sign_widths", sign_widths,
+                             GGUFValueType.ARRAY, sub_type=GGUFValueType.INT32)
+        writer.add_key_value("prism.hadamard.sign_values", sign_values,
+                             GGUFValueType.ARRAY, sub_type=GGUFValueType.INT32)
+    else:
+        writer.add_string("prism.hadamard.sign_mode", "identity")
     writer.add_array("prism.hadamard.weight_names", rotated_names)
+
+
+def sign_table(rotated_names: list[str], width_of: dict[str, int],
+               seed: int) -> tuple[list[int], list[int]]:
+    """Serialise the per-width PRF sign vectors for the explicit metadata."""
+    widths: list[int] = []
+    values: list[int] = []
+    for width in sorted({width_of[n] for n in rotated_names}):
+        rots = rotations_for(width, seed)
+        flat = np.concatenate([np.asarray(b, dtype=np.int64).reshape(-1) for b in rots])
+        if flat.size != width or not np.all(np.isin(flat, (-1, 1))):
+            raise SystemExit(f"bad sign table for width {width}")
+        widths.append(width)
+        values.extend(int(v) for v in flat)
+    return widths, values
 
 
 def copy_metadata(reader: GGUFReader, writer: GGUFWriter) -> None:
@@ -111,14 +167,25 @@ def copy_metadata(reader: GGUFReader, writer: GGUFWriter) -> None:
 
 def self_test() -> None:
     rng = np.random.default_rng(0)
-    for width in (4096, 8192, 12288):
-        w = rng.standard_normal((37, width)).astype(np.float32)
-        x = rng.standard_normal((width, 5)).astype(np.float32)
-        y = w @ x
-        y_folded = fold(w) @ runtime_transform(x)
-        rel = np.abs(y_folded - y).max() / max(np.abs(y).max(), 1e-9)
-        assert rel < 1e-4, (width, rel)
-        print(f"self-test width {width}: max rel err {rel:.2e} OK")
+    for seed in (-1, 1337):
+        for width in (4096, 8192, 12288):
+            w = rng.standard_normal((37, width)).astype(np.float32)
+            x = rng.standard_normal((width, 5)).astype(np.float32)
+            y = w @ x
+            y_folded = fold(w, seed) @ runtime_transform(x, seed)
+            rel = np.abs(y_folded - y).max() / max(np.abs(y).max(), 1e-9)
+            assert rel < 1e-4, (seed, width, rel)
+        print(f"self-test seed {seed}: widths 4096/8192/12288 OK")
+
+    w = rng.standard_normal((256, 512)).astype(np.float32)
+    x = rng.standard_normal((512, 512)).astype(np.float32)
+    h = (x.T @ x / x.shape[0]).astype(np.float32)
+    res = gptq.gptq_quantize(torch.from_numpy(w), torch.from_numpy(h),
+                             group_size=128, block_size=128, refine_iters=0)
+    values = (res.codes.float()
+              * res.scales.float().repeat_interleave(res.group_size, dim=-1)[:, :512]).numpy()
+    rel = np.linalg.norm(values - w) / np.linalg.norm(w)
+    print(f"self-test GPTQ smoke: rel err {rel:.3f} ({res.codes.shape} codes) OK")
 
 
 def main() -> int:
@@ -131,6 +198,15 @@ def main() -> int:
                     help="control: same tensor selection, unrotated ternary, no prism metadata")
     ap.add_argument("--keep-f16", action="append", default=[],
                     help="regex of a target tensor to leave copied/F16 (repeatable)")
+    ap.add_argument("--sign-seed", type=int, default=-1,
+                    help="PRF seed for explicit sign vectors (-1 = identity signs)")
+    ap.add_argument("--hessian-dir", default="",
+                    help="directory of <tensor>.hessian.npy for GPTQ (plain RTN without)")
+    ap.add_argument("--gptq-damp", type=float, default=0.01)
+    ap.add_argument("--gptq-act-order", action="store_true")
+    ap.add_argument("--gptq-block", type=int, default=128)
+    ap.add_argument("--gptq-refine", type=int, default=0,
+                    help="group-scale LS refinement iters (0 = absmean, the PQ2_0 rule)")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -146,6 +222,7 @@ def main() -> int:
     reader = GGUFReader(src)
     arch = reader.fields[Keys.General.ARCHITECTURE].contents()
     names = [t.name for t in reader.tensors]
+    width_of = {t.name: int(t.data.shape[-1]) for t in reader.tensors}
     keep = [re.compile(p) for p in args.keep_f16]
     targets = [n for n in names
                if (ROTATED.match(n) or UNROTATED_TERNARY.match(n))
@@ -161,22 +238,32 @@ def main() -> int:
           f"kept-f16 targets {len(kept)}, copied {len(names) - len(targets)}", flush=True)
 
     # pass 1: fold + quantize targets to temp files, register all tensor infos
+    sign_widths: list[int] = []
+    sign_values: list[int] = []
+    if rotated_names and args.sign_seed >= 0:
+        sign_widths, sign_values = sign_table(rotated_names, width_of, args.sign_seed)
+        print(f"explicit signs: seed {args.sign_seed}, widths {sign_widths}", flush=True)
+
     writer = GGUFWriter(str(dst), arch=arch)
     copy_metadata(reader, writer)
     if not args.no_rotation:
-        add_prism_metadata(writer, rotated_names)
+        add_prism_metadata(writer, rotated_names, sign_widths, sign_values)
 
     target_set = set(targets)
     rotated_set = set(rotated_names)
+    hessian_dir = Path(args.hessian_dir) if args.hessian_dir else None
     packed_paths: dict[str, Path] = {}
+    n_gptq = 0
     t0 = time.time()
     for i, t in enumerate(reader.tensors):
         name = t.name
         if name in target_set:
             w = np.asarray(t.data, dtype=np.float32)
-            if name in rotated_set:
-                w = fold(w)
-            packed = pack_ternary(w, args.rule)
+            rots = rotations_for(w.shape[-1], args.sign_seed) if name in rotated_set else None
+            if rots is not None:
+                w = bf_rotation.absorb_input(w, rots)
+            packed, used_gptq = quantize_target(name, w, rots, hessian_dir, args)
+            n_gptq += int(used_gptq)
             if packed.shape[-1] % 34 or packed.shape[0] != w.shape[0]:
                 raise SystemExit(f"{name}: unexpected packed shape {packed.shape}")
             path = work / (name.replace(".", "_") + ".pq2_0.npy")
@@ -188,8 +275,10 @@ def main() -> int:
         else:
             writer.add_tensor_info(name, t.data.shape, t.data.dtype, t.data.nbytes)
         if (i + 1) % 50 == 0 or i + 1 == len(reader.tensors):
-            print(f"  prepared {i+1}/{len(reader.tensors)} ({time.time()-t0:.0f}s)",
-                  flush=True)
+            print(f"  prepared {i+1}/{len(reader.tensors)} "
+                  f"({time.time()-t0:.0f}s, {n_gptq} GPTQ)", flush=True)
+    print(f"quantized: {n_gptq}/{len(target_set)} with GPTQ, "
+          f"{len(target_set) - n_gptq} with {args.rule} RTN", flush=True)
 
     writer.write_header_to_file()
     writer.write_kv_data_to_file()
@@ -220,10 +309,18 @@ def main() -> int:
         wl = fields["prism.hadamard.weight_names"].contents()
         if list(wl) != rotated_names:
             raise SystemExit("verify: prism.hadamard.weight_names mismatch")
+        mode = fields["prism.hadamard.sign_mode"].contents()
+        if sign_widths:
+            got_w = [int(x) for x in fields["prism.hadamard.sign_widths"].contents()]
+            got_v = [int(x) for x in fields["prism.hadamard.sign_values"].contents()]
+            if mode != "explicit" or got_w != sign_widths or got_v != sign_values:
+                raise SystemExit("verify: explicit sign metadata mismatch")
+        elif mode != "identity":
+            raise SystemExit(f"verify: expected identity signs, got {mode}")
         print(f"verify: {len(check.tensors)} tensors, prism version "
               f"{fields['prism.hadamard.version'].contents()}, "
               f"block {fields['prism.hadamard.block_size'].contents()}, "
-              f"sign_mode {fields['prism.hadamard.sign_mode'].contents()}, "
+              f"sign_mode {mode}, "
               f"{len(wl)} rotated weights, ternary types {types}", flush=True)
     return 0
 

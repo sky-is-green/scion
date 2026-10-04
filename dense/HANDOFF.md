@@ -172,7 +172,8 @@ GiB).
 | probe best BA | 0.762 @0.5 | 0.533 (calibrated) | 0.519 @0.45 | — |
 
 The no-rotation control rules out the exemption set: the fidelity gain is the
-rotation, full stop.  The **mixed-precision sweep** (`dense/clef_v2_sweep_gpu.sh`,
+rotation, full stop (a PRF-signed basis, seed 1337, improves PPL to **476.08**
+from 514.35 — the TAARDIS-style explicit-sign variant).  The **mixed-precision sweep** (`dense/clef_v2_sweep_gpu.sh`,
 100 chunks) maps the residual damage and is non-monotone: keeping `ffn_down`
 F16 gives PPL **265**, `attn_qkv` 280, edge layers 273 (vs V2 514) — but keeping
 *all* FFN F16 gives **846** (worse), so ternary errors partially cancel across
