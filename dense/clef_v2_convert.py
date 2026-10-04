@@ -41,7 +41,7 @@ sys.path.insert(0, str(HERE))
 WORKSPACE = Path("/home/penis/Desktop/work")
 sys.path.insert(0, str(WORKSPACE / "bonsai2-ternary-forensics"))
 
-from quant import ternary_absmean, ternary_lloyd  # noqa: E402
+from quant import ternary_absmean, ternary_lloyd, ternary_lloyd_scales  # noqa: E402
 from clef_export import pack_q1_0_g128  # noqa: E402
 from bonsai_forensics import gptq, rotation as bf_rotation  # noqa: E402
 from bonsai_forensics.run_quant import rotate_hessian  # noqa: E402
@@ -105,6 +105,10 @@ def quantize_target(name: str, w: np.ndarray, rots: list[np.ndarray] | None,
         h = load_hessian(hp)
         if rots is not None:
             h = np.ascontiguousarray(rotate_hessian(h, rots), dtype=np.float32)
+        extra = {}
+        if args.gptq_lloyd_scales:
+            extra["scales"] = ternary_lloyd_scales(
+                torch.from_numpy(np.ascontiguousarray(w)), 128)
         res = gptq.gptq_quantize(
             torch.from_numpy(np.ascontiguousarray(w)),
             torch.from_numpy(h),
@@ -113,6 +117,7 @@ def quantize_target(name: str, w: np.ndarray, rots: list[np.ndarray] | None,
             act_order=args.gptq_act_order,
             block_size=args.gptq_block,
             refine_iters=args.gptq_refine,
+            **extra,
         )
         scales = res.scales.float().repeat_interleave(res.group_size, dim=-1)
         values = (res.codes.float() * scales[:, : w.shape[1]]).numpy()
@@ -192,12 +197,15 @@ def self_test() -> None:
     w = rng.standard_normal((256, 512)).astype(np.float32)
     x = rng.standard_normal((512, 512)).astype(np.float32)
     h = (x.T @ x / x.shape[0]).astype(np.float32)
-    res = gptq.gptq_quantize(torch.from_numpy(w), torch.from_numpy(h),
-                             group_size=128, block_size=128, refine_iters=0)
-    values = (res.codes.float()
-              * res.scales.float().repeat_interleave(res.group_size, dim=-1)[:, :512]).numpy()
-    rel = np.linalg.norm(values - w) / np.linalg.norm(w)
-    print(f"self-test GPTQ smoke: rel err {rel:.3f} ({res.codes.shape} codes) OK")
+    for tag, kw in (("absmean", {}),
+                    ("lloyd", {"scales": ternary_lloyd_scales(torch.from_numpy(w), 128)})):
+        res = gptq.gptq_quantize(torch.from_numpy(w), torch.from_numpy(h),
+                                 group_size=128, block_size=128, refine_iters=0, **kw)
+        values = (res.codes.float()
+                  * res.scales.float().repeat_interleave(res.group_size, dim=-1)[:, :512]).numpy()
+        rel = np.linalg.norm(values - w) / np.linalg.norm(w)
+        print(f"self-test GPTQ smoke ({tag} scales): rel err {rel:.3f} "
+              f"({res.codes.shape} codes) OK")
 
 
 def main() -> int:
@@ -219,6 +227,8 @@ def main() -> int:
     ap.add_argument("--gptq-block", type=int, default=128)
     ap.add_argument("--gptq-refine", type=int, default=0,
                     help="group-scale LS refinement iters (0 = absmean, the PQ2_0 rule)")
+    ap.add_argument("--gptq-lloyd-scales", action="store_true",
+                    help="use the deployed Lloyd group scales inside GPTQ")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 

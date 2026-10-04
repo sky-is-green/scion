@@ -47,6 +47,15 @@ def ternary_lloyd(w: torch.Tensor, group: int = 128) -> torch.Tensor:
     return (q * a.unsqueeze(-1)).reshape(w.shape).to(w.dtype)
 
 
+def ternary_lloyd_scales(w: torch.Tensor, group: int = 128) -> torch.Tensor:
+    """Per-group Lloyd scales ``(..., n_groups)``, fp16-rounded as deployed."""
+    if group <= 0 or w.shape[-1] % group != 0:
+        group = w.shape[-1]
+    g = w.float().reshape(*w.shape[:-1], w.shape[-1] // group, group)
+    mean = g.abs().mean(-1)
+    return _lloyd_scale(g, mean).half().float()
+
+
 def ternary_absmean(w: torch.Tensor, group: int = 128) -> torch.Tensor:
     """Straight-through ternary with per-group absmean scales."""
     if group <= 0 or w.shape[-1] % group != 0:
