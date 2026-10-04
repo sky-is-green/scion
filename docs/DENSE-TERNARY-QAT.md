@@ -279,13 +279,16 @@ decision KD never learned rejection — the failure is body fidelity (hidden cos
 0.23-0.37) plus an O(hidden) residual, not plumbing or overfitting.
 
 Status: packaging and the `clef-ternary` harness backend are **done** and
-bit-exact with the offline benchmark; calibration was the last free lead and is
-exhausted.  **Do not post the current corrections.**  Recommendation: **Clef V2
-conversion** (rotation + Hessian GPTQ + self-distill, TAARDIS same-arch 0.8B
-recipe) as the primary next track, deriskable locally; an optional bounded
-sidecar retrain pilot (ranking-aware loss + residual regularization, rental
-needs approval) only against the frozen 46-record probe with AUC/BA acceptance.
-Evaluation protocol from now on: AUC / TPR-at-fixed-FPR / balanced accuracy +
-always-accept baseline, never verdict count alone.  Full context:
-[`../dense/HANDOFF.md`](../dense/HANDOFF.md); license/release checklist:
-[`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No push; rentals need approval.
+bit-exact with the offline benchmark; calibration and the **V2 rotated-basis
+conversion v1** are done (`scion/dense/clef_v2_convert.py`).  V2 lifts body
+fidelity a lot — wikitext PPL 8684 -> **514** (f16 12.59), hidden cos 0.336 ->
+**0.498** — but decisions through the frozen head stay at chance (probe AUC
+**0.464**; deployed body 0.569; teacher 0.844), so **do not post yet**.  The
+remaining routes: local V2 follow-ups (no-rotation control, GPTQ/Hessian,
+mixed precision) for generation quality, and a ranking-loss retrain of the
+decision channel on the V2 base (rental, needs approval) accepted on the frozen
+probe's AUC/BA.  Evaluation protocol from now on: AUC / TPR-at-fixed-FPR /
+balanced accuracy + always-accept baseline, never verdict count alone.  Full
+context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md); license/release
+checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No push; rentals need
+approval.

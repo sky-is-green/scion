@@ -155,7 +155,33 @@ corrections to HF** — the license chain is clean
 ([`../docs/HF-RELEASE-NOTES.md`](../docs/HF-RELEASE-NOTES.md)), the artifact is
 not.
 
-## Next-step menu (after calibration + diagnostics)
+## V2 rotated-basis conversion — v1 done (2026-10-04)
+
+`dense/clef_v2_convert.py` re-converted the **f16** body into the rotated
+basis: `W' = W Rᵀ` folded into 176 attention/MLP linears (block-Hadamard 1024,
+identity signs), Lloyd-g128 ternary, `ssm_out` unrotated, everything else
+copied, `prism.hadamard.*` metadata emitted; `dense/clef_v2_ppl.sh` evaluates.
+Artifact: `models/clef-flash-ternary/v2/clef-flash-v2-pq2_0-rot.gguf` (5.52
+GiB).
+
+| metric | f16 | deployed PQ2_0 | **V2 rotated** |
+|---|---|---|---|
+| wikitext-2 PPL (c512, 100 chunks) | 12.59 | 8684.23 | **514.35** |
+| hidden cos vs f16 (48 tok) | 1.0 | 0.336 | **0.498** |
+| frozen-probe AUC through the head | 0.844 | 0.569 | **0.464** |
+| probe best BA | 0.762 @0.5 | 0.533 (calibrated) | 0.519 @0.45 |
+
+So: the rotation is real (16.9x PPL, hidden cos past even the trained
+corrections' 0.372), but **the frozen head does not rank better on V2** — the
+decision signal still needs training.  A controlled no-rotation variant and
+GPTQ/Hessian placement are the cheap local follow-ups; a ranking-loss retrain
+on V2 (rental, needs approval) is the route to a usable ternary validator.
+Fork fix committed alongside (`e68c84a49`): rotation tensors now fall back to
+the plain CPU buft when weights are repacked — rotated models no longer crash
+the CPU path, and the bridge's `CLEF_EMBED_NO_REPACK` workaround is only for
+older builds.
+
+## Next-step menu (after calibration + diagnostics + V2 v1)
 
 1. ~~Package + bridge benchmark~~ — **done** (plumbing validated end to end).
 2. ~~Harness integration~~ — **done** (`clef-ternary`; keep CPU lane or build
@@ -166,21 +192,22 @@ not.
    validator.  Diagnostics (`dense/clef_probe_diag.py`) closed the "why":
    decision KD never learned rejection, and the body's hidden fidelity is the
    binding constraint.
-4. **Clef V2 conversion — recommended next** (mostly local; no rental needed to
-   prototype): re-quantize the f16 body with per-linear block-Hadamard rotation
-   + Hessian GPTQ + self-distill + Doctors, following the TAARDIS Qwen3.5-0.8B
-   k1/k2 recipe (same hybrid arch, published per-block metrics).  The deployed
-   unrotated PQ2_0 body is the root cause of the fidelity gap; fork runtime
-   support (`forge.rotation.*`, `taardis-lora`) already exists locally.
-   Derisk on a smaller Qwen3.5 first if desired.
-5. **Optional: bounded sidecar retrain pilot** (rental, needs explicit
-   approval, ~1-1.5 h / ~$1): pairwise/ranking-aware decision loss,
-   class-balanced negatives, residual-magnitude regularization (or lower
-   effective rank/LR), mixed corpus; add the per-head GDN readout tap
-   (`blk.N.ssm_readout`) and allocate rank by measured damage.  Acceptance:
-   **held-out AUC and BA beat the calibrated baseline on the frozen probe**,
-   plus a fresh holdout — not bench verdict count.  Do not scale to a long run
-   unless the pilot moves those numbers.
+4. ~~Clef V2 conversion~~ — **v1 done** (see above): rotation+Lloyd gives
+   16.9x PPL and hidden cos 0.498, but decisions stay at chance through the
+   frozen head (probe AUC 0.464).  Local follow-ups, cheapest first:
+   (a) **no-rotation control** (same exemptions, unrotated ternary) to
+   attribute the fidelity gain; (b) **GPTQ/Hessian placement** on the rotated
+   weights to push PPL toward f16; (c) mixed precision for the most sensitive
+   linears (AUTOGRID-style noise floor).
+5. **Retrain the decision channel on V2** (the only route to a usable ternary
+   validator; rental needs explicit approval, ~1-1.5 h / ~$1 for the pilot):
+   ranking-aware decision loss (pairwise/AUC-style), class-balanced negatives,
+   residual-magnitude regularization, hidden KD retained; evaluate on the
+   frozen 46-record probe + a fresh holdout.  The V2 base gives the correction
+   more signal to work with (hidden cos 0.498 vs 0.336), and the runtime
+   supports rotated-basis adapters if needed.  Acceptance: **held-out AUC and
+   BA beat the calibrated baseline** (0.569 AUC / 0.533 BA), not bench verdict
+   count.  Do not scale unless the pilot moves those numbers.
 
 ## Constraints (unchanged)
 
