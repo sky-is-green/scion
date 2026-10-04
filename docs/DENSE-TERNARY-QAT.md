@@ -284,11 +284,16 @@ conversion v1** are done (`scion/dense/clef_v2_convert.py`).  V2 lifts body
 fidelity a lot — wikitext PPL 8684 -> **514** (f16 12.59), hidden cos 0.336 ->
 **0.498** — but decisions through the frozen head stay at chance (probe AUC
 **0.464**; deployed body 0.569; teacher 0.844), so **do not post yet**.  The
-remaining routes: local V2 follow-ups (no-rotation control, GPTQ/Hessian,
-mixed precision) for generation quality, and a ranking-loss retrain of the
-decision channel on the V2 base (rental, needs approval) accepted on the frozen
-probe's AUC/BA.  Evaluation protocol from now on: AUC / TPR-at-fixed-FPR /
-balanced accuracy + always-accept baseline, never verdict count alone.  Full
-context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md); license/release
-checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No push; rentals need
-approval.
+remaining route: a ranking-loss retrain of the decision channel (rental, needs
+approval) accepted on the frozen probe's AUC/BA.  Local PTQ work is exhausted:
+the no-rotation control shows the fidelity gain is entirely the rotation;
+mixed precision recovers at most ~2x (non-monotone — `nomlp` 846 vs V2 514,
+`nodown` 265) and the best variant still scores **AUC 0.503** on the frozen
+probe, i.e., body PPL and head decisions are decoupled.  If the retrain does
+not move either, bf16 Clef (67/70, 26/30, discriminating) stays the decision
+validator and the ternary line (V2 + mixed precision) is the
+generation-fidelity artifact.  Evaluation protocol from now on: AUC /
+TPR-at-fixed-FPR / balanced accuracy + always-accept baseline, never verdict
+count alone.  Full context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md);
+license/release checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No
+push; rentals need approval.

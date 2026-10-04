@@ -176,10 +176,12 @@ rotation, full stop.  The **mixed-precision sweep** (`dense/clef_v2_sweep_gpu.sh
 100 chunks) maps the residual damage and is non-monotone: keeping `ffn_down`
 F16 gives PPL **265**, `attn_qkv` 280, edge layers 273 (vs V2 514) — but keeping
 *all* FFN F16 gives **846** (worse), so ternary errors partially cancel across
-the stack and the best local placement recovers only ~2x.  That is the PTQ
-ceiling; the 514 -> 12.6 gap needs trained placement.  The best variant
-(`nodown`) is run through the frozen decision probe to test whether more body
-fidelity moves the head at all.
+the stack and the best local placement recovers only ~2x.  **The best variant
+does not move the head**: `nodown` through the frozen decision probe is
+**AUC 0.503** (pos med 0.433, neg med 0.435), exactly chance.  Body fidelity
+and head decisions are decoupled in this regime, so local PTQ/mixed-precision
+work is exhausted; the ternary validator needs a training run on the decision
+channel (or bf16 Clef keeps that role).
 
 So: the rotation is real (16.9x PPL, hidden cos past even the trained
 corrections' 0.372), but **the frozen head does not rank better on V2** — the
@@ -202,22 +204,21 @@ older builds.
    validator.  Diagnostics (`dense/clef_probe_diag.py`) closed the "why":
    decision KD never learned rejection, and the body's hidden fidelity is the
    binding constraint.
-4. ~~Clef V2 conversion~~ — **v1 done** (see above): rotation+Lloyd gives
-   16.9x PPL and hidden cos 0.498, but decisions stay at chance through the
-   frozen head (probe AUC 0.464).  Local follow-ups, cheapest first:
-   (a) **no-rotation control** (same exemptions, unrotated ternary) to
-   attribute the fidelity gain; (b) **GPTQ/Hessian placement** on the rotated
-   weights to push PPL toward f16; (c) mixed precision for the most sensitive
-   linears (AUTOGRID-style noise floor).
-5. **Retrain the decision channel on V2** (the only route to a usable ternary
+4. ~~Clef V2 conversion + local follow-ups~~ — **done and exhausted**:
+   rotation gives 16.9x PPL and cos 0.498; the no-rotation control rules out
+   the exemption set; mixed precision recovers at most ~2x (`nodown` 265) and
+   is non-monotone; and the best variant still scores **AUC 0.503** on the
+   frozen probe.  Body fidelity and head decisions are decoupled here — PTQ
+   cannot make the ternary validator.
+5. **Retrain the decision channel** (the only route to a usable ternary
    validator; rental needs explicit approval, ~1-1.5 h / ~$1 for the pilot):
    ranking-aware decision loss (pairwise/AUC-style), class-balanced negatives,
-   residual-magnitude regularization, hidden KD retained; evaluate on the
-   frozen 46-record probe + a fresh holdout.  The V2 base gives the correction
-   more signal to work with (hidden cos 0.498 vs 0.336), and the runtime
-   supports rotated-basis adapters if needed.  Acceptance: **held-out AUC and
-   BA beat the calibrated baseline** (0.569 AUC / 0.533 BA), not bench verdict
-   count.  Do not scale unless the pilot moves those numbers.
+   residual-magnitude regularization, hidden KD retained; base = V2 or nodown;
+   evaluate on the frozen 46-record probe + a fresh holdout.  Acceptance:
+   **held-out AUC/BA beat the calibrated baseline** (0.569 AUC / 0.533 BA),
+   not bench verdict count.  If it does not move, keep **bf16 Clef** as the
+   decision validator (67/70, 26/30) and treat the ternary line as the
+   generation-fidelity artifact (V2 + mixed precision).
 
 ## Host incident (2026-10-04): non-display GPU wedged by runtime-PM resume
 
