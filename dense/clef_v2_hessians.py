@@ -22,6 +22,7 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
 
 HERE = Path(__file__).resolve().parent
@@ -143,7 +144,7 @@ def main() -> int:
             h = (a / count[name]).numpy()
             if h.shape[0] != h.shape[1]:
                 raise SystemExit(f"{name}: non-square Hessian {h.shape}")
-            (out / f"{name}.hessian.npy").write_bytes(h.astype("<f4").tobytes())
+            np.save(out / f"{name}.hessian.npy", h.astype(np.float32))
             saved[name] = count[name]
         print(f"  layers {g0}-{g1-1}: {len(acc)} tensors, {len(windows)} windows "
               f"({time.time()-t0:.0f}s)", flush=True)

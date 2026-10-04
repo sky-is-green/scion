@@ -81,6 +81,18 @@ def pack_ternary(w: np.ndarray, rule: str = "lloyd", group: int = 128) -> np.nda
     return pack_q1_0_g128(q)
 
 
+def load_hessian(path: Path) -> np.ndarray:
+    """Load an ``.npy`` Hessian, tolerating raw fp32 dumps from early runs."""
+    try:
+        return np.load(path).astype(np.float32)
+    except ValueError:
+        raw = np.fromfile(path, dtype=np.float32)
+        d = int(round(raw.size ** 0.5))
+        if d * d != raw.size:
+            raise
+        return raw.reshape(d, d)
+
+
 def quantize_target(name: str, w: np.ndarray, rots: list[np.ndarray] | None,
                     hessian_dir: Path | None, args) -> tuple[np.ndarray, bool]:
     """GPTQ when a Hessian exists for this tensor, else deployed Lloyd RTN.
@@ -90,7 +102,7 @@ def quantize_target(name: str, w: np.ndarray, rots: list[np.ndarray] | None,
     """
     hp = (hessian_dir / f"{name}.hessian.npy") if hessian_dir else None
     if hp is not None and hp.is_file():
-        h = np.load(hp).astype(np.float32)
+        h = load_hessian(hp)
         if rots is not None:
             h = np.ascontiguousarray(rotate_hessian(h, rots), dtype=np.float32)
         res = gptq.gptq_quantize(
