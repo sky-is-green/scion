@@ -38,6 +38,14 @@ Apache-2.0 (both Clef and Qwen lineage) requires:
 5. No NOTICE file exists in the Clef repo, so none needs to be propagated
    (re-check at post time).
 
+## Current release candidate (2026-10-04)
+
+**Not ready to post.**  The Goal-B quant thread (`../dense/HANDOFF.md`
+CURRENT THREAD) is at PPL 476 (signed RTN) with GPTQ+Lloyd in flight; the
+earlier sidecar corrections are decision-degenerate (constant-accept) and must
+not be posted.  Upload the set below once the quant passes acceptance: PPL
+approaching f16 (12.59) and the frozen decision probe re-run for the record.
+
 ## Suggested upload set (single directory)
 
 - `clef-flash-PQ2_0-corr-r512-g128-step78.gguf` (3.10 GiB, single-file
