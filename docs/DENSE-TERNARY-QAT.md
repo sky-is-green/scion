@@ -297,3 +297,24 @@ TPR-at-fixed-FPR / balanced accuracy + always-accept baseline, never verdict
 count alone.  Full context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md);
 license/release checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No
 push; rentals need approval.
+
+## Stage H: Goal B — the ternary community quant (2026-10-04)
+
+The objective moved to a genuinely good ternary Clef for HF (community quant,
+fine-tune later), metric = wikitext PPL; decisions stay with bf16 Clef.  The
+local pipeline is complete and self-tested: `dense/clef_v2_convert.py` (fold
+`W' = W Rᵀ` into 176 attention/MLP linears, PRF-signed block-Hadamard bases,
+PQ2_0 pack, `prism.hadamard.*` metadata, optional Hessian GPTQ with the
+deployed Lloyd group scales, mixed-precision `--keep-f16`, `--no-rotation`
+control) + `dense/clef_v2_hessians.py` (200 per-linear `XᵀX/N` from the bf16
+recurrent-GDN forward; current set on the external drive) + the PPL harness.
+
+Ladder so far (f16 12.59; TAARDIS-27B reference 13.61 at 2.125 bpw): deployed
+PQ2_0 8684 -> identity-sign RTN 514 -> signed RTN **476** -> mixed-precision
+`nodown` **265**.  Scale-rule isolation: GPTQ+absmean 2460 vs RTN+absmean
+15937 — the **scale rule dominates** (33x) and GPTQ's compensation works
+(6.5x within a rule).  **GPTQ+Lloyd scales is the run in flight**, with
+`act-order`/`refine` sweeps, flip-polish, and rotation-in-the-loop KD (rental)
+queued behind it.  Exact commands, assets, disk/GPU constraints and the
+continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
+THREAD.

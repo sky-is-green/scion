@@ -21,6 +21,9 @@ residual branches, evaluated through the joint head.  Plan:
 | `clef_eval.py` | torch-proxy decision parity + hidden cosine |
 | `clef_export.py` | export trained branches as an all-ternary `Q1_0_g128` llama.cpp LoRA (`ssm_out`, `attn_output`, `ffn_out` targets) |
 | `clef_bridge_eval.py` | honest CPU-bridge benchmark: bridge -> CPU-f32 head sidecar -> parity + latency |
+| `clef_v2_convert.py` | Goal-B quantizer: rotated-basis PQ2_0 conversion from the f16 GGUF (signs, mixed precision, Hessian GPTQ, `prism.hadamard.*` metadata; `--self-test`) |
+| `clef_v2_hessians.py` | per-linear `XᵀX/N` capture for GPTQ (bf16 recurrent-GDN forward, layer-group passes) |
+| `clef_v2_ppl.sh` / `clef_v2_sweep_gpu.sh` / `clef_v2_sweep_cpu.sh` | wikitext PPL harness, mixed-precision sweep, CPU fallback |
 
 ## Established on this box (2026-10-03)
 
@@ -109,10 +112,23 @@ CPU latency ~49 ms/token (recurrent GDN prefill): 13.8-28.6 s per record plus
 40-90 ms head.  Artifacts: `models/clef-flash-ternary/corrections/`
 (`pilot-rental/` for the checkpoint, `packaged/` for the adapter, merged body,
 and bridge JSONs).  Cost ~$0.6; pod deleted.  Hidden cos 0.37 still leaves
-headroom; see [`HANDOFF.md`](HANDOFF.md) and
+headroom; see [`HANDOFF.md`](HANDOFF.md) (CURRENT THREAD) and
 [`../docs/TAARDIS-PRIOR-ART.md`](../docs/TAARDIS-PRIOR-ART.md) for the next
-levers (per-head GDN readout tap, damage-based rank allocation, rotation-first
-V2).
+levers (per-head GDN readout tap, damage-based rank allocation, the Goal-B
+quantizer work).
+
+## Goal B: ternary community-quant thread (2026-10-04)
+
+Goal B is a genuinely good ternary Clef for HF (community quant, fine-tune
+later), metric = wikitext PPL.  The local pipeline is rotation +
+signed basis + PQ2_0 + optional Hessian GPTQ, with the deployed Lloyd scale
+rule.  Ladder (f16 = 12.59): deployed 8684 -> V2 identity-sign RTN 514 ->
+signed RTN **476** -> mixed-precision `nodown` **265**; GPTQ with absmean
+scales 2460 vs absmean RTN 15937 (**the scale rule dominates**, 33x), so the
+current run is GPTQ + Lloyd scales.  Details, exact commands, assets and the
+next-step ladder: [`HANDOFF.md`](HANDOFF.md) **CURRENT THREAD** section.
+Decision side (for the record): body fidelity is decoupled from the frozen
+head (best variant probe AUC 0.503); bf16 Clef remains the validator.
 
 ## Validated on this box (2026-10-03)
 

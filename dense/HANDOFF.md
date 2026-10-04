@@ -4,6 +4,75 @@ Everything a fresh session needs to continue without re-deriving. Read this
 first, then `docs/DENSE-TERNARY-QAT.md` (the plan) and `dense/README.md`
 (route + prior-art).
 
+## CURRENT THREAD (2026-10-04): Goal B — shrink Clef into a postable community quant
+
+The objective moved to **Goal B**: a genuinely good ternary Clef for HF (a
+community quant, to fine-tune later).  The metric here is generation fidelity
+(wikitext-2 PPL, c512, 100 chunks); the decision lane stays with **bf16 Clef**
+(67/70, 26/30 — the ternary sidecar cannot fix decisions; see the history
+below).
+
+**The pipeline** (local, no rental):
+- `dense/clef_v2_convert.py` re-converts `clef-flash-f16.gguf` into the rotated
+  basis: `W' = W Rᵀ` on 176 attention/MLP linears, PQ2_0 pack,
+  `prism.hadamard.*` metadata.  Key flags: `--sign-seed 1337` (PRF explicit
+  signs; `-1` = identity), `--hessian-dir <dir>` + `--gptq-lloyd-scales` /
+  `--gptq-act-order` / `--gptq-refine` (Hessian GPTQ; Lloyd or absmean group
+  scales; RTN fallback), `--keep-f16 <regex>` (mixed precision), `--no-rotation`
+  (control), `--rule lloyd|absmean`, `--self-test` (runtime convention + GPTQ
+  API, seconds).
+- `dense/clef_v2_hessians.py` captures `XᵀX/N` for the 200 ternary targets from
+  the bf16 recurrent-GDN forward in layer-group passes (bounded memory).
+  Current set: `/run/media/penis/30CE2C97CE2C577E/storage/clef-v2-hessians`
+  (200 files, ~29 GB, 48x512-token wikitext windows + manifest).  More windows
+  is the dial (capture: 48 windows = 24 min, group 4).
+- PPL runs: `HIP_VISIBLE_DEVICES=1 /home/penis/llama.cpp/build/bin/llama-perplexity -m <model> -f <v2>/wiki.test.raw -c 512 --chunks 100 -ngl 99`
+  (wiki.test.raw is built from the cached HF wikitext-2 dataset).
+- Sweeps/controls: `dense/clef_v2_sweep_gpu.sh` (layer categories F16),
+  `dense/clef_v2_ppl.sh` (f16/V2/deployed + probe), `dense/clef_v2_sweep_cpu.sh`
+  (CPU fallback).
+
+**The ladder so far** (f16 = 12.59; TAARDIS-27B to beat: 13.61 at 2.125 bpw):
+
+| variant (signed basis unless noted) | PPL |
+|---|---|
+| deployed PQ2_0 (unrotated, Lloyd) | 8684 |
+| V2 no-rotation control | 9516 |
+| V2 identity signs, Lloyd RTN | 514.4 |
+| V2 signed basis, Lloyd RTN | **476.1** |
+| GPTQ + absmean scales | 2460.3 |
+| RTN + absmean scales | 15936.8 |
+| mixed precision nodown / noqkv / noedge | 265 / 280 / 273 |
+| mixed precision nomlp (deleted, regenerable) | 846 (worse) |
+| **GPTQ + Lloyd scales** | **RUNNING** |
+
+**Findings:** rotation is the entire V2 gain (control = deployed); the **scale
+rule dominates everything** (Lloyd vs absmean RTN = 33x); GPTQ's compensation
+works (6.5x better than its own scale baseline) but cannot fix a wrong scale
+rule; mixed precision is non-monotone (ternary errors cancel) and caps ~2x.
+Decisions are decoupled from body fidelity (nodown AUC 0.503).
+
+**Next steps (ordered):**
+1. Finish GPTQ+Lloyd; if it beats 476 materially, sweep `--gptq-act-order`,
+   `--gptq-refine 4`, `--gptq-damp`.  If the 12288-wide `ffn_down` Hessians are
+   the weak point (only ~2 tokens/dim at 48 windows), recapture with more
+   windows (`--windows 256 --group 8`, ~2 h) or GPTQ only the 4096-wide set.
+2. If PTQ plateaus above ~20: implement flip-polish (greedy trit flips with
+   `G = (W-Ŵ)H`, objective `trace((W-Ŵ)H(W-Ŵ)ᵀ)`), then rotation-in-the-loop
+   KD/QAT (the forensics' demonstrated mechanism; needs a rental).
+3. When a good quant exists: re-run the frozen decision probe for the record
+   and prepare the HF release per `docs/HF-RELEASE-NOTES.md` (license clean).
+4. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
+   test was rotate-quantize-unrotate, a different scheme); if Goal B lands,
+   porting is worth it — `build_lora_mm_id` supports expert rotation for
+   qwen3moe/qwen35moe, but OLMoE is not in the fork's verified arch allow-list,
+   and expert Hessians need routed-token capture.  Routers stay untouched.
+
+**Do not:** delete `v2/v2-work/` while a conversion is running (per-tensor
+packs); start GPU jobs without checking `power/runtime_status` (the card wedged
+once — see the incident section); let `/home` drop below ~10 GB (models are
+5-14 GB; everything scratch goes to the external drive or `/tmp/opencode`).
+
 ## What this is
 
 Train residual corrections for the **deployed** `PQ2_0` **Clef-Flash** body
@@ -34,6 +103,17 @@ of it.
   - `corrections/probe/` — old `clef_embed` binary, `tokens.txt`,
     `pq2_ref.bin` (stale 48-token reference from a pre-2026-10-03 build; the
     current bridge rebuild is bit-identical to the pre-patch `build-cpu`).
+  - `v2/` — the Goal-B quant thread: `wiki.test.raw` (PPL corpus),
+    `clef-flash-v2-pq2_0-rot.gguf` (identity signs, 514),
+    `clef-flash-v2-signs.gguf` (signed, 476), `...-ctrl-norot.gguf`,
+    `...-nodown.gguf` (265), `...-noqkv.gguf`, `...-noedge.gguf`,
+    `...-signs-absmean.gguf`, `...-signs-gptq.gguf` (GPTQ+absmean, 2460),
+    and (`running`) `...-signs-gptq-lloyd.gguf`; `ppl100-*.log` per variant.
+  - Hessians: `/run/media/penis/30CE2C97CE2C577E/storage/clef-v2-hessians`
+    (200 x fp32 `XᵀX/N`, 48 windows, manifest; `dense/clef_v2_hessians.py`).
+  - Scripts: `dense/clef_v2_convert.py`, `dense/clef_v2_hessians.py`,
+    `dense/clef_v2_ppl.sh`, `dense/clef_v2_sweep_gpu.sh`,
+    `dense/clef_v2_sweep_cpu.sh`.
 - Fork: `/home/penis/llama.cpp` branch `moe-corr-runtime` (PQ2_0 + TAARDIS
   virtual targets, dense `qwen35` hooks). `gguf-py` at `/home/penis/llama.cpp/gguf-py`.
 - Code: `scion/dense/` (`clef_dense_load.py`, `clef_head.py`, `clef_cache.py`,
@@ -203,6 +283,9 @@ the CPU path, and the bridge's `CLEF_EMBED_NO_REPACK` workaround is only for
 older builds.
 
 ## Next-step menu (after calibration + diagnostics + V2 v1)
+
+> Superseded by **CURRENT THREAD** at the top for the Goal-B quant work; the
+> items below remain the decision-lane history and the optional retrain route.
 
 1. ~~Package + bridge benchmark~~ — **done** (plumbing validated end to end).
 2. ~~Harness integration~~ — **done** (`clef-ternary`; keep CPU lane or build

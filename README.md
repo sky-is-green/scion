@@ -64,7 +64,11 @@ for a dense/hybrid stack, and a typed-decision metric (accept/reject parity
 against bf16) that the MoE PPL/KLD work did not have. Measured so far: absmax
 is broken (hidden-state cosine 0.007), Lloyd alone gives 0.417, and uncorrected
 decisions shift down ~0.43 - corrections are load-bearing here too. Plan:
-[`docs/DENSE-TERNARY-QAT.md`](docs/DENSE-TERNARY-QAT.md).
+[`docs/DENSE-TERNARY-QAT.md`](docs/DENSE-TERNARY-QAT.md).  **Current thread
+(2026-10-04): Goal B — the ternary Clef as a postable community quant**
+(rotation + signed basis + Hessian GPTQ; ladder 8684 -> 476 -> 265, f16 12.59);
+full state, commands and next steps in
+[`dense/HANDOFF.md`](dense/HANDOFF.md) CURRENT THREAD.
 
 ## Quickstart
 
