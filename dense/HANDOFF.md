@@ -184,6 +184,14 @@ and head decisions are decoupled in this regime, so local PTQ/mixed-precision
 work is exhausted; the ternary validator needs a training run on the decision
 channel (or bf16 Clef keeps that role).
 
+For Goal B (the community quant), the quantizer investigation so far: the
+**scale rule dominates GPTQ** — RTN+Lloyd 476.08, GPTQ+absmean 2460.25,
+RTN+absmean 15936.78 (33x between the two Lloyd/absmean RTN runs).  GPTQ's
+error compensation helps 6.5x within a scale rule but cannot fix a wrong one;
+**GPTQ with the deployed Lloyd scales** (`--gptq-lloyd-scales`, Hessians from
+`dense/clef_v2_hessians.py`) is the run in flight, with `act-order`/`refine`/
+flip-polish queued and KD only if PTQ plateaus.
+
 So: the rotation is real (16.9x PPL, hidden cos past even the trained
 corrections' 0.372), but **the frozen head does not rank better on V2** — the
 decision signal still needs training.  A controlled no-rotation variant and
