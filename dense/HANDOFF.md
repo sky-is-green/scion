@@ -213,6 +213,21 @@ older builds.
    BA beat the calibrated baseline** (0.569 AUC / 0.533 BA), not bench verdict
    count.  Do not scale unless the pilot moves those numbers.
 
+## Host incident (2026-10-04): non-display GPU wedged by runtime-PM resume
+
+- `0000:07:00.0` amdgpu PSP resume timed out at 13:42:45 right after several
+  back-to-back GPU PPL jobs (V2 / deployed / f16), leaving
+  `power/runtime_status=error`; HIP then reports no ROCm device (KFD still
+  enumerates both GPUs, PCIe AER clean).  Reboot to recover.
+- Prevention once back: keep the card out of runtime suspend
+  (`echo on > /sys/bus/pci/devices/0000:07:00.0/power/control`, root) and avoid
+  rapid short-lived GPU process churn (keep one persistent context).
+- The no-rotation control PPL (9640) was measured **on CPU** because the GPU
+  was already wedged (CPU-accumulated; the attribution conclusion is
+  unchanged).  The mixed-precision sweep was interrupted after `nodown` and
+  `noqkv` finished converting; rerun `dense/clef_v2_sweep_cpu.sh` (or on GPU)
+  after the reboot.
+
 ## Constraints (unchanged)
 
 - **Never `git push`; commit locally.** Repos are ahead of origin by design.
