@@ -172,8 +172,14 @@ GiB).
 | probe best BA | 0.762 @0.5 | 0.533 (calibrated) | 0.519 @0.45 | — |
 
 The no-rotation control rules out the exemption set: the fidelity gain is the
-rotation, full stop.  `dense/clef_v2_sweep.sh` runs mixed-precision ablations
-(MLP, down, qkv, edge layers kept F16) to map the residual damage.
+rotation, full stop.  The **mixed-precision sweep** (`dense/clef_v2_sweep_gpu.sh`,
+100 chunks) maps the residual damage and is non-monotone: keeping `ffn_down`
+F16 gives PPL **265**, `attn_qkv` 280, edge layers 273 (vs V2 514) — but keeping
+*all* FFN F16 gives **846** (worse), so ternary errors partially cancel across
+the stack and the best local placement recovers only ~2x.  That is the PTQ
+ceiling; the 514 -> 12.6 gap needs trained placement.  The best variant
+(`nodown`) is run through the frozen decision probe to test whether more body
+fidelity moves the head at all.
 
 So: the rotation is real (16.9x PPL, hidden cos past even the trained
 corrections' 0.372), but **the frozen head does not rank better on V2** — the
