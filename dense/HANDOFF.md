@@ -127,19 +127,26 @@ Scored the packaged artifact on 27 correct answers outside cascade-bench-v1
 perturbation rule as training, verified wrong by the checker), corrected and
 uncorrected bodies, through the harness backend:
 
-| body | operating point | bench-train | bench-test | held-out 46 | AUC train / held-out |
-|---|---|---|---|---|---|
-| uncorrected PQ2_0 | thr 0.46 (train-fit) | 43/70 (0 FA, 27 FR) | 22/30 (0 FA, 8 FR) | 24/46 (13 FA, 9 FR) | 0.801 / 0.569 |
-| corrected (candidate) | thr 0.40-0.55 | 68/70 (2 FA, 0 FR) | 29/30 (1 FA, 0 FR) | 27/46 (19 FA, 0 FR) | **0.412** / **0.435** |
-| always-accept | — | 68/70 | 29/30 | 27/46 | 0.500 |
+| body | bench-train @0.5 | bench-test @0.5 | held-out 46 @0.5 | AUC fit / held-out |
+|---|---|---|---|---|
+| uncorrected PQ2_0 | 18/70 (0 FA, 52 FR) | 8/30 (0 FA, 22 FR) | 24/46 (6 FA, 16 FR) | 0.539 / 0.569 |
+| uncorrected + calibration (t=0.48) | 37/70 (0 FA, 33 FR) | 12/30 (0 FA, 18 FR) | 25/46 (10 FA, 11 FR) | 0.539 / 0.569 |
+| corrected (candidate) | 68/70 (2 FA, 0 FR) | 29/30 (1 FA, 0 FR) | 27/46 (19 FA, 0 FR) | 0.412* / 0.435 |
+| f16 teacher (reference) | 0.939 (cached fit) | — | 34/46 (2 FA, 10 FR), BA 0.762 | 0.939 / **0.844** |
+| always-accept | 68/70 | 29/30 | 27/46 | 0.500 |
 
-The corrected 68/70 & 29/30 equal the always-accept baseline on a 97%-positive
-bench: the corrections flatten the head's ranking into p≈0.58 (AUC below
-chance) and accept all 19 held-out negatives at 0.5.  The **uncorrected** body
-retains ranking (AUC 0.80 train / 0.57 held-out) but is miscalibrated.  The
-branch delta is O(hidden norm) (~110 vs ~120 per token): it is a learned bias
-that swamps fine structure, not a gentle correction.  The earlier "above bf16
-Clef" framing is retracted.
+\* 2-negative bench artifact; see below.  "fit" = bench-train (68 pos) + 55
+usable training negatives; the corrected model accepts all 58 training
+negatives (p 0.574-0.605) while the teacher rejects 50/58.
+
+The corrected 68/70 & 29/30 equal always-accept on a 97%-positive bench: the
+corrections flatten the head's ranking into p≈0.58 (AUC below chance, constant
+accept) and never learned rejection on any data.  The uncorrected body is
+miscalibrated and near chance against real negatives — the earlier "uncorrected
+AUC 0.80" was a 2-negative artifact; with 55 real negatives it is 0.539.  The
+teacher itself scores AUC 0.844 on the frozen probe, so the probe is valid and
+the student gap is real.  Branch delta is O(hidden norm) (~110 vs ~120 per
+token): a learned bias that swamps the already-weak signal.
 
 Protocol from now on: AUC / TPR-at-fixed-FPR / balanced accuracy plus the
 always-accept baseline; never verdict count alone on this bench.  Freeze the
@@ -148,30 +155,32 @@ corrections to HF** — the license chain is clean
 ([`../docs/HF-RELEASE-NOTES.md`](../docs/HF-RELEASE-NOTES.md)), the artifact is
 not.
 
-## Next-step menu (updated after the checkpoint)
+## Next-step menu (after calibration + diagnostics)
 
 1. ~~Package + bridge benchmark~~ — **done** (plumbing validated end to end).
 2. ~~Harness integration~~ — **done** (`clef-ternary`; keep CPU lane or build
    the HIP bridge later).
-3. **Calibration-only baseline (free, local)**: keep the uncorrected body and
-   fit a logistic/affine recalibration of the noul logit on bench-train, then
-   report bench-test + the frozen held-out probe with balanced metrics.  The
-   ranking ceiling is the uncorrected AUC (0.57 held-out), but it gives an
-   honest v0 and a clean comparison for the retrain.
-4. **Retrain corrections with an objective that can move ranking** (rental,
-   needs explicit approval): pairwise/AUC-style decision loss or
-   class-balanced decision KD, residual-magnitude regularization (or lower
-   effective rank/LR), mixed corpus with chunk-level holdout, and the frozen
-   probe + a fresh holdout as acceptance tests.  Per TAARDIS prior art, add
-   the per-head GDN readout tap (`blk.N.ssm_readout`) and allocate rank by
-   measured damage.  Success is **held-out AUC and FA/FR at a fixed operating
-   point**, not bench verdict count.
-5. **Clef V2 conversion** (the larger lever, no rental needed to prototype):
-   re-quantize the f16 body with per-linear block-Hadamard rotation + Hessian
-   GPTQ + self-distill + Doctors, the TAARDIS Qwen3.5-0.8B recipe. The deployed
-   PQ2_0 has no rotation; TAARDIS's 27B/0.8B evidence says rotation is the
-   quality lever. Fork runtime support (`forge.rotation.*`, `taardis-lora`)
-   already exists locally.
+3. ~~Calibration-only baseline~~ — **done** (`dense/clef_calibrate.py`,
+   `calibration-uncorrected.json`, harness env `HIVE_TERNARY_CALIBRATION`):
+   bench shift repaired, held-out BA 0.533 (chance).  Honest v0, not a usable
+   validator.  Diagnostics (`dense/clef_probe_diag.py`) closed the "why":
+   decision KD never learned rejection, and the body's hidden fidelity is the
+   binding constraint.
+4. **Clef V2 conversion — recommended next** (mostly local; no rental needed to
+   prototype): re-quantize the f16 body with per-linear block-Hadamard rotation
+   + Hessian GPTQ + self-distill + Doctors, following the TAARDIS Qwen3.5-0.8B
+   k1/k2 recipe (same hybrid arch, published per-block metrics).  The deployed
+   unrotated PQ2_0 body is the root cause of the fidelity gap; fork runtime
+   support (`forge.rotation.*`, `taardis-lora`) already exists locally.
+   Derisk on a smaller Qwen3.5 first if desired.
+5. **Optional: bounded sidecar retrain pilot** (rental, needs explicit
+   approval, ~1-1.5 h / ~$1): pairwise/ranking-aware decision loss,
+   class-balanced negatives, residual-magnitude regularization (or lower
+   effective rank/LR), mixed corpus; add the per-head GDN readout tap
+   (`blk.N.ssm_readout`) and allocate rank by measured damage.  Acceptance:
+   **held-out AUC and BA beat the calibrated baseline on the frozen probe**,
+   plus a fresh holdout — not bench verdict count.  Do not scale to a long run
+   unless the pilot moves those numbers.
 
 ## Constraints (unchanged)
 

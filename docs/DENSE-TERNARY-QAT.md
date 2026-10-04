@@ -253,11 +253,16 @@ Before any release, the packaged artifact was scored on 27 correct answers
 outside cascade-bench-v1 plus 19 constructed negatives (harness backend,
 uncorrected body for contrast).  The result retracts the "above bf16" reading:
 
-| body | bench-train | bench-test | held-out 46 | AUC train / held-out |
+| body | bench-train | bench-test | held-out 46 | AUC fit / held-out |
 |---|---|---|---|---|
-| uncorrected PQ2_0 (thr 0.46) | 43/70 (0 FA, 27 FR) | 22/30 (0 FA, 8 FR) | 24/46 (13 FA, 9 FR) | 0.801 / 0.569 |
-| corrected (thr 0.40-0.55) | 68/70 (2 FA, 0 FR) | 29/30 (1 FA, 0 FR) | 27/46 (19 FA, 0 FR) | **0.412 / 0.435** |
+| uncorrected PQ2_0 | 18/70 (0 FA, 52 FR) | 8/30 (0 FA, 22 FR) | 24/46 (6 FA, 16 FR) | 0.539 / 0.569 |
+| uncorrected + calibration | 37/70 (0 FA, 33 FR) | 12/30 (0 FA, 18 FR) | 25/46 (10 FA, 11 FR) | 0.539 / 0.569 |
+| corrected (candidate) | 68/70 (2 FA, 0 FR) | 29/30 (1 FA, 0 FR) | 27/46 (19 FA, 0 FR) | 0.412* / 0.435 |
+| f16 teacher (reference) | — | — | 34/46 (2 FA, 10 FR), BA 0.762 | 0.939 / **0.844** |
 | always-accept | 68/70 | 29/30 | 27/46 | 0.500 |
+
+\* 2-negative artifact; against 55 real fit negatives the corrected body
+accepts 58/58 (it never learned rejection), and the uncorrected body is 0.539.
 
 The corrected verdict counts equal always-accept on a 97%-positive bench; the
 corrections flatten the head's ranking into p≈0.58 and reject none of the
@@ -266,14 +271,21 @@ miscalibrated.  Diagnosis: the branch residual is O(hidden norm) (~110 vs ~120
 per token) and the pointwise decision KD on a mostly-positive set taught
 "accept".
 
+**Calibration + diagnostics (2026-10-04).** A free recalibration of the
+uncorrected body (`dense/clef_calibrate.py`, t=0.48) repairs the bench shift
+(test 12/30, 0 FA) but stays at chance held-out (BA 0.533); the corrected body
+accepts 58/58 of its own training negatives (teacher rejects 50/58), so the
+decision KD never learned rejection — the failure is body fidelity (hidden cos
+0.23-0.37) plus an O(hidden) residual, not plumbing or overfitting.
+
 Status: packaging and the `clef-ternary` harness backend are **done** and
-bit-exact with the offline benchmark; **do not post the current corrections**.
-Menu: (1) free calibration-only baseline on the uncorrected body; (2) retrain
-with a ranking-aware/class-balanced decision loss + residual regularization +
-mixed corpus (rental, needs approval), with the frozen 46-record probe and a
-fresh holdout as acceptance tests; (3) Clef V2 (rotation + Hessian GPTQ +
-self-distill) as the bigger quality lever.  Evaluation protocol from now on:
-AUC / TPR-at-fixed-FPR / balanced accuracy + always-accept baseline, never
-verdict count alone.  Full context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md);
-license/release checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No
-push; rentals need approval.
+bit-exact with the offline benchmark; calibration was the last free lead and is
+exhausted.  **Do not post the current corrections.**  Recommendation: **Clef V2
+conversion** (rotation + Hessian GPTQ + self-distill, TAARDIS same-arch 0.8B
+recipe) as the primary next track, deriskable locally; an optional bounded
+sidecar retrain pilot (ranking-aware loss + residual regularization, rental
+needs approval) only against the frozen 46-record probe with AUC/BA acceptance.
+Evaluation protocol from now on: AUC / TPR-at-fixed-FPR / balanced accuracy +
+always-accept baseline, never verdict count alone.  Full context:
+[`../dense/HANDOFF.md`](../dense/HANDOFF.md); license/release checklist:
+[`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No push; rentals need approval.
