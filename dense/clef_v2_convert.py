@@ -127,6 +127,10 @@ def main() -> int:
     ap.add_argument("--out", dest="dst", default="")
     ap.add_argument("--work", default="")
     ap.add_argument("--rule", choices=("lloyd", "absmean"), default="lloyd")
+    ap.add_argument("--no-rotation", action="store_true",
+                    help="control: same tensor selection, unrotated ternary, no prism metadata")
+    ap.add_argument("--keep-f16", action="append", default=[],
+                    help="regex of a target tensor to leave copied/F16 (repeatable)")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -142,39 +146,43 @@ def main() -> int:
     reader = GGUFReader(src)
     arch = reader.fields[Keys.General.ARCHITECTURE].contents()
     names = [t.name for t in reader.tensors]
-    rotated_names = [n for n in names if ROTATED.match(n)]
-    unrot_names = [n for n in names if UNROTATED_TERNARY.match(n)]
-    if not rotated_names:
-        raise SystemExit("no rotated targets matched")
+    keep = [re.compile(p) for p in args.keep_f16]
+    targets = [n for n in names
+               if (ROTATED.match(n) or UNROTATED_TERNARY.match(n))
+               and not any(k.search(n) for k in keep)]
+    rotated_names = [] if args.no_rotation else [n for n in targets if ROTATED.match(n)]
+    unrot_names = [n for n in targets if UNROTATED_TERNARY.match(n)]
+    if not targets:
+        raise SystemExit("no ternary targets matched")
+    kept = [n for n in names if (ROTATED.match(n) or UNROTATED_TERNARY.match(n))
+            and n not in set(targets)]
     print(f"{src.name}: {len(names)} tensors, arch {arch}; "
           f"rotated {len(rotated_names)}, unrotated-ternary {len(unrot_names)}, "
-          f"copied {len(names) - len(rotated_names) - len(unrot_names)}", flush=True)
+          f"kept-f16 targets {len(kept)}, copied {len(names) - len(targets)}", flush=True)
 
     # pass 1: fold + quantize targets to temp files, register all tensor infos
     writer = GGUFWriter(str(dst), arch=arch)
     copy_metadata(reader, writer)
-    add_prism_metadata(writer, rotated_names)
+    if not args.no_rotation:
+        add_prism_metadata(writer, rotated_names)
 
+    target_set = set(targets)
+    rotated_set = set(rotated_names)
     packed_paths: dict[str, Path] = {}
     t0 = time.time()
     for i, t in enumerate(reader.tensors):
         name = t.name
-        if ROTATED.match(name):
+        if name in target_set:
             w = np.asarray(t.data, dtype=np.float32)
-            packed = pack_ternary(fold(w), args.rule)
+            if name in rotated_set:
+                w = fold(w)
+            packed = pack_ternary(w, args.rule)
             if packed.shape[-1] % 34 or packed.shape[0] != w.shape[0]:
                 raise SystemExit(f"{name}: unexpected packed shape {packed.shape}")
             path = work / (name.replace(".", "_") + ".pq2_0.npy")
             np.save(path, packed)
             packed_paths[name] = path
             # add_tensor_info converts the byte shape using raw_dtype
-            writer.add_tensor_info(name, packed.shape, packed.dtype, packed.nbytes,
-                                   raw_dtype=PQ2_0)
-        elif UNROTATED_TERNARY.match(name):
-            packed = pack_ternary(np.asarray(t.data, dtype=np.float32), args.rule)
-            path = work / (name.replace(".", "_") + ".pq2_0.npy")
-            np.save(path, packed)
-            packed_paths[name] = path
             writer.add_tensor_info(name, packed.shape, packed.dtype, packed.nbytes,
                                    raw_dtype=PQ2_0)
         else:
@@ -202,15 +210,21 @@ def main() -> int:
     missing = set(names) - got
     if missing:
         raise SystemExit(f"verify: missing {len(missing)} tensors, e.g. {sorted(missing)[:3]}")
-    wl = fields["prism.hadamard.weight_names"].contents()
-    if list(wl) != rotated_names:
-        raise SystemExit("verify: prism.hadamard.weight_names mismatch")
     types = {t.tensor_type for t in check.tensors if t.name in set(packed_paths)}
-    print(f"verify: {len(check.tensors)} tensors, prism version "
-          f"{fields['prism.hadamard.version'].contents()}, "
-          f"block {fields['prism.hadamard.block_size'].contents()}, "
-          f"sign_mode {fields['prism.hadamard.sign_mode'].contents()}, "
-          f"{len(wl)} rotated weights, ternary types {types}", flush=True)
+    if args.no_rotation:
+        if "prism.hadamard.version" in fields:
+            raise SystemExit("verify: control output has prism metadata")
+        print(f"verify: {len(check.tensors)} tensors, no rotation metadata, "
+              f"{len(packed_paths)} ternary tensors, types {types}", flush=True)
+    else:
+        wl = fields["prism.hadamard.weight_names"].contents()
+        if list(wl) != rotated_names:
+            raise SystemExit("verify: prism.hadamard.weight_names mismatch")
+        print(f"verify: {len(check.tensors)} tensors, prism version "
+              f"{fields['prism.hadamard.version'].contents()}, "
+              f"block {fields['prism.hadamard.block_size'].contents()}, "
+              f"sign_mode {fields['prism.hadamard.sign_mode'].contents()}, "
+              f"{len(wl)} rotated weights, ternary types {types}", flush=True)
     return 0
 
 

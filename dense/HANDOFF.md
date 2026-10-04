@@ -164,12 +164,16 @@ copied, `prism.hadamard.*` metadata emitted; `dense/clef_v2_ppl.sh` evaluates.
 Artifact: `models/clef-flash-ternary/v2/clef-flash-v2-pq2_0-rot.gguf` (5.52
 GiB).
 
-| metric | f16 | deployed PQ2_0 | **V2 rotated** |
-|---|---|---|---|
-| wikitext-2 PPL (c512, 100 chunks) | 12.59 | 8684.23 | **514.35** |
-| hidden cos vs f16 (48 tok) | 1.0 | 0.336 | **0.498** |
-| frozen-probe AUC through the head | 0.844 | 0.569 | **0.464** |
-| probe best BA | 0.762 @0.5 | 0.533 (calibrated) | 0.519 @0.45 |
+| metric | f16 | deployed PQ2_0 | **V2 rotated** | V2 no-rotation control |
+|---|---|---|---|---|
+| wikitext-2 PPL (c512, 100 chunks) | 12.59 | 8684.23 | **514.35** | 9640.77 |
+| hidden cos vs f16 (48 tok) | 1.0 | 0.336 | **0.498** | 0.311 |
+| frozen-probe AUC through the head | 0.844 | 0.569 | **0.464** | — |
+| probe best BA | 0.762 @0.5 | 0.533 (calibrated) | 0.519 @0.45 | — |
+
+The no-rotation control rules out the exemption set: the fidelity gain is the
+rotation, full stop.  `dense/clef_v2_sweep.sh` runs mixed-precision ablations
+(MLP, down, qkv, edge layers kept F16) to map the residual damage.
 
 So: the rotation is real (16.9x PPL, hidden cos past even the trained
 corrections' 0.372), but **the frozen head does not rank better on V2** — the
