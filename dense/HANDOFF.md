@@ -23,9 +23,10 @@ below).
   API, seconds).
 - `dense/clef_v2_hessians.py` captures `XᵀX/N` for the 200 ternary targets from
   the bf16 recurrent-GDN forward in layer-group passes (bounded memory).
-  Current set: `/run/media/penis/30CE2C97CE2C577E/storage/clef-v2-hessians`
-  (200 files, ~29 GB, 48x512-token wikitext windows + manifest).  More windows
-  is the dial (capture: 48 windows = 24 min, group 4).
+  Sets on `/run/media/penis/30CE2C97CE2C577E/storage`: `clef-v2-hessians`
+  (48x512-token wikitext windows, 29 GB, 24 min capture) and
+  `clef-v2-hessians-128` (128x512, 29 GB, 54 min, group 4 — used for the 120.6
+  run).  More windows is the dial (256 ≈ 2 h, group 8).
 - PPL runs: `HIP_VISIBLE_DEVICES=1 /home/penis/llama.cpp/build/bin/llama-perplexity -m <model> -f <v2>/wiki.test.raw -c 512 --chunks 100 -ngl 99`
   (wiki.test.raw is built from the cached HF wikitext-2 dataset).
 - Sweeps/controls: `dense/clef_v2_sweep_gpu.sh` (layer categories F16),
@@ -46,22 +47,23 @@ below).
 | mixed precision nomlp (deleted, regenerable) | 846 (worse) |
 | GPTQ + Lloyd scales | 277.2 |
 | **GPTQ + Lloyd + act-order** | **141.6** |
+| **+ 128-w Hessians (h128, act-order)** | **120.6** |
 
 **Findings:** rotation is the entire V2 gain (control = deployed); the **scale
 rule dominates everything** (Lloyd vs absmean RTN = 33x); GPTQ's compensation
 works (GPTQ+Lloyd 277 vs RTN+Lloyd 476; 6.5x over its own scale baseline) but
-cannot fix a wrong scale rule; mixed precision is non-monotone (ternary errors
-cancel) and its best, `nodown` 265 (8.1 GB), is now only on par with
-full-ternary GPTQ 277 (5.5 GB).  Decisions are decoupled from body fidelity
-(nodown AUC 0.503).
+cannot fix a wrong scale rule; Hessian quality is the next live lever once
+act-order is on (48 -> 128 windows: 141.6 -> 120.6, 1.17x), and mixed precision
+is now far behind (best `nodown` 265 at 8.1 GB vs 120.6 at 5.5 GB all-ternary).
+Decisions are decoupled from body fidelity (nodown AUC 0.503).
 
 **Next steps (ordered):**
 1. GPTQ sweeps (each ~48 min conversion + 1 min GPU PPL): act-order done
-   (**141.6**); next is a **larger Hessian capture** (128 windows, ~1 h;
-   `--windows 128 --group 4`) since 48 windows leaves the 12288-wide
-   `ffn_down` at ~2 tokens/dim, then GPTQ+act-order on it.  `--gptq-refine`
-   only affects absmean scales (ignored with `--gptq-lloyd-scales`), so skip;
-   damping and sign-seed sweeps are lower priority.
+   (**141.6**), **128-window Hessians done (120.6)**, capture 54 min, group 4.
+   Next candidates: 256-window capture (~2 h, group 8), combining h128+act-order
+   with `--keep-f16 ffn_down` (mixed precision, +2.6 GB, non-monotone), and a
+   `--gptq-damp` sweep on h128.  `--gptq-refine` is a no-op with
+   `--gptq-lloyd-scales`, so skip; sign-seed sweeps are lower priority.
 2. If PTQ plateaus above ~20: implement flip-polish (greedy trit flips with
    `G = (W-Ŵ)H`, objective `trace((W-Ŵ)H(W-Ŵ)ᵀ)`), then rotation-in-the-loop
    KD/QAT (the forensics' demonstrated mechanism; needs a rental).
@@ -76,7 +78,11 @@ full-ternary GPTQ 277 (5.5 GB).  Decisions are decoupled from body fidelity
 **Do not:** delete `v2/v2-work/` while a conversion is running (per-tensor
 packs); start GPU jobs without checking `power/runtime_status` (the card wedged
 once — see the incident section); let `/home` drop below ~10 GB (models are
-5-14 GB; everything scratch goes to the external drive or `/tmp/opencode`).
+5-14 GB; everything scratch goes to the external drive or `/tmp/opencode`);
+start hour-long runs inside the OpenCode app scope — systemd-oomd kills the
+whole scope (three OOMs on 2026-10-04 cancelled the first h128 chain).  Use
+`systemd-run --user --unit=clef-h128 /bin/sh dense/clef_v2_h128_chain.sh`
+so the run survives app restarts.
 
 ## What this is
 

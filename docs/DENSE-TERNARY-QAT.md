@@ -313,11 +313,10 @@ Ladder so far (f16 12.59; TAARDIS-27B reference 13.61 at 2.125 bpw): deployed
 PQ2_0 8684 -> identity-sign RTN 514 -> signed RTN **476** -> mixed-precision
 `nodown` **265**.  Scale-rule isolation: GPTQ+absmean 2460 vs RTN+absmean
 15937 — the **scale rule dominates** (33x) and GPTQ's compensation works
-(6.5x within a rule).  **GPTQ+Lloyd+act-order lands at PPL 141.56**
-(vs 277 without act-order, 476 signed RTN; mixed-precision `nodown` 265 costs
-+2.6 GB), so the Hessian error compensation now pulls its weight.  A larger
-Hessian capture (128 windows; `ffn_down` is at ~2 tokens/dim with 48) is the
-next sweep, then flip-polish, then rotation-in-the-loop KD (rental) only if
-PTQ plateaus.  Exact commands, assets, disk/GPU constraints and the
+(6.5x within a rule).  **GPTQ+Lloyd+act-order lands at PPL 141.56** (vs 277
+without act-order, 476 signed RTN) and **128-window Hessians take it to
+120.62** (1.17x, no container cost), so Hessian error compensation now pulls
+its weight.  Next: 256-window capture and/or mixed-precision combination,
+then flip-polish, then rotation-in-the-loop KD (rental) only if PTQ plateaus.  Exact commands, assets, disk/GPU constraints and the
 continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
 THREAD.
