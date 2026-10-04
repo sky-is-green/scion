@@ -44,7 +44,8 @@ below).
 | RTN + absmean scales | 15936.8 |
 | mixed precision nodown / noqkv / noedge | 265 / 280 / 273 |
 | mixed precision nomlp (deleted, regenerable) | 846 (worse) |
-| **GPTQ + Lloyd scales** | **277.2** |
+| GPTQ + Lloyd scales | 277.2 |
+| **GPTQ + Lloyd + act-order** | **141.6** |
 
 **Findings:** rotation is the entire V2 gain (control = deployed); the **scale
 rule dominates everything** (Lloyd vs absmean RTN = 33x); GPTQ's compensation
@@ -55,11 +56,12 @@ full-ternary GPTQ 277 (5.5 GB).  Decisions are decoupled from body fidelity
 (nodown AUC 0.503).
 
 **Next steps (ordered):**
-1. GPTQ sweeps, one at a time (each ~48 min conversion + 1 min GPU PPL):
-   `--gptq-act-order` (running now), then `--gptq-refine 4`, then damping.
-   If the 12288-wide `ffn_down` Hessians are the weak point (only ~2 tokens/dim
-   at 48 windows), recapture with more windows (`--windows 256 --group 8`,
-   ~2 h) or GPTQ only the 4096-wide set.
+1. GPTQ sweeps (each ~48 min conversion + 1 min GPU PPL): act-order done
+   (**141.6**); next is a **larger Hessian capture** (128 windows, ~1 h;
+   `--windows 128 --group 4`) since 48 windows leaves the 12288-wide
+   `ffn_down` at ~2 tokens/dim, then GPTQ+act-order on it.  `--gptq-refine`
+   only affects absmean scales (ignored with `--gptq-lloyd-scales`), so skip;
+   damping and sign-seed sweeps are lower priority.
 2. If PTQ plateaus above ~20: implement flip-polish (greedy trit flips with
    `G = (W-Ŵ)H`, objective `trace((W-Ŵ)H(W-Ŵ)ᵀ)`), then rotation-in-the-loop
    KD/QAT (the forensics' demonstrated mechanism; needs a rental).
