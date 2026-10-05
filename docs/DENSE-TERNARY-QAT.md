@@ -321,8 +321,11 @@ wide, weakly measured 12288-d Hessians stay out of the ternary set.  Flip-polish
 exhausted, so rotation-in-the-loop KD/QAT (rental, needs approval) is the next
 route, with the base choice 75.2 (mixed, 8.13 GiB) vs 120.6 (all-ternary,
 5.52 GiB).  **Solver derisk:** `dense/qat_derisk.py` on Qwen3.5-0.8B recovers
-post-hoc ternary 34,938 -> 57.1 PPL (2.1x f16) in 300 steps / 21 min; the
-rental recipe (rotation-in-the-loop STE + hidden KD) is validated at small
-scale.  Exact commands, assets, disk/GPU constraints and the
+post-hoc ternary 34,938 -> 57.1 PPL (2.1x f16) in 300 steps / 21 min;
+all-ternary 600 steps -> 48.4, mixed base (`down_proj` F16) 10,020 -> 48.8 in
+300 steps — the rental recipe (rotation-in-the-loop STE + hidden KD) is
+validated at small scale.  Plan with exact 9B memory numbers:
+[`dense/SOLVER-PLAN.md`](SOLVER-PLAN.md).  Exact commands, assets, disk/GPU
+constraints and the
 continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
 THREAD.

@@ -73,8 +73,12 @@ decoupled from body fidelity (nodown AUC 0.503).
    locally on Qwen3.5-0.8B (`dense/qat_derisk.py`, same hybrid arch): rotated
    ternary STE + f16 hidden-state KD recovers a post-hoc ternary body from
    **PPL 34,938 to 57.1 (612x) in 300 steps / 21 min** (2.1x f16 27.2; peak
-   7.8 GB VRAM at batch 4x512).  Rental base choice: 75.2 mixed (8.13 GiB) vs
-   120.6 all-ternary (5.52 GiB); hidden KD alone is the strong signal.
+   7.8 GB VRAM at batch 4x512).  Longer and mixed-base runs: all-ternary 600
+   steps -> **48.4** (1.78x f16, 39 min); mixed base (`down_proj` F16) starts
+   at 10,020 and reaches **48.8 in 300 steps** (18 min).  Both bases converge
+   to ~48-49; the mixed one gets there ~4x faster.  Rental base choice: 75.2
+   mixed (8.13 GiB) vs 120.6 all-ternary (5.52 GiB); hidden KD alone is the
+   strong signal.  Plan: [`dense/SOLVER-PLAN.md`](SOLVER-PLAN.md).
 3. When a good quant exists: re-run the frozen decision probe for the record
    and prepare the HF release per `docs/HF-RELEASE-NOTES.md` (license clean).
 4. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
