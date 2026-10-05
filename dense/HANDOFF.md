@@ -48,22 +48,24 @@ below).
 | GPTQ + Lloyd scales | 277.2 |
 | **GPTQ + Lloyd + act-order** | **141.6** |
 | **+ 128-w Hessians (h128, act-order)** | **120.6** |
+| **+ ffn_down F16 (h128 nodown)** | **75.2** |
 
 **Findings:** rotation is the entire V2 gain (control = deployed); the **scale
 rule dominates everything** (Lloyd vs absmean RTN = 33x); GPTQ's compensation
 works (GPTQ+Lloyd 277 vs RTN+Lloyd 476; 6.5x over its own scale baseline) but
 cannot fix a wrong scale rule; Hessian quality is the next live lever once
 act-order is on (48 -> 128 windows: 141.6 -> 120.6, 1.17x), and mixed precision
-is now far behind (best `nodown` 265 at 8.1 GB vs 120.6 at 5.5 GB all-ternary).
-Decisions are decoupled from body fidelity (nodown AUC 0.503).
+stacks again on top of GPTQ+h128 (keeping `ffn_down` F16: 120.6 -> **75.2**,
+1.60x, +2.6 GiB).  Decisions are decoupled from body fidelity (nodown AUC
+0.503).
 
 **Next steps (ordered):**
-1. GPTQ sweeps (each ~48 min conversion + 1 min GPU PPL): act-order done
-   (**141.6**), **128-window Hessians done (120.6)**, capture 54 min, group 4.
-   Next candidates: 256-window capture (~2 h, group 8), combining h128+act-order
-   with `--keep-f16 ffn_down` (mixed precision, +2.6 GB, non-monotone), and a
-   `--gptq-damp` sweep on h128.  `--gptq-refine` is a no-op with
-   `--gptq-lloyd-scales`, so skip; sign-seed sweeps are lower priority.
+1. GPTQ sweeps: act-order **141.6** -> 128-w window capture **120.6** ->
+   `ffn_down` F16 on that (**75.2**, 8.13 GiB; convert ~31 min).  Next
+   candidates: 256-window capture (~2 h, group 8) re-applied to the nodown
+   mix, stacking another `--keep-f16` set (noqkv/noedge/ssm_out), and a
+   `--gptq-damp` sweep; `--gptq-refine` is a no-op with `--gptq-lloyd-scales`.
+   Sign-seed sweeps are lower priority.
 2. If PTQ plateaus above ~20: implement flip-polish (greedy trit flips with
    `G = (W-Ŵ)H`, objective `trace((W-Ŵ)H(W-Ŵ)ᵀ)`), then rotation-in-the-loop
    KD/QAT (the forensics' demonstrated mechanism; needs a rental).

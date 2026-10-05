@@ -314,9 +314,11 @@ PQ2_0 8684 -> identity-sign RTN 514 -> signed RTN **476** -> mixed-precision
 `nodown` **265**.  Scale-rule isolation: GPTQ+absmean 2460 vs RTN+absmean
 15937 — the **scale rule dominates** (33x) and GPTQ's compensation works
 (6.5x within a rule).  **GPTQ+Lloyd+act-order lands at PPL 141.56** (vs 277
-without act-order, 476 signed RTN) and **128-window Hessians take it to
-120.62** (1.17x, no container cost), so Hessian error compensation now pulls
-its weight.  Next: 256-window capture and/or mixed-precision combination,
-then flip-polish, then rotation-in-the-loop KD (rental) only if PTQ plateaus.  Exact commands, assets, disk/GPU constraints and the
+without act-order, 476 signed RTN), **128-window Hessians take it to 120.62**,
+and keeping `ffn_down` F16 on top lands at **75.20** (1.60x; 8.13 GiB) — the
+wide, weakly measured 12288-d Hessians stay out of the ternary set.  Next:
+256-window capture re-applied to the nodown mix and further `--keep-f16`
+stacking, then flip-polish, then rotation-in-the-loop KD (rental) only if PTQ
+plateaus.  Exact commands, assets, disk/GPU constraints and the
 continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
 THREAD.
