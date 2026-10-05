@@ -49,6 +49,7 @@ below).
 | **GPTQ + Lloyd + act-order** | **141.6** |
 | **+ 128-w Hessians (h128, act-order)** | **120.6** |
 | **+ ffn_down F16 (h128 nodown)** | **75.2** |
+| + flip-polish 4 passes (same recipe) | 3012.8 (falsified) |
 
 **Findings:** rotation is the entire V2 gain (control = deployed); the **scale
 rule dominates everything** (Lloyd vs absmean RTN = 33x); GPTQ's compensation
@@ -56,19 +57,20 @@ works (GPTQ+Lloyd 277 vs RTN+Lloyd 476; 6.5x over its own scale baseline) but
 cannot fix a wrong scale rule; Hessian quality is the next live lever once
 act-order is on (48 -> 128 windows: 141.6 -> 120.6, 1.17x), and mixed precision
 stacks again on top of GPTQ+h128 (keeping `ffn_down` F16: 120.6 -> **75.2**,
-1.60x, +2.6 GiB).  Decisions are decoupled from body fidelity (nodown AUC
-0.503).
+1.60x, +2.6 GiB).  **Flip-polish is falsified** in the greedy per-trit form:
+the Hessian proxy drops 35-95% per tensor but PPL explodes 75.2 -> 3012.8 —
+per-layer proxy descent past GPTQ's constrained point does not survive
+end-to-end compounding (the forensics' local-KD warning).  Decisions are
+decoupled from body fidelity (nodown AUC 0.503).
 
 **Next steps (ordered):**
-1. GPTQ sweeps: act-order **141.6** -> 128-w window capture **120.6** ->
-   `ffn_down` F16 on that (**75.2**, 8.13 GiB; convert ~31 min).  Next
-   candidates: 256-window capture (~2 h, group 8) re-applied to the nodown
-   mix, stacking another `--keep-f16` set (noqkv/noedge/ssm_out), and a
-   `--gptq-damp` sweep; `--gptq-refine` is a no-op with `--gptq-lloyd-scales`.
-   Sign-seed sweeps are lower priority.
-2. If PTQ plateaus above ~20: implement flip-polish (greedy trit flips with
-   `G = (W-Ŵ)H`, objective `trace((W-Ŵ)H(W-Ŵ)ᵀ)`), then rotation-in-the-loop
-   KD/QAT (the forensics' demonstrated mechanism; needs a rental).
+1. PTQ is exhausted: rotation, Lloyd, GPTQ+act-order, h128 windows and
+   `ffn_down` F16 are in (**75.2**, 8.13 GiB); flip-polish is falsified
+   (3012.8), `--gptq-refine` is a no-op, and the lever ranking says damping,
+   sign seeds and further window stacking cannot give measurable gains.
+2. **Rotation-in-the-loop KD/QAT** (the forensics' demonstrated mechanism;
+   needs a rental) is the route to close the remaining ~6x to f16.  Decide the
+   base first: 75.2 mixed (8.13 GiB) vs 120.6 all-ternary (5.52 GiB).
 3. When a good quant exists: re-run the frozen decision probe for the record
    and prepare the HF release per `docs/HF-RELEASE-NOTES.md` (license clean).
 4. MoE aside: the Scion MoE route never used runtime rotation (its one rotation

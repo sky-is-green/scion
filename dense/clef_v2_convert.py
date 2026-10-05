@@ -105,6 +105,10 @@ def flip_polish(w: np.ndarray, codes: torch.Tensor, scales: torch.Tensor,
     vectorised and updates ``G`` rows for the cross-column terms.  Passes
     repeat until no flip or no objective improvement, and the unpolished codes
     are kept if a pass would regress.
+
+    Empirical note (2026-10-05): on Clef this drops the proxy 35-95% per tensor
+    but destroys PPL (75.2 -> 3012.8).  Falsified for production use; the flag
+    is kept for the record only.
     """
     wt = torch.from_numpy(np.ascontiguousarray(w, dtype=np.float32))
     ht = torch.from_numpy(np.ascontiguousarray(hessian, dtype=np.float32))

@@ -316,9 +316,10 @@ PQ2_0 8684 -> identity-sign RTN 514 -> signed RTN **476** -> mixed-precision
 (6.5x within a rule).  **GPTQ+Lloyd+act-order lands at PPL 141.56** (vs 277
 without act-order, 476 signed RTN), **128-window Hessians take it to 120.62**,
 and keeping `ffn_down` F16 on top lands at **75.20** (1.60x; 8.13 GiB) — the
-wide, weakly measured 12288-d Hessians stay out of the ternary set.  Next:
-256-window capture re-applied to the nodown mix and further `--keep-f16`
-stacking, then flip-polish, then rotation-in-the-loop KD (rental) only if PTQ
-plateaus.  Exact commands, assets, disk/GPU constraints and the
+wide, weakly measured 12288-d Hessians stay out of the ternary set.  Flip-polish was implemented and
+**falsified** (proxy -35-95% per tensor, PPL 75.2 -> 3012.9): PTQ is
+exhausted, so rotation-in-the-loop KD/QAT (rental, needs approval) is the next
+route, with the base choice 75.2 (mixed, 8.13 GiB) vs 120.6 (all-ternary,
+5.52 GiB).  Exact commands, assets, disk/GPU constraints and the
 continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
 THREAD.
