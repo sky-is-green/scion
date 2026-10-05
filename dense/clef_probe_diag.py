@@ -93,7 +93,9 @@ def tasks_index() -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--phase", choices=["teacher", "corrected-neg"], required=True)
+    ap.add_argument("--phase", choices=["teacher", "corrected-neg", "body"],
+                    required=True)
+    ap.add_argument("--body", default="", help="merged GGUF for --phase body")
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--bridge", default=DEFAULT_BRIDGE)
     ap.add_argument("--n-ctx", type=int, default=1024)
@@ -124,6 +126,33 @@ def main() -> int:
                 "false_rejects": sum(p < t for p in pos),
                 "correct": sum(p >= t for p in pos) + sum(p < t for p in neg)}
         print(json.dumps({k: v for k, v in out.items() if k != "rows"}, indent=1), flush=True)
+    elif args.phase == "body":
+        body = Path(args.body)
+        if not body.is_absolute():
+            body = Path(args.model) / body
+        tasks = tasks_index()
+        rows = []
+        for f, gold in (("holdout-probe-pos.json", True),
+                        ("holdout-probe-neg.json", False)):
+            for r in json.loads((HOLDOUT / f).read_text())["records"]:
+                task = tasks[r["id"]]
+                rows.append({"id": r["id"], "prompt": task["prompt"],
+                             "candidate": r["scion_answer"], "gold": gold})
+        if args.limit:
+            rows = rows[:args.limit]
+        rows = score_rows(rows, work, args.bridge, str(body),
+                          args.model, args.n_ctx)
+        pos = [r["p"] for r in rows if r["gold"]]
+        neg = [r["p"] for r in rows if not r["gold"]]
+        out = {"body": body.name, "n": len(rows), "auc": round(auc(pos, neg), 4),
+               "thresholds": {}, "rows": rows}
+        for t in (0.3, 0.4, 0.5, 0.55, 0.6):
+            out["thresholds"][f"{t:.2f}"] = {
+                "false_accepts": sum(p >= t for p in neg),
+                "false_rejects": sum(p < t for p in pos),
+                "correct": sum(p >= t for p in pos) + sum(p < t for p in neg)}
+        print(json.dumps({k: v for k, v in out.items() if k != "rows"}, indent=1),
+              flush=True)
     else:
         cache = TeacherCache(f"{args.model}/corrections/cache-smoke")
         rows = []
