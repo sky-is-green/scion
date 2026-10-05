@@ -15,6 +15,8 @@
 #   bash box-run-flashnext.sh cache       # full teacher cache (~1-2 h)
 #   bash box-run-flashnext.sh ref         # eval router refs
 #   bash box-run-flashnext.sh train       # cur05 mirror (primary)
+#   bash box-run-flashnext.sh train-resume # W4: resume cur05 3000->4096 (--resume)
+#   bash box-run-flashnext.sh deploy-checkpoint # raw ckpt -> deployed (branch+router)
 #   bash box-run-flashnext.sh eval        # prefix PPL + router agreement
 #   bash box-run-flashnext.sh gate-teacher # W1 48-layer KLD: teacher park
 #   bash box-run-flashnext.sh gate-student # W1 48-layer KLD: student gate
@@ -45,7 +47,7 @@ REF="$Q/eval-ref-w2.pt"
 LOCKDIR="$MOE_ARTIFACTS/.stage-lock"
 DEVICE_MAP="${DEVICE_MAP:-auto}"   # cuda:0 forces all non-PLE weights onto the GPU
 
-stage="${1:?usage: box-run-flashnext.sh <setup|preflight|smoke|cache|ref|train|eval|ple-ab>}"
+stage="${1:?usage: box-run-flashnext.sh <setup|preflight|smoke|cache|ref|train|train-resume|deploy-checkpoint|eval|gate-teacher|gate-student|export|ple-ab>}"
 
 acquire() {
     if ! mkdir "$LOCKDIR" 2>/dev/null; then
@@ -159,6 +161,45 @@ train)
     echo "1000 steps land in $Q"
     ;;
 
+train-resume)
+    cd "$REPO"
+    acquire
+    # W4: resume the cur05 arm from the step-3000 checkpoint (upload to
+    # $Q/qwen4exp-corr-r512-g128-step3000-cur05.pt first).  Optimizer restarts
+    # fresh; branches/routers are restored (--resume + --resume-step, item 7).
+    time python moe/qwen4exp_proxy.py train --model-dir "$Q4_MODEL" \
+        --device cuda:0 --device-map auto \
+        --cache-file "$CACHE" --ref-file "$REF" --compact-banks --grad-checkpoint \
+        --checkpoint-mode group --expert-group-size 64 \
+        --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
+        --kd-weight 2.0 --kd-tail-weight 2.0 --kd-tailcond-weight 3.0 --temp 2.0 \
+        --balance bias --fast-indexer --force-gpu \
+        --corpus-file "$MIXFILE" --agentic-frac 0.05 \
+        --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
+        --epochs 1 --steps 4096 --eval-every 1000 --ckpt-every 1000 \
+        --log-every 100 --tag cur05-4096 \
+        --resume "$Q/qwen4exp-corr-r512-g128-step3000-cur05.pt" --resume-step 3000
+    echo "W4 target: in-run ppl/agree at step 4000 should beat step 3000"
+    echo "(5.77 / 0.571); checkpoint at 4000 lands in $Q"
+    ;;
+
+deploy-checkpoint)
+    cd "$REPO"
+    # raw training ckpt -> deployed form (branch+router only, balance_bias
+    # dropped) so gate-student / export can consume it on the pod.
+    RAW="${RAW_CKPT:-$Q/qwen4exp-corr-r512-g128-step4096-cur05-4096.pt}"
+    DEP="${DEP_CKPT:-$Q/qwen4exp-corr-r512-g128-step4096-cur05-deployed.pt}"
+    [ -f "$RAW" ] || { echo "REFUSING: $RAW missing" >&2; exit 4; }
+    python - "$RAW" "$DEP" <<'EOF'
+import sys
+sys.path.insert(0, "moe")
+import qwen4exp_export as qx
+info = qx.write_deployed_checkpoint(sys.argv[1], sys.argv[2])
+print(f"deployed checkpoint: {info}")
+EOF
+    sha256sum "$DEP"
+    ;;
+
 train-kd5)
     cd "$REPO"
     acquire
@@ -200,9 +241,11 @@ gate-teacher)
     # Triton").  Use the manual loader instead: dequantise the official shards
     # to bf16 on the host (2 TB RAM) -- the same path as every local gate --
     # and park fp32 log-probs per window under $TCACHE.
-    CKPT="$Q/qwen4exp-corr-r512-g128-step3000-cur05-deployed.pt"
+    GATE_TAG="${GATE_TAG:-cur05}"
+    GATE_STEP="${GATE_STEP:-3000}"
+    CKPT="$Q/qwen4exp-corr-r512-g128-step${GATE_STEP}-${GATE_TAG}-deployed.pt"
     [ -f "$CKPT" ] || { echo "REFUSING: $CKPT missing -- upload the deployed" >&2
-        echo "step-3000 checkpoint first (w1w2-prep.sh writes it locally)." >&2; exit 4; }
+        echo "$GATE_STEP checkpoint first (w1w2-prep.sh writes it locally)." >&2; exit 4; }
     TCACHE="$Q/tcache-48l"
     time python moe/qwen4exp_eval.py \
         --prefix-layers 48 --ple rows --device cpu \
@@ -210,7 +253,7 @@ gate-teacher)
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --balance none --decompose-topk 512 \
         --stage teacher --model-dir "$Q4_MODEL" --tcache-dir "$TCACHE" \
-        --out "$Q/qwen4exp-eval-kld-48l-step3000.json"
+        --out "$Q/qwen4exp-eval-kld-48l-step${GATE_STEP}.json"
     echo "teacher park done: $TCACHE (run gate-student next)"
     ;;
 gate-student)
@@ -219,7 +262,9 @@ gate-student)
     # W1: 48-layer KLD gate, student half.  Fresh process: same dense load +
     # compact-banks + harden as the P2b train path, then the deployed step-3000
     # branch/router checkpoint; reads the parked teacher log-probs.
-    CKPT="$Q/qwen4exp-corr-r512-g128-step3000-cur05-deployed.pt"
+    GATE_TAG="${GATE_TAG:-cur05}"
+    GATE_STEP="${GATE_STEP:-3000}"
+    CKPT="$Q/qwen4exp-corr-r512-g128-step${GATE_STEP}-${GATE_TAG}-deployed.pt"
     [ -f "$CKPT" ] || { echo "REFUSING: $CKPT missing" >&2; exit 4; }
     TCACHE="$Q/tcache-48l"
     [ -f "$TCACHE/meta.json" ] || { echo "REFUSING: no teacher park at $TCACHE" >&2; exit 4; }
@@ -230,8 +275,8 @@ gate-student)
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --balance none --decompose-topk 512 --load "$CKPT" \
         --stage student --model-dir "$Q4_MODEL" --tcache-dir "$TCACHE" \
-        --out "$Q/qwen4exp-eval-kld-48l-step3000.json"
-    ls -la "$Q/qwen4exp-eval-kld-48l-step3000.json"
+        --out "$Q/qwen4exp-eval-kld-48l-step${GATE_STEP}.json"
+    ls -la "$Q/qwen4exp-eval-kld-48l-step${GATE_STEP}.json"
     ;;
 export)
     cd "$REPO"

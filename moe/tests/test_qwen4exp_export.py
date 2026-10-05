@@ -325,6 +325,45 @@ REF_VOCAB = [20000003, 20000023, 20000033, 20000047, 20000059, 20000063,
 REF_MULT = [23703573157769, 20109073645365, 8052911324071]
 
 
+def test_conv1d_applies_v_head_reorder():
+    ex = make_exporter()
+    n_ch = 2 * ex.q_dim + ex.nv * ex.hv
+    t = torch.arange(n_ch).unsqueeze(1).repeat(1, 4).float()
+    out = ex.apply_v_reorder(".linear_attn.conv1d.weight", t)
+    assert torch.equal(out[:2 * ex.q_dim], t[:2 * ex.q_dim])
+    expect = qx.reorder_v_heads(t[2 * ex.q_dim:], 0, ex.nk, ex.nv_per_k,
+                                ex.hv)
+    assert torch.equal(out[2 * ex.q_dim:], expect)
+
+
+def test_dt_bias_and_a_log_transforms():
+    ex = make_exporter()
+    t = torch.arange(ex.nv, dtype=torch.float32)
+    idx = qx.reorder_v_heads(t.reshape(-1, 1), 0, ex.nk, ex.nv_per_k,
+                             1).reshape(-1)
+    assert torch.equal(ex.apply_v_reorder(".linear_attn.dt_bias", t), idx)
+    assert torch.equal(ex.apply_v_reorder(".linear_attn.A_log", t),
+                       -torch.exp(idx))
+
+
+def test_norm_offsets():
+    ex = make_exporter()
+    t = torch.randn(8)
+    for suffix in (".mlp_hyper_connection.hc_norm.weight",
+                   ".attn_hyper_connection.hc_norm.weight",
+                   ".hyper_connection_mixer.hc_norm.weight",
+                   ".self_attn.q_norm.weight",
+                   ".self_attn.k_norm.weight",
+                   ".self_attn.indexer.q_layernorm.weight",
+                   ".self_attn.indexer.k_layernorm.weight",
+                   ".ple.norm_conv.weight",
+                   ".ple.norm_key.weight",
+                   ".ple.norm_query.weight"):
+        assert torch.equal(ex.apply_v_reorder(suffix, t), t + 1.0), suffix
+    # ssm_norm is the one raw norm
+    assert torch.equal(ex.apply_v_reorder(".linear_attn.norm.weight", t), t)
+
+
 def test_ple_kv_values_match_reference():
     ex = make_exporter(ple="q4_0")
     assert ex.ple_layer == 1
@@ -388,3 +427,20 @@ def test_ple_none_writes_no_ple_kv(tmp_path):
     w.close()
     meta, _ = ec.parse_local(str(out))
     assert "qwen4exp.ple.layers" not in meta
+
+
+def test_ple_table_must_be_last(tmp_path):
+    import numpy as np
+    import gguf
+    ex = make_exporter(ple="q4_0")
+    w = gguf.GGUFWriter(str(tmp_path / "order.gguf"), "qwen4exp")
+    ex.ple_rows, ex.ple_head_dim = 320001536, 160
+    ex.ple_table_nbytes = 90
+    ex.register_ple_table(w)
+    w.add_tensor("blk.0.dummy.weight",
+                 np.zeros((2, 2), dtype=np.float16))
+    w.write_header_to_file()
+    w.write_kv_data_to_file()
+    ex._iter_ple_table_bytes = lambda: iter([b"\0" * 90])
+    with pytest.raises(RuntimeError, match="last registered tensor"):
+        ex.stream_ple_table(w)

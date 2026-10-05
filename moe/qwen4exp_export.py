@@ -324,11 +324,38 @@ class Exporter:
         return out
 
     def apply_v_reorder(self, name: str, t: torch.Tensor) -> torch.Tensor:
-        """The converter's V-head reorder on dequantized float weights."""
+        """Converter-side weight transforms: V-head reorder and norm offsets."""
         if name.endswith(".linear_attn.in_proj_qkv.weight"):
             q, k, v = t[:self.q_dim], t[self.q_dim:2 * self.q_dim], t[2 * self.q_dim:]
             v = reorder_v_heads(v, 0, self.nk, self.nv_per_k, self.hv)
             return torch.cat([q, k, v], dim=0)
+        if name.endswith(".linear_attn.conv1d.weight"):
+            # the conv channels are the mixed qkv dims, so the V block follows
+            # the same head permutation as in_proj_qkv (reference parity)
+            q = t[:2 * self.q_dim]
+            v = reorder_v_heads(t[2 * self.q_dim:], 0, self.nk,
+                                self.nv_per_k, self.hv)
+            return torch.cat([q, v], dim=0)
+        if name.endswith(".linear_attn.dt_bias"):
+            return reorder_v_heads(t.reshape(-1, 1), 0, self.nk,
+                                   self.nv_per_k, 1).reshape(-1)
+        if name.endswith(".linear_attn.A_log"):
+            # the runtime stores -exp(A_log) in V-head order (reference parity)
+            r = reorder_v_heads(t.reshape(-1, 1), 0, self.nk,
+                                self.nv_per_k, 1).reshape(-1)
+            return -torch.exp(r.float())
+        if name.endswith((".attn_hyper_connection.hc_norm.weight",
+                          ".mlp_hyper_connection.hc_norm.weight",
+                          ".hyper_connection_mixer.hc_norm.weight",
+                          ".self_attn.q_norm.weight",
+                          ".self_attn.k_norm.weight",
+                          ".self_attn.indexer.q_layernorm.weight",
+                          ".self_attn.indexer.k_layernorm.weight",
+                          ".ple.norm_conv.weight",
+                          ".ple.norm_key.weight",
+                          ".ple.norm_query.weight")):
+            # every RMS norm except ssm_norm is stored as 1 + w (reference)
+            return t + 1.0
         if name.endswith(".linear_attn.in_proj_z.weight"):
             return reorder_v_heads(t, 0, self.nk, self.nv_per_k, self.hv)
         if name.endswith((".linear_attn.in_proj_a.weight",
@@ -451,6 +478,7 @@ class Exporter:
             t = self.read_hf_chunked(prefix + suffix)
             if suffix == "ple.conv1d.weight":
                 t = t.squeeze(1)
+            t = self.apply_v_reorder(prefix + suffix, t)
             data, raw = self.to_body(t, kind)
             name = gguf.TENSOR_NAMES[getattr(gguf.MODEL_TENSOR, enum)]
             name = name.format(bid=il) + ".weight"
@@ -466,16 +494,24 @@ class Exporter:
         self.ple_rows = v["rows"]
         self.ple_head_dim = v["head_dim"]
         self.ple_table_nbytes = self._ple_table_nbytes(v["rows"], v["head_dim"])
-        writer.add_tensor_info(PLE_TABLE, (v["rows"], v["head_dim"]),
-                               np.float16, self.ple_table_nbytes,
-                               raw_dtype=gguf.GGMLQuantizationType.Q4_0)
         print(f"PLE: layer {il}, table {v['rows']} x {v['head_dim']} Q4_0 "
               f"-> {self.ple_table_nbytes / 1e9:.2f} GB", flush=True)
+
+    def register_ple_table(self, writer):
+        """Register the table last: its data is appended after the spool copy."""
+        writer.add_tensor_info(PLE_TABLE, (self.ple_rows, self.ple_head_dim),
+                               np.float16, self.ple_table_nbytes,
+                               raw_dtype=gguf.GGMLQuantizationType.Q4_0)
 
     def stream_ple_table(self, writer):
         """Append the table bytes; the header already holds its info/offset."""
         if not self.ple_table_nbytes:
             return
+        # the table must be the last registered tensor or every offset after
+        # it shifts by 28.8 GB (the adapter read table bytes as NaN, 2026-10-03)
+        last_keys = list(writer.tensors[-1])
+        if not last_keys or last_keys[-1] != PLE_TABLE:
+            raise RuntimeError("PLE table is not the last registered tensor")
         fout = writer.fout[0] if isinstance(writer.fout, list) else writer.fout
         written = 0
         for buf in self._iter_ple_table_bytes():
@@ -806,6 +842,9 @@ class Exporter:
                 t = self.layer_tensor(il, suffix, hf)
                 if suffix == "linear_attn.conv1d.weight" and t.dim() == 3:
                     t = t.squeeze(1)
+                if (suffix == "mlp.shared_expert_gate.weight"
+                        and t.dim() == 2 and t.shape[0] == 1):
+                    t = t.squeeze(0)
                 t = self.apply_v_reorder(hf, t)
                 data, raw = self.to_body(t, kind)
                 gguf_key = getattr(gguf.MODEL_TENSOR, tensor_enum)
@@ -826,6 +865,7 @@ class Exporter:
             self._release_shards(il)
         for hf, tensor_enum, kind in SHARED_JOBS:
             t = self.read_hf_chunked(hf)
+            t = self.apply_v_reorder(hf, t)
             data, raw = self.to_body(t, kind)
             name = gguf.TENSOR_NAMES[getattr(gguf.MODEL_TENSOR, tensor_enum)]
             name += ".weight"
@@ -845,6 +885,9 @@ class Exporter:
             t0 = time.time()
             self.export_adapter(writer)
             self.stats["write_s"] += time.time() - t0
+        if self.ple != "none":
+            # last registration: the table data is appended after the spool copy
+            self.register_ple_table(writer)
         t0 = time.time()
         writer.write_header_to_file()
         writer.write_kv_data_to_file()
