@@ -85,6 +85,13 @@ Decisions are decoupled from body fidelity (nodown AUC 0.503).
    garbage) while the f16 control is clean; teacher-forced NLL on the f16's
    own text: 2.02 vs 1.24.  Fix: QAT v2 with **logits KD** (chunked vocab
    projection; the forensics' objective) — needs a new pod (~$4-6).
+   **Follow-up (2026-10-06):** logits-KD derisked at 0.8B (A hidden-only
+   56.3 / B hidden+logits 45.5 / C mixed+logits 40.4 PPL) — all three still
+   degenerate in free generation, so the objective alone is not the fix; the
+   0.8B needs far more training.  Artifact-level check: the QAT GGUF's hidden
+   cos through the local bridge is **0.838** (f16 control 0.9999), i.e. the
+   export is faithful and the limit is training fidelity.  Free-generation
+   samples are now part of the acceptance suite.
 3. Frozen probe re-run for the record on the QAT body (**AUC 0.573**, p in
    ~[0.37, 0.50], best BA 0.500): decisions stay decoupled, so **bf16 Clef
    remains the validator** and the QAT artifact is the generation-fidelity
