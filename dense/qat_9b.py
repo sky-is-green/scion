@@ -34,8 +34,9 @@ WORKSPACE = Path("/home/penis/Desktop/work")
 sys.path.insert(0, str(WORKSPACE / "bonsai2-ternary-forensics"))
 
 from clef_dense_load import load_text_model_streamed, patch_recurrent_gdn  # noqa: E402
-from qat_derisk import TernaryLinear, make_rot, ROTATED, UNROTATED  # noqa: E402
+from qat_derisk import make_rot, ROTATED, UNROTATED  # noqa: E402
 from quant import _lloyd_scale  # noqa: E402
+from bonsai_forensics import rotation as bf_rotation  # noqa: E402
 from transformers.optimization import Adafactor  # noqa: E402
 
 
@@ -51,14 +52,78 @@ def ternary_lloyd_ste(w: torch.Tensor, group: int = 128) -> torch.Tensor:
     return w + (q - w).detach()
 
 
-class TernaryLinear9B(TernaryLinear):
-    """TernaryLinear whose forward uses the bf16-safe Lloyd STE above."""
+def _fwht_last(x: torch.Tensor) -> torch.Tensor:
+    """Fast Walsh-Hadamard transform over the last (power-of-two) axis."""
+    n = x.shape[-1]
+    h = 1
+    while h < n:
+        x = x.reshape(*x.shape[:-1], n // (2 * h), 2, h)
+        a = x[..., 0, :].clone()
+        b = x[..., 1, :].clone()
+        x = torch.stack([a + b, a - b], dim=-2).reshape(*x.shape[:-3], n)
+        h *= 2
+    return x
+
+
+def apply_rotation_fast(x: torch.Tensor, signs: torch.Tensor,
+                        g: int) -> torch.Tensor:
+    """``R x = H (S ⊙ x)/sqrt(g)`` per block, matching the forensics basis."""
+    d = x.shape[-1]
+    y = x.reshape(*x.shape[:-1], d // g, g) * signs
+    y = _fwht_last(y) / math.sqrt(g)
+    return y.reshape(*x.shape[:-1], d)
+
+
+class TernaryLinear9B(torch.nn.Module):
+    """Linear with a ternary STE master, folded once, fast block-Hadamard input.
+
+    ``fold`` is the dense ``Rᵀ`` used only at init; the forward applies the
+    O(d log d) butterfly.  The Lloyd scale is refreshed every ``refresh``
+    forwards (it moves slowly under lr 5e-5), keeping the dominant cost to one
+    bf16 codes pass.
+    """
+
+    def __init__(self, base: torch.nn.Linear, fold: torch.Tensor | None,
+                 signs: torch.Tensor | None, g: int, group: int = 128,
+                 refresh: int = 50):
+        super().__init__()
+        w = base.weight.detach().to(torch.float32)
+        if fold is not None:
+            w = w @ fold
+        self.weight = torch.nn.Parameter(w)
+        self.group = group
+        self.g = g
+        self.refresh = max(1, int(refresh))
+        self._calls = 0
+        self._scale = None
+        self.register_buffer("signs", signs, persistent=False)
+        if base.bias is not None:
+            self.bias = torch.nn.Parameter(base.bias.detach().to(torch.float32),
+                                           requires_grad=False)
+        else:
+            self.register_parameter("bias", None)
+
+    def _refresh_scale(self) -> None:
+        with torch.no_grad():
+            wf = self.weight.float()
+            g = wf.reshape(wf.shape[0], -1, self.group)
+            mean = g.abs().mean(dim=-1)
+            self._scale = _lloyd_scale(g, mean).unsqueeze(-1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        w = ternary_lloyd_ste(self.weight, self.group)
-        if self.rot is not None:
-            x = x.to(self.rot.dtype) @ self.rot
-        return F.linear(x, w, self.bias)
+        if self._scale is None or (self._calls % self.refresh) == 0:
+            self._refresh_scale()
+        self._calls += 1
+        w = self.weight
+        scale = self._scale.to(w.dtype)
+        with torch.no_grad():
+            g = w.reshape(w.shape[0], -1, self.group)
+            codes = torch.clamp(torch.round(g / scale.clamp_min(1e-12)), -1, 1)
+            q = (codes * scale).reshape(w.shape)
+        wq = (w + (q - w).detach()).to(x.dtype)
+        if self.signs is not None:
+            x = apply_rotation_fast(x, self.signs.to(x.dtype), self.g)
+        return F.linear(x, wq, self.bias)
 
 
 def wrap_model(model, seed: int, group: int, dtype: torch.dtype,
@@ -78,15 +143,21 @@ def wrap_model(model, seed: int, group: int, dtype: torch.dtype,
         unrot = any(name.endswith(t) for t in UNROTATED)
         if not (rot or unrot):
             continue
-        a = None
+        a = fold = signs = None
+        g = 1024
         if rot:
             width = mod.in_features
             if width not in cache:
-                cache[width] = make_rot(width, seed, str(device))
-            a = cache[width]
+                rots = bf_rotation.rotations_for(width, seed)
+                g = len(rots[0])
+                signs = torch.from_numpy(
+                    np.stack(rots).astype(np.float32)).to(device)
+                fold = make_rot(width, seed, str(device))
+                cache[width] = (fold, signs, g)
+            fold, signs, g = cache[width]
         parent_name, _, child = name.rpartition(".")
         parent = model.get_submodule(parent_name) if parent_name else model
-        wrapped = TernaryLinear9B(mod, a, group)
+        wrapped = TernaryLinear9B(mod, fold, signs, g, group)
         wrapped.weight.data = wrapped.weight.data.to(dtype)
         setattr(parent, child, wrapped)
         params += wrapped.weight.numel()
@@ -150,6 +221,9 @@ def main() -> int:
     ap.add_argument("--save-every", type=int, default=200)
     ap.add_argument("--skip-targets", default="")
     ap.add_argument("--dtype", default="bfloat16", choices=("bfloat16", "float32"))
+    ap.add_argument("--kernel", default="chunked", choices=("chunked", "recurrent"),
+                    help="GDN prefill kernel; the cache was captured recurrent and "
+                         "chunked matches it at cos 0.9999 on the pod")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--max-steps-wall", type=int, default=6 * 3600)
     args = ap.parse_args()
@@ -170,9 +244,10 @@ def main() -> int:
     print("loading f16 body (bf16, recurrent GDN) ...", flush=True)
     model, _, loaded = load_text_model_streamed(
         Path(args.model) / "clef-flash-f16.gguf", device=device, dtype=dtype)
-    patch_recurrent_gdn(model)
+    if args.kernel == "recurrent":
+        patch_recurrent_gdn(model)
     model.config.use_cache = False
-    print(f"model loaded: {loaded} params", flush=True)
+    print(f"model loaded: {loaded} params (kernel {args.kernel})", flush=True)
 
     coverage = wrap_model(model, args.seed, args.group, dtype,
                           skip=tuple(s for s in args.skip_targets.split(",") if s))
@@ -232,7 +307,7 @@ def main() -> int:
             ckpt = out / f"masters-step{step}.pt"
             torch.save({n: m.weight.detach().cpu()
                         for n, m in model.named_modules()
-                        if isinstance(m, TernaryLinear)}, ckpt)
+                        if isinstance(m, TernaryLinear9B)}, ckpt)
             print(f"  saved {ckpt}", flush=True)
 
     (out / "qat.json").write_text(json.dumps({
