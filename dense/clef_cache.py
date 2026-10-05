@@ -118,6 +118,8 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--generic", type=int, default=0, help="number of generic windows")
+    ap.add_argument("--generic-only", action="store_true",
+                    help="skip bench/negatives and the joint head; text windows only")
     ap.add_argument("--negatives", type=int, default=1)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--max-tokens", type=int, default=2048)
@@ -131,12 +133,14 @@ def main() -> int:
         Path(args.model) / "clef-flash-f16.gguf", device=args.device, dtype=torch.bfloat16)
     n_gdn = patch_recurrent_gdn(model)
     tok = H.load_tokenizer(args.model)
-    head, _ = H.load_joint_head(args.model, device="cpu")
-    lm_head = H.load_lm_head(args.model, device="cpu")
+    head = lm_head = None
+    if not args.generic_only:
+        head, _ = H.load_joint_head(args.model, device="cpu")
+        lm_head = H.load_lm_head(args.model, device="cpu")
     print(f"teacher loaded ({loaded} params, {n_gdn} GDN patched)", flush=True)
 
-    rows = load_bench()
-    if args.negatives:
+    rows = [] if args.generic_only else load_bench()
+    if args.negatives and not args.generic_only:
         rows += make_negatives(rows)
     # encode decision records
     entries = []

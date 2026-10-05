@@ -87,3 +87,32 @@ also uploads 4-8 GB of hidden states.
 Rental of option A (~$1-4) or B (~$5-12) plus local prep time.  After
 approval: prep locally first, then create the pod, run, and report PPL and
 the probe.
+
+## Execution checklist (option A, approved 2026-10-05)
+
+Local prep (free):
+1. Teacher cache: `python dense/clef_cache.py --model models/clef-flash-ternary
+   --out <out>/teacher-cache --generic 2048 --generic-only` (f16 body,
+   recurrent GDN; ~8 GB fp16 hidden states + index.json).  **Blocked:** the
+   non-display GPU is held by another lane's `llama-server` (Qwen4-exp);
+   per policy, no torch beside a serving engine — waits for the card.
+2. Upload set (rsync): `clef-flash-f16.gguf` (17.9 GB), `teacher-cache/`,
+   `scion/dense/` (`qat_9b.py`, `clef_dense_load.py`, `qat_derisk.py`,
+   `quant.py`, `clef_cache.py`), `bonsai2-ternary-forensics/bonsai_forensics/`
+   (rotation utils), `llama.cpp/gguf-py`.
+3. Pod env (mirror `RENTAL-RUNBOOK.md` §3): torch + transformers==5.5.0, no
+   `fla`/`causal_conv1d`, `PYTHONPATH=<gguf-py>`,
+   `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, version pin manifest.
+
+Run (pod):
+```
+PYTHONPATH=<gguf-py> python dense/qat_9b.py --model ./clef-flash-ternary \
+    --cache ./teacher-cache --out ./qat-run \
+    --steps 800 --batch 2 --seq 512 --eval-every 50 --save-every 200
+```
+Eval / export (local, after rsync back): export the trained masters to the V2
+GGUF (new `dense/clef_export_qat.py`: Lloyd g128 + `pack_q1_0_g128` + prism
+metadata), then `llama-perplexity` (c512, 100 chunks) + the frozen probe.
+
+Controls: rsync `masters-step*.pt` as they land; teardown via the provider API
+from the local box; hard caps 4 GPU-h / $15 / 6 h wall + external watchdog.
