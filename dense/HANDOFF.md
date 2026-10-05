@@ -80,6 +80,11 @@ Decisions are decoupled from body fidelity (nodown AUC 0.503).
    attn_qkv/attn_gate/ssm_out before packing (`dense/clef_export_qat.py`).
    Remaining: frozen decision probe for the record, release prep
    (`docs/HF-RELEASE-NOTES.md`), optional longer (2400-step) or mixed-base run.
+   **Pre-post test caught a blocker (2026-10-05):** v1 (hidden KD only) passes
+   PPL but its **free generation degenerates** (loops / wrong math / code
+   garbage) while the f16 control is clean; teacher-forced NLL on the f16's
+   own text: 2.02 vs 1.24.  Fix: QAT v2 with **logits KD** (chunked vocab
+   projection; the forensics' objective) — needs a new pod (~$4-6).
 3. Frozen probe re-run for the record on the QAT body (**AUC 0.573**, p in
    ~[0.37, 0.50], best BA 0.500): decisions stay decoupled, so **bf16 Clef
    remains the validator** and the QAT artifact is the generation-fidelity
