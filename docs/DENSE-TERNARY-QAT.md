@@ -333,3 +333,13 @@ exact 9B memory numbers: [`dense/SOLVER-PLAN.md`](SOLVER-PLAN.md).  Exact
 commands, assets, disk/GPU constraints and the
 continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
 THREAD.
+
+**Post-QAT reality check (2026-10-06).**  The QAT body's free generation is
+degraded (code/math; the f16 control is clean) and logits-KD/mixed derisks at
+0.8B did not fix it at our training scale; the artifact itself is faithful
+(bridge hidden cos 0.838 vs f16 0.9999).  The community already ships many 4-8
+bit Clef/Clef-Flash quants but **no ternary Clef**; the ternary quality bar is
+PrismML's *trained* Ternary-Bonsai-8B (2.03 GiB, ~1.44x, near-base benchmarks)
+and TAARDIS-27B.  Gating next step: quantize the Clef-Flash f16 to
+TQ1_0/TQ2_0/PTQ1_0 (+optional imatrix) and compare PPL + generation before any
+release or larger training spend.

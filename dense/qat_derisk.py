@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -213,6 +214,48 @@ def sample_batches(windows: list[list[int]], batch: int, steps: int, seed: int):
 
 
 @torch.no_grad()
+def generate(model: Qwen3_5TextModel, tok, prompt: str, n: int = 120,
+             temp: float = 0.7, seed: int = 0) -> str:
+    """Plain completion from the (wrapped ternary) student, tied head."""
+    model.eval()
+    g = torch.Generator(device=model.device).manual_seed(seed)
+    ids = tok(prompt, return_tensors="pt").input_ids.to(model.device)
+    for _ in range(n):
+        h = model(input_ids=ids).last_hidden_state[:, -1, :]
+        logits = h @ model.embed_tokens.weight.to(h.dtype).t()
+        if temp <= 0:
+            nxt = logits.argmax(-1, keepdim=True)
+        else:
+            probs = (logits.float() / temp).softmax(-1)
+            nxt = torch.multinomial(probs[0], 1, generator=g).unsqueeze(0)
+        ids = torch.cat([ids, nxt], dim=1)
+    return tok.decode(ids[0], skip_special_tokens=True)
+
+
+def logits_kd(sh: torch.Tensor, th: torch.Tensor, head_w: torch.Tensor,
+              temp: float = 1.0, chunk: int = 128) -> torch.Tensor:
+    """KL(student || teacher) over token chunks; head projection checkpointed.
+
+    Keeps peak memory to ~one chunk of vocab logits (full-vocab KD at
+    4x512 tokens costs ~2 GB each side on a 248k vocab).
+    """
+    total = sh.new_zeros(())
+    n = sh.shape[1]
+    for s in range(0, n, chunk):
+        e = min(s + chunk, n)
+        seg = sh[:, s:e, :]
+        slogits = checkpoint(lambda z: z @ head_w.to(z.dtype).t(), seg,
+                             use_reentrant=False)
+        with torch.no_grad():
+            tlogits = th[:, s:e, :] @ head_w.to(th.dtype).t()
+        total = total + F.kl_div(
+            F.log_softmax(slogits / temp, dim=-1),
+            F.log_softmax(tlogits / temp, dim=-1),
+            log_target=True, reduction="sum") * temp ** 2
+    return total / (sh.shape[0] * n)
+
+
+@torch.no_grad()
 def perplexity(model: Qwen3_5TextModel, windows: list[list[int]],
                device: str, batch: int = 2) -> float:
     was_training = model.training
@@ -260,6 +303,8 @@ def main() -> int:
                     help="weight for logits KL; 0 = hidden-state KD only "
                          "(vocab logits are ~2 GB at batch 4 x 512)")
     ap.add_argument("--kd-temp", type=float, default=1.0)
+    ap.add_argument("--gen-samples", action="store_true",
+                    help="generate prose/code/math samples at the end")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--no-rotation", action="store_true",
                     help="debug/control: ternarize targets without the fold")
@@ -337,13 +382,8 @@ def main() -> int:
         loss = loss_h
         loss_kd = torch.zeros((), device=device)
         if args.kd_logits > 0.0:
-            with torch.no_grad():
-                tlogits = th @ teacher.embed_tokens.weight.to(th.dtype).t()
-            slogits = sh @ student.embed_tokens.weight.to(sh.dtype).t()
-            loss_kd = F.kl_div(
-                F.log_softmax(slogits / args.kd_temp, dim=-1),
-                F.log_softmax(tlogits / args.kd_temp, dim=-1),
-                log_target=True, reduction="batchmean") * args.kd_temp ** 2
+            loss_kd = logits_kd(sh, th, student.embed_tokens.weight,
+                                temp=args.kd_temp)
             loss = loss + args.kd_logits * loss_kd
         loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)
@@ -362,6 +402,19 @@ def main() -> int:
                   flush=True)
             student.train()
 
+    samples = []
+    if args.gen_samples:
+        prompts = [
+            ("The history of the Roman Empire begins with", 0.7, 120),
+            ("def fibonacci(n):", 0.7, 120),
+            ("Question: A train travels 240 km in 3 hours. What is its "
+             "average speed? Answer:", 0.0, 100),
+        ]
+        for prompt, temp, n in prompts:
+            text = generate(student, tok, prompt, n=n, temp=temp, seed=args.seed)
+            samples.append({"prompt": prompt, "temperature": temp, "text": text})
+            print(f"--- sample temp {temp}: {prompt}\n{text[:400]}\n", flush=True)
+
     result = {
         "model_dir": str(snap),
         "coverage": coverage,
@@ -369,6 +422,7 @@ def main() -> int:
         "ppl_f16": ppl_f16,
         "ppl_posthoc": ppl_rtn,
         "history": history,
+        "samples": samples,
         "elapsed_s": time.time() - t0,
     }
     (out / "derisk.json").write_text(json.dumps(result, indent=1))

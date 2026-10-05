@@ -78,8 +78,9 @@ Decisions are decoupled from body fidelity (nodown AUC 0.503).
    gotcha: the pod trains the reverse-loaded HF layout, so the export must
    re-apply the inverse of the loader's GDN V-head reorder (`_undo_gdn`) for
    attn_qkv/attn_gate/ssm_out before packing (`dense/clef_export_qat.py`).
-   Remaining: frozen decision probe for the record, release prep
-   (`docs/HF-RELEASE-NOTES.md`), optional longer (2400-step) or mixed-base run.
+   Remaining (gated on the generation blocker below): optional longer
+   (2400-step) or mixed-base run, then release prep
+   (`docs/HF-RELEASE-NOTES.md`).
    **Pre-post test caught a blocker (2026-10-05):** v1 (hidden KD only) passes
    PPL but its **free generation degenerates** (loops / wrong math / code
    garbage) while the f16 control is clean; teacher-forced NLL on the f16's
@@ -97,7 +98,26 @@ Decisions are decoupled from body fidelity (nodown AUC 0.503).
    remains the validator** and the QAT artifact is the generation-fidelity
    community quant.  Release prep per `docs/HF-RELEASE-NOTES.md` (license
    clean) once release decisions are in scope.
-4. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
+4. **Community landscape (2026-10-06) + the gating experiment.**  Clef and
+   Clef-Flash already have plenty of 4-8 bit community quants (bartowski GGUFs
+   + imatrix, ggml-org official GGUFs, MLX 4/8-bit, FP8/NVFP4, EXL3, OpenVINO,
+   and **W4A16 AutoRound/GPTQ for both sizes** by Vishva007) — but **no
+   ternary Clef exists**.  The ternary ecosystem's bar: PrismML
+   **Ternary-Bonsai-8B** (trained low-bit; Q2_0 g128 codec; own `prism` fork):
+   2.03 GiB, benchmark avg 75.5 vs 79.3 base (≈1.44x PPL), 2nd of all 6-9B
+   models; TAARDIS-27B 13.61 PPL; mainline TQ1_0/TQ2_0 (our fork also has
+   **PTQ1_0 type 143**, the Prism 1.75 bpw codec); TurboQuant TQ3_1S/TQ4_1S
+   (WHT-rotated, third-party fork).  Evaluation norm is **KL / top-1 vs bf16
+   on ~250k mixed tokens incl. code** (localbench) or benchmark suites —
+   wikitext PPL + a few samples is below it.  Our QAT is novel for Clef but
+   not competitive, so **do not post yet**.  **Next (gating, local, ~1 h):**
+   quantize `clef-flash-f16.gguf` to `TQ1_0` / `TQ2_0` / `PTQ1_0` (optional
+   `llama-imatrix` first) and measure PPL + generation with the same harness.
+   If plain community ternary matches or beats our GPTQ+rotation+QAT result,
+   the pipeline is a research dead end at this scale (park, or go
+   Bonsai-style trained-low-bit, GPU-days); if ours clearly wins, we have a
+   contribution and a target for a proper corpus+budget run.
+5. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
    test was rotate-quantize-unrotate, a different scheme); if Goal B lands,
    porting is worth it — `build_lora_mm_id` supports expert rotation for
    qwen3moe/qwen35moe, but OLMoE is not in the fork's verified arch allow-list,

@@ -117,18 +117,22 @@ headroom; see [`HANDOFF.md`](HANDOFF.md) (CURRENT THREAD) and
 levers (per-head GDN readout tap, damage-based rank allocation, the Goal-B
 quantizer work).
 
-## Goal B: ternary community-quant thread (2026-10-04)
+## Goal B: ternary community-quant thread (2026-10-04, updated 2026-10-06)
 
 Goal B is a genuinely good ternary Clef for HF (community quant, fine-tune
-later), metric = wikitext PPL.  The local pipeline is rotation +
-signed basis + PQ2_0 + optional Hessian GPTQ, with the deployed Lloyd scale
-rule.  Ladder (f16 = 12.59): deployed 8684 -> V2 identity-sign RTN 514 ->
-signed RTN **476** -> mixed-precision `nodown` **265**; GPTQ with absmean
-scales 2460 vs absmean RTN 15937 (**the scale rule dominates**, 33x), so the
-current run is GPTQ + Lloyd scales.  Details, exact commands, assets and the
-next-step ladder: [`HANDOFF.md`](HANDOFF.md) **CURRENT THREAD** section.
-Decision side (for the record): body fidelity is decoupled from the frozen
-head (best variant probe AUC 0.503); bf16 Clef remains the validator.
+later).  Pipeline: rotation + signed basis + PQ2_0 + GPTQ/act-order + mixed
+precision + rotation-in-the-loop QAT.  Ladder (f16 = 12.59): deployed 8684 ->
+signed RTN **476** -> GPTQ+act-order **141.6** -> 128-w Hessians **120.6** ->
++`ffn_down` F16 **75.2** -> **QAT 23.25** (5.52 GiB all-ternary; one L40S,
+~$3.9).  **Blocker:** free generation degrades (code/math) while the f16
+control is clean; logits-KD and mixed derisks at 0.8B did not fix it at our
+~1.2M-token training budget, and the community bar is PrismML's *trained*
+Ternary-Bonsai-8B (2.03 GiB, ~1.44x PPL, near-base benchmarks) — so **no
+release yet**.  Next (gating, local): TQ1_0/TQ2_0/PTQ1_0 Clef-Flash baselines
+(+imatrix) as the comparison.  Details, commands and assets:
+[`HANDOFF.md`](HANDOFF.md) **CURRENT THREAD**.  Decision side (for the record):
+body fidelity is decoupled from the frozen head (QAT probe AUC 0.573); bf16
+Clef remains the validator.
 
 ## Validated on this box (2026-10-03)
 

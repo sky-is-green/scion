@@ -116,3 +116,15 @@ metadata), then `llama-perplexity` (c512, 100 chunks) + the frozen probe.
 
 Controls: rsync `masters-step*.pt` as they land; teardown via the provider API
 from the local box; hard caps 4 GPU-h / $15 / 6 h wall + external watchdog.
+
+## Outcome (2026-10-05/06)
+
+Executed on one L40S 48 GB secure pod (US-TX-4, ~$3.9, pod deleted): QAT v1
+(all-ternary, 1200 steps, hidden KD) reached **PPL 23.25** (1.85x f16), 5.52
+GiB container.  Pre-post generation testing then found degenerate free
+generation (code/math; f16 control clean); logits-KD (added, chunked +
+checkpointed) and mixed-base derisks at 0.8B did not fix it at our training
+scale, and the exported artifact is faithful (bridge hidden cos 0.838 vs f16
+0.9999).  **Do not run this plan again as-is** until the community-baseline
+gate (TQ1_0/PTQ1_0 Clef-Flash comparison, HANDOFF CURRENT THREAD item 4) says
+the pipeline is worth a larger corpus + budget run.

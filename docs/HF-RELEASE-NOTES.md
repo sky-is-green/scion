@@ -38,24 +38,30 @@ Apache-2.0 (both Clef and Qwen lineage) requires:
 5. No NOTICE file exists in the Clef repo, so none needs to be propagated
    (re-check at post time).
 
-## Current release candidate (2026-10-04)
+## Current release candidate (2026-10-06)
 
-**Not ready to post.**  The Goal-B quant thread (`../dense/HANDOFF.md`
-CURRENT THREAD) is at PPL 476 (signed RTN) with GPTQ+Lloyd in flight; the
-earlier sidecar corrections are decision-degenerate (constant-accept) and must
-not be posted.  Upload the set below once the quant passes acceptance: PPL
-approaching f16 (12.59) and the frozen decision probe re-run for the record.
+**Not ready to post.**  The ternary quant thread reached **PPL 23.25** (5.52
+GiB all-ternary QAT of the Clef-Flash text backbone; f16 12.59) but its free
+generation degrades (code/math; the f16 control is clean) — a release would
+fail on first use.  The sidecar corrections remain decision-degenerate
+(constant accept) and must not be posted.  Community context: Clef/Clef-Flash
+already have many 4-8 bit quants (bartowski/ggml-org GGUFs, MLX, FP8/NVFP4,
+EXL3, OpenVINO, W4A16 AutoRound/GPTQ for both sizes) but **no ternary Clef**;
+the ternary bar is PrismML's trained Ternary-Bonsai-8B (~1.44x PPL at
+2.03 GiB, near-base benchmarks).  Gate before any upload: beat the
+community-standard TQ1_0/PTQ1_0 Clef-Flash baseline (+imatrix) on PPL **and**
+generation, with KL/top-1-style evaluation.
 
-## Suggested upload set (single directory)
+## Suggested upload set (once a quant passes the gate)
 
-- `clef-flash-PQ2_0-corr-r512-g128-step78.gguf` (3.10 GiB, single-file
-  release; corrections embedded)
-- `clef-flash-corr-r512-g128-step78.lora.gguf` (71 MB, standalone adapter)
-- `hf-head/` + `lm_head.safetensors` only if we intend to make the repo
-  runnable end-to-end; otherwise link to the Cloudflare release (keeps us from
-  re-hosting files we didn't change)
-- `README.md` (model card: attribution, changes, eval table, caveats)
-- `LICENSE` (Apache-2.0)
+- the ternary Clef-Flash GGUF (currently `v2/clef-flash-v2-qat-a1.gguf`, when
+  its generation passes) + a runtime note (rotation metadata needs the fork);
+- `README.md` (model card: attribution, changes, eval table incl. KL/top-1,
+  generation samples, caveats, non-affiliation disclaimer);
+- `LICENSE` (Apache-2.0).
+- The joint head/tokenizer are Cloudflare's — link rather than re-host unless
+  a runnable end-to-end repo is intended.  Do **not** include the dead sidecar
+  corrections.
 
 ## Code credits state (for the card)
 
