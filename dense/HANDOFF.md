@@ -80,8 +80,11 @@ Decisions are decoupled from body fidelity (nodown AUC 0.503).
    attn_qkv/attn_gate/ssm_out before packing (`dense/clef_export_qat.py`).
    Remaining: frozen decision probe for the record, release prep
    (`docs/HF-RELEASE-NOTES.md`), optional longer (2400-step) or mixed-base run.
-3. When a good quant exists: re-run the frozen decision probe for the record
-   and prepare the HF release per `docs/HF-RELEASE-NOTES.md` (license clean).
+3. Frozen probe re-run for the record on the QAT body (**AUC 0.573**, p in
+   ~[0.37, 0.50], best BA 0.500): decisions stay decoupled, so **bf16 Clef
+   remains the validator** and the QAT artifact is the generation-fidelity
+   community quant.  Release prep per `docs/HF-RELEASE-NOTES.md` (license
+   clean) once release decisions are in scope.
 4. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
    test was rotate-quantize-unrotate, a different scheme); if Goal B lands,
    porting is worth it — `build_lora_mm_id` supports expert rotation for

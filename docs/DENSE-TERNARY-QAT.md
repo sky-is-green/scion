@@ -327,8 +327,9 @@ all-ternary 600 steps -> 48.4, mixed base (`down_proj` F16) 10,020 -> 48.8 in
 validated at small scale.  **QAT landed (2026-10-05):** the all-ternary h128
 body trained against the f16 hidden-state cache (1200 steps, one L40S 48 GB,
 ~$3.9) reaches **PPL 23.25** in the same 5.52 GiB container (5.2x over the
-120.62 PTQ ceiling; f16 12.59).  Plan with exact 9B memory numbers:
-[`dense/SOLVER-PLAN.md`](SOLVER-PLAN.md).  Exact commands, assets, disk/GPU
-constraints and the
+120.62 PTQ ceiling; f16 12.59).  Frozen probe on the QAT body: AUC 0.573, best
+BA 0.500 (decisions stay decoupled; bf16 keeps the validator).  Plan with
+exact 9B memory numbers: [`dense/SOLVER-PLAN.md`](SOLVER-PLAN.md).  Exact
+commands, assets, disk/GPU constraints and the
 continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
 THREAD.
