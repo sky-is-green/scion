@@ -50,6 +50,7 @@ below).
 | **+ 128-w Hessians (h128, act-order)** | **120.6** |
 | **+ ffn_down F16 (h128 nodown)** | **75.2** |
 | + flip-polish 4 passes (same recipe) | 3012.8 (falsified) |
+| **QAT (rotation-in-the-loop KD, all-ternary)** | **23.3** |
 
 **Findings:** rotation is the entire V2 gain (control = deployed); the **scale
 rule dominates everything** (Lloyd vs absmean RTN = 33x); GPTQ's compensation
@@ -60,25 +61,25 @@ stacks again on top of GPTQ+h128 (keeping `ffn_down` F16: 120.6 -> **75.2**,
 1.60x, +2.6 GiB).  **Flip-polish is falsified** in the greedy per-trit form:
 the Hessian proxy drops 35-95% per tensor but PPL explodes 75.2 -> 3012.8 —
 per-layer proxy descent past GPTQ's constrained point does not survive
-end-to-end compounding (the forensics' local-KD warning).  Decisions are
-decoupled from body fidelity (nodown AUC 0.503).
+end-to-end compounding (the forensics' local-KD warning).  **QAT is the real
+lever**: 120.6 -> **23.3** (5.2x) with 1200 steps of rotation-in-the-loop KD on
+one L40S (~$3.9), in the same 5.52 GiB all-ternary container (1.85x f16).
+Decisions are decoupled from body fidelity (nodown AUC 0.503).
 
 **Next steps (ordered):**
 1. PTQ is exhausted: rotation, Lloyd, GPTQ+act-order, h128 windows and
    `ffn_down` F16 are in (**75.2**, 8.13 GiB); flip-polish is falsified
    (3012.8), `--gptq-refine` is a no-op, and the lever ranking says damping,
    sign seeds and further window stacking cannot give measurable gains.
-2. **Rotation-in-the-loop KD/QAT** (the forensics' demonstrated mechanism;
-   needs a rental) is the route to close the remaining ~6x to f16.  Derisked
-   locally on Qwen3.5-0.8B (`dense/qat_derisk.py`, same hybrid arch): rotated
-   ternary STE + f16 hidden-state KD recovers a post-hoc ternary body from
-   **PPL 34,938 to 57.1 (612x) in 300 steps / 21 min** (2.1x f16 27.2; peak
-   7.8 GB VRAM at batch 4x512).  Longer and mixed-base runs: all-ternary 600
-   steps -> **48.4** (1.78x f16, 39 min); mixed base (`down_proj` F16) starts
-   at 10,020 and reaches **48.8 in 300 steps** (18 min).  Both bases converge
-   to ~48-49; the mixed one gets there ~4x faster.  Rental base choice: 75.2
-   mixed (8.13 GiB) vs 120.6 all-ternary (5.52 GiB); hidden KD alone is the
-   strong signal.  Plan: [`dense/SOLVER-PLAN.md`](SOLVER-PLAN.md).
+2. **Rotation-in-the-loop KD/QAT is DONE** (2026-10-05, L40S 48 GB rental,
+   ~$3.9): the all-ternary h128 base trained 1200 steps against the f16 hidden
+   cache -> **PPL 23.25** (5.2x better than the 120.6 PTQ ceiling; 1.85x f16)
+   in the same 5.52 GiB container (`v2/clef-flash-v2-qat-a1.gguf`).  Export
+   gotcha: the pod trains the reverse-loaded HF layout, so the export must
+   re-apply the inverse of the loader's GDN V-head reorder (`_undo_gdn`) for
+   attn_qkv/attn_gate/ssm_out before packing (`dense/clef_export_qat.py`).
+   Remaining: frozen decision probe for the record, release prep
+   (`docs/HF-RELEASE-NOTES.md`), optional longer (2400-step) or mixed-base run.
 3. When a good quant exists: re-run the frozen decision probe for the record
    and prepare the HF release per `docs/HF-RELEASE-NOTES.md` (license clean).
 4. MoE aside: the Scion MoE route never used runtime rotation (its one rotation

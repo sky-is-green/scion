@@ -30,6 +30,7 @@ sys.path.insert(0, str(HERE))
 from clef_v2_convert import (  # noqa: E402
     BLOCK, PQ2_0, ROTATED, UNROTATED_TERNARY, add_prism_metadata, copy_metadata,
     pack_ternary, sign_table)
+from clef_dense_load import HK, HV, NK, NV, reorder_v_heads  # noqa: E402
 from gguf import GGUFReader, GGUFWriter, Keys  # noqa: E402
 
 _GGUF_TO_HF = {
@@ -53,6 +54,20 @@ def gguf_to_hf(name: str) -> str:
     return f"layers.{m.group(1)}.{_GGUF_TO_HF[m.group(2)]}.weight"
 
 
+def hf_to_gguf(kind: str, w: torch.Tensor) -> torch.Tensor:
+    """Inverse of the reverse loader's GDN reorder (HF layout -> GGUF layout)."""
+    rep = NV // NK
+    if kind == "attn_qkv":
+        qd = kd = HK * NK
+        q, k, v = w[:qd], w[qd:qd + kd], w[qd + kd:]
+        return torch.cat([q, k, reorder_v_heads(v, 0, NK, rep, HV)], dim=0)
+    if kind == "attn_gate":
+        return reorder_v_heads(w, 0, NK, rep, HV)
+    if kind == "ssm_out":
+        return reorder_v_heads(w, 1, NK, rep, HV)
+    return w
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--masters", required=True)
@@ -63,6 +78,8 @@ def main() -> int:
 
     src, dst = Path(args.src), Path(args.dst)
     masters = torch.load(args.masters, map_location="cpu")
+    masters = {k[:-len(".weight")] if k.endswith(".weight") else k: v
+               for k, v in masters.items()}
     print(f"masters: {len(masters)} tensors", flush=True)
 
     reader = GGUFReader(src)
@@ -71,7 +88,7 @@ def main() -> int:
     width_of = {t.name: int(t.data.shape[-1]) for t in reader.tensors}
     candidates = [n for n in names
                   if ROTATED.match(n) or UNROTATED_TERNARY.match(n)]
-    targets = [n for n in candidates if gguf_to_hf(n) in masters]
+    targets = [n for n in candidates if gguf_to_hf(n)[:-len(".weight")] in masters]
     kept = [n for n in candidates if n not in set(targets)]
     rotated_names = [n for n in targets if ROTATED.match(n)]
     print(f"ternary targets {len(targets)} (rotated {len(rotated_names)}), "
@@ -82,23 +99,28 @@ def main() -> int:
     sign_widths, sign_values = sign_table(rotated_names, width_of, args.sign_seed)
     add_prism_metadata(writer, rotated_names, sign_widths, sign_values)
 
+    # single pass in reader order: info order must match the data write order
     t0 = time.time()
     packed: dict[str, np.ndarray] = {}
-    for i, name in enumerate(targets):
-        w = masters[gguf_to_hf(name)].float().cpu().numpy()
-        if w.shape[-1] != width_of[name]:
-            raise SystemExit(f"{name}: master width {w.shape[-1]} != {width_of[name]}")
-        packed[name] = pack_ternary(w, "lloyd")
-        writer.add_tensor_info(name, packed[name].shape, packed[name].dtype,
-                               packed[name].nbytes, raw_dtype=PQ2_0)
-        if (i + 1) % 50 == 0:
-            print(f"  packed {i+1}/{len(targets)} ({time.time()-t0:.0f}s)",
-                  flush=True)
-    for name in names:
-        if name in set(targets):
-            continue
-        t = next(t for t in reader.tensors if t.name == name)
-        writer.add_tensor_info(name, t.data.shape, t.data.dtype, t.data.nbytes)
+    target_set = set(targets)
+    for i, t in enumerate(reader.tensors):
+        if t.name in target_set:
+            kind = t.name.split(".")[2]
+            wt = hf_to_gguf(kind, masters[gguf_to_hf(t.name)[:-len(".weight")]].float().cpu())
+            w = wt.numpy()
+            if w.shape[-1] != width_of[t.name]:
+                raise SystemExit(
+                    f"{t.name}: master width {w.shape[-1]} != {width_of[t.name]}")
+            arr = pack_ternary(w, "lloyd")
+            packed[t.name] = arr
+            writer.add_tensor_info(t.name, arr.shape, arr.dtype, arr.nbytes,
+                                   raw_dtype=PQ2_0)
+            if len(packed) % 50 == 0:
+                print(f"  packed {len(packed)}/{len(targets)} "
+                      f"({time.time()-t0:.0f}s)", flush=True)
+        else:
+            writer.add_tensor_info(t.name, t.data.shape, t.data.dtype,
+                                   t.data.nbytes)
 
     writer.write_header_to_file()
     writer.write_kv_data_to_file()
