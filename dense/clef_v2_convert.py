@@ -93,6 +93,76 @@ def load_hessian(path: Path) -> np.ndarray:
         return raw.reshape(d, d)
 
 
+def flip_polish(w: np.ndarray, codes: torch.Tensor, scales: torch.Tensor,
+                hessian: np.ndarray, group_size: int,
+                passes: int) -> torch.Tensor:
+    """Greedy trit-flip polish on top of GPTQ codes.
+
+    Minimises ``trace((W - Ŵ) H (W - Ŵ)ᵀ)`` over the ternary codes with an
+    exact column sweep: the single-flip cost is
+    ``dE = -2·δ·G[r,c] + δ²·H[c,c]`` with ``G = (W - Ŵ)H``; flips in different
+    rows are independent, so one sweep applies ``{-1,0,1}`` moves per column
+    vectorised and updates ``G`` rows for the cross-column terms.  Passes
+    repeat until no flip or no objective improvement, and the unpolished codes
+    are kept if a pass would regress.
+    """
+    wt = torch.from_numpy(np.ascontiguousarray(w, dtype=np.float32))
+    ht = torch.from_numpy(np.ascontiguousarray(hessian, dtype=np.float32))
+    in_f = wt.shape[1]
+    s = scales.float().repeat_interleave(group_size, dim=-1)[:, :in_f]
+    inf = float("inf")
+
+    def objective(c: torch.Tensor) -> float:
+        e = wt - c * s
+        return float((e * (e @ ht)).sum())
+
+    cur = codes.float().clone()
+    best = cur.clone()
+    best_obj = objective(best)
+    hdiag = torch.diagonal(ht).clone()
+    for _ in range(max(0, int(passes))):
+        g = (wt - cur * s) @ ht
+        total = 0
+        for c in range(in_f):
+            cc = cur[:, c]
+            sc = s[:, c]
+            gc = g[:, c]
+            hc = hdiag[c]
+            cand_p = torch.clamp(cc + 1, -1, 1)
+            cand_m = torch.clamp(cc - 1, -1, 1)
+            cand_s = -cc
+            d_p = (cand_p - cc) * sc
+            d_m = (cand_m - cc) * sc
+            d_s = (cand_s - cc) * sc
+            e_p = -2.0 * d_p * gc + d_p * d_p * hc
+            e_m = -2.0 * d_m * gc + d_m * d_m * hc
+            e_s = -2.0 * d_s * gc + d_s * d_s * hc
+            e_p = e_p.masked_fill(cand_p == cc, inf)
+            e_m = e_m.masked_fill(cand_m == cc, inf)
+            e_s = e_s.masked_fill(cand_s == cc, inf)
+            all_e = torch.stack([e_p, e_m, e_s])
+            j = torch.argmin(all_e, dim=0)
+            e_best = all_e.gather(0, j.unsqueeze(0)).squeeze(0)
+            move = torch.nonzero(e_best < 0, as_tuple=False).squeeze(1)
+            if move.numel() == 0:
+                continue
+            jj = j[move]
+            d = torch.stack([d_p, d_m, d_s])[jj, move]
+            t = torch.stack([cand_p, cand_m, cand_s])[jj, move]
+            cur[move, c] = t
+            g[move, :] -= d.unsqueeze(1) * ht[c, :].unsqueeze(0)
+            total += int(move.numel())
+        if total == 0:
+            break
+        obj = objective(cur)
+        if obj < best_obj:
+            best_obj = obj
+            best = cur.clone()
+        else:
+            break
+    return best.to(torch.int8)
+
+
 def quantize_target(name: str, w: np.ndarray, rots: list[np.ndarray] | None,
                     hessian_dir: Path | None, args) -> tuple[np.ndarray, bool]:
     """GPTQ when a Hessian exists for this tensor, else deployed Lloyd RTN.
@@ -120,7 +190,11 @@ def quantize_target(name: str, w: np.ndarray, rots: list[np.ndarray] | None,
             **extra,
         )
         scales = res.scales.float().repeat_interleave(res.group_size, dim=-1)
-        values = (res.codes.float() * scales[:, : w.shape[1]]).numpy()
+        codes = res.codes
+        if getattr(args, "flip_polish", 0):
+            codes = flip_polish(w, codes, res.scales, h, res.group_size,
+                                args.flip_polish)
+        values = (codes.float() * scales[:, : w.shape[1]]).numpy()
         return pack_q1_0_g128(torch.from_numpy(values)), True
     return pack_ternary(w, args.rule), False
 
@@ -207,6 +281,20 @@ def self_test() -> None:
         print(f"self-test GPTQ smoke ({tag} scales): rel err {rel:.3f} "
               f"({res.codes.shape} codes) OK")
 
+    res = gptq.gptq_quantize(torch.from_numpy(w), torch.from_numpy(h),
+                             group_size=128, block_size=128, refine_iters=0,
+                             scales=ternary_lloyd_scales(torch.from_numpy(w), 128))
+    s = res.scales.float().repeat_interleave(res.group_size, dim=-1)
+
+    def obj(c: torch.Tensor) -> float:
+        e = torch.from_numpy(w) - c.float() * s
+        return float((e * (e @ torch.from_numpy(h))).sum())
+
+    polished = flip_polish(w, res.codes, res.scales, h, res.group_size, 4)
+    assert obj(polished) <= obj(res.codes) + 1e-6, "flip-polish regressed"
+    print(f"self-test flip-polish: obj {obj(res.codes):.3f} -> "
+          f"{obj(polished):.3f} OK")
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -229,6 +317,8 @@ def main() -> int:
                     help="group-scale LS refinement iters (0 = absmean, the PQ2_0 rule)")
     ap.add_argument("--gptq-lloyd-scales", action="store_true",
                     help="use the deployed Lloyd group scales inside GPTQ")
+    ap.add_argument("--flip-polish", type=int, default=0, metavar="PASSES",
+                    help="greedy trit-flip polish passes on GPTQ codes (0 = off)")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
