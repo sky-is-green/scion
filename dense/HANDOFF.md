@@ -69,8 +69,12 @@ decoupled from body fidelity (nodown AUC 0.503).
    (3012.8), `--gptq-refine` is a no-op, and the lever ranking says damping,
    sign seeds and further window stacking cannot give measurable gains.
 2. **Rotation-in-the-loop KD/QAT** (the forensics' demonstrated mechanism;
-   needs a rental) is the route to close the remaining ~6x to f16.  Decide the
-   base first: 75.2 mixed (8.13 GiB) vs 120.6 all-ternary (5.52 GiB).
+   needs a rental) is the route to close the remaining ~6x to f16.  Derisked
+   locally on Qwen3.5-0.8B (`dense/qat_derisk.py`, same hybrid arch): rotated
+   ternary STE + f16 hidden-state KD recovers a post-hoc ternary body from
+   **PPL 34,938 to 57.1 (612x) in 300 steps / 21 min** (2.1x f16 27.2; peak
+   7.8 GB VRAM at batch 4x512).  Rental base choice: 75.2 mixed (8.13 GiB) vs
+   120.6 all-ternary (5.52 GiB); hidden KD alone is the strong signal.
 3. When a good quant exists: re-run the frozen decision probe for the record
    and prepare the HF release per `docs/HF-RELEASE-NOTES.md` (license clean).
 4. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
