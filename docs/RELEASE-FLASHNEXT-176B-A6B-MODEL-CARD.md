@@ -36,7 +36,7 @@ parameters in the file**: the 125B language model (6B activated) plus the
 expert banks plus small trained corrections, and the n-gram table (PLE) at
 Q4_0 with per-row decoding — no full-precision masters, no full-model QAT.
 
-> **2.72 bpw** | **60.17 GB** (3.1x smaller than the FP8 release) | **smallest unpruned Flash-Next quant published that we know of** | **cap_eval 15/20, 0 harness errors**
+> **2.72 bpw** | **60.17 GB** (3.1x smaller than the FP8 release) | **smallest unpruned Flash-Next quant published that we know of** | **cap_eval 15/20, 0 harness errors** | **HellaSwag 400 82.0, Winogrande 400 77.5**
 
 The name comes from grafting. A scion is the shoot grafted onto a rootstock, and
 here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
@@ -48,6 +48,7 @@ here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
 - **Trained, not calibrated**: rank-512 correction branches on the attention outputs and the MoE block output, plus router deltas, trained by output-KD against the teacher with the **deployed quantizer in the loop** (ternary Lloyd g128). **No imatrix and no calibration corpus**, which is what separates this build from the imatrix-calibrated quants above.
 - **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load, and the 28.8 GB n-gram table ships in the same file with per-row decoding. No sidecar, no adapter plumbing, no shards.
 - **The gap is stated, not hidden**: the 48-layer KLD gate gives **mean 0.5800** (support-dominated: 92.9% of that mass is the top-512 support fit); code and logic are the weak categories (1/3 each) on the 20-task capability suite; and the step-4000 extension was trained, gated (0.5880, flat/worse) and **is not shipped**.
+- **A/B against ISTA's Q2_0, one harness**: HellaSwag 400 is **82.00 vs 81.50** (a tie inside the ±2% band) and Winogrande 400 is **77.50 vs 74.75** at 6.2 GB smaller, while wikitext-2 PPL trails (**5.457 vs 5.240**) — the 1.75 bpw ternary experts buy size, not likelihood.
 
 ## Resources
 
@@ -66,7 +67,7 @@ here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
 | Weight format | Ternary **PTQ1_0** g128 expert banks (base-3 trits plus one fp16 group scale per 128 weights), **Q4_0** n-gram table (group-32 rows), **Q6_K+Q8_0** body (default) or F16 body, embedded F16 corrections |
 | Low-bit coverage | Expert banks at 1.75 bpw and the table at 4.25 bpw; the body is where the remaining precision lives (Q6_K/Q8_0, or F16 in the fidelity variant); norms stay F32 |
 | Deployed size | **60.17 GB / 56.04 GiB** (Q6_K body) and **65.80 GB / 61.30 GiB** (F16 body), single file, text only |
-| Backends | llama.cpp fork; verified on CPU (pod, 16 threads) and ROCm/gfx1100; a CUDA build is expected to work but untested |
+| Backends | llama.cpp fork; verified on CPU (pod, 16 threads), ROCm/gfx1100, and CUDA (sm_80 on A100-SXM4-80GB and sm_120 on RTX PRO 6000 Blackwell — full-GPU load, generation and the community benchmarks) |
 | License | Apache-2.0 for this derivative (the base weights are Qwen `license:other`; published under Apache-2.0 following the community quant releases) |
 
 ## Weight Representation: ternary PTQ1_0 + trained corrections + Q4_0 PLE
@@ -195,12 +196,18 @@ hf download SkyIsNotGreen/Scion-FlashNext-176B-A6B Scion-FlashNext-176B-A6B-Q6K.
 
 ## Benchmarks
 
-Protocol for this release (there is no wikitext-2 PPL / HellaSwag /
-Winogrande grid yet — do not compare this file to the 35B model's grid):
+Community protocol (the same harness as the 35B grid): wikitext-2 PPL
+(`-c 512 --chunks 580`), HellaSwag 400 and Winogrande 400 zero-shot (about
+±2% CI at 400 tasks). The community row compares this release to ISTA's
+GSQ-RCO Q2_0 in one session, on one build. The KLD gate and cap_eval are the
+project's own harnesses.
 
 - **KLD gate**: 48 layers, 8 wikitext windows x 512 tokens (4088 tokens), the
   student run through the same compact path the training used, the teacher
   parked as bf16 log-probs; full-vocabulary KLD against the bf16 teacher.
+- **Community PPL / HellaSwag / Winogrande**: full GPU, `llama-perplexity`
+  from the fork, `-ngl 99 -t 8`; task data passed with `-f` (the same
+  hellaswag/winogrande files as the 35B grid).
 - **cap_eval**: 20 prompt tasks (factual, math, instruction, code, logic)
   served by llama-server (CPU, `-c 512 -t 16`), 0 harness errors.
 - **Generation proof**: the four prompts below, temperature 0, through the
@@ -219,6 +226,31 @@ split of the mean: **support 0.5387 (92.9%)**, marginal 0.0270 (4.7%), tail
 0.0143 (2.5%). The KD objective sees the top-512 support (~98.6% of the
 teacher mass), so the support fit is what was trained; the tail is nearly
 inert by design.
+
+### Community benchmark: released Q6K vs ISTA GSQ-RCO Q2_0
+
+Measured 2026-10-06 in one A100-SXM4-80GB session (US-WA-1) with
+`llama-perplexity` from the fork (`qwen4exp-proto` `191929248`, plus the PLE
+multi-sequence patch noted under Limitations), `-ngl 99 -t 8`, the whole model
+on the GPU. ISTA's file is as published; PPL is wikitext-2 context 512,
+580 chunks; HellaSwag and Winogrande are 400 tasks each.
+
+| Variant | Size | PPL (lower better) | HellaSwag 400 | Winogrande 400 |
+| :--- | ---: | ---: | ---: | ---: |
+| **Scion Q6K body (this repo)** | **60.17 GB** | **5.4571 ± 0.0324** | **82.00%** | **77.50% ± 2.09** |
+| ISTA-DASLab GSQ-RCO Q2_0 | 66.4 GB | 5.2396 ± 0.0326 | 81.50% | 74.75% ± 2.18 |
+
+Read it as a size/quality trade: the 1.75 bpw ternary experts trail ISTA's
+~2.4 bpw GSQ-RCO experts on likelihood (~4%) and hold or lead on the two
+multiple-choice tasks — HellaSwag is a tie inside the ±2% band, Winogrande
+favors this file by about 1.8σ (suggestive, not conclusive). PPL was reproduced
+on a second build (ours 5.4566, ISTA 5.2402) with the patch present, so the
+patch is not a factor in the comparison.
+
+ISTA's published reasoning suite (AIME25 96.67, GPQA-Diamond 89.39,
+LiveCodeBench v6 81.14; task average 89.07, zero-shot average 78.00) is from
+their model card, uses a different suite, and was **not measured here** — it is
+context, not an A/B result.
 
 ### Capability (cap_eval, 20 tasks)
 
@@ -257,8 +289,8 @@ scores are within the suite's noise band.
   fidelity is a strong-2-bit/support result, not Q4-class at the tail. The
   gate runs 8 windows; treat small deltas as noise.
 - **Capability is a 20-task screen**, not a benchmark suite: code and logic are
-  1/3 each at this checkpoint. No wikitext-2 PPL / HellaSwag / Winogrande
-  numbers exist for this release yet.
+  1/3 each at this checkpoint. The community PPL / HellaSwag / Winogrande
+  numbers are in the Benchmarks section above.
 - **The step-4000 extension did not help** (mean KLD 0.5880): the release is
   the step-3000 checkpoint, and the negative is recorded.
 - **No MTP head**: the base model's 4B multi-token-prediction draft is not
@@ -266,8 +298,14 @@ scores are within the suite's noise band.
 - **Text only**: the base is multi-modal; no vision tensors are included.
 - **Host RAM**: under 64 GB the mmap body thrashes; this is a serving
   requirement, not a model property.
-- **Platform coverage**: CPU and ROCm (gfx1100) verified; CUDA expected but
-  untested, Metal untested.
+- **Platform coverage**: CPU, ROCm (gfx1100) and CUDA (sm_80 on A100,
+  sm_120 on RTX PRO 6000 Blackwell) verified; Metal untested.
+- **The fork rejects multi-sequence batches with shared tokens in the PLE
+  path** (an assert). The HellaSwag/Winogrande runs above used a local patch
+  relaxing it; the shared tokens there are common prefixes with identical
+  histories, so the relaxation is behavior-preserving (PPL reproduced
+  exactly). The published fork keeps the conservative assert until the patch
+  is upstreamed.
 - **Not affiliated** with Prism ML, Alibaba Cloud / Qwen, or ISTA-DASLab. It
   builds on Prism ML's engine work (fork and containers), the Qwen base
   weights, and community GGUF tooling.

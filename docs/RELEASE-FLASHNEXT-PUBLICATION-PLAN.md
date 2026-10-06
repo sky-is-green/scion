@@ -81,4 +81,4 @@ llama-server -m Scion-FlashNext-176B-A6B-*.gguf -c 512 -ngl 99 \
 | KLD gate step4000 (W4, not shipped) | mean 0.5880 / p99 4.8389 / max 13.3137 |
 | cap_eval primary | 14/20 = 0.700 |
 | cap_eval kq | **15/20 = 0.750** (0 harness errors; math 5/5) |
-| PPL / HellaSwag / Winogrande | **pending** — minimal bench window scripted (same protocol on ours vs ISTA Q2_0), blocked by a RunPod provisioning outage 2026-10-05 |
+| PPL / HellaSwag / Winogrande | **measured 2026-10-06** (one A100-SXM4-80GB session, same harness, vs ISTA GSQ-RCO Q2_0): PPL **5.4571 ± 0.0324** vs 5.2396 ± 0.0326; HellaSwag 400 **82.00** vs 81.50; Winogrande 400 **77.50 ± 2.09** vs 74.75 ± 2.18 (PPL reproduced on a second build; ISTA's reasoning suite not measured by us) |
