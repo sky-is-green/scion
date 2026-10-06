@@ -58,6 +58,11 @@ huggingface-cli download allenai/OLMoE-1B-7B-0924 \
     --local-dir $MOE_ARTIFACTS/olmoe-hf
 ```
 
+External paths used by the harness come from `scion_paths.py` and are all
+environment-overridable: `SCION_WORKSPACE` (default: the parent of this repo),
+`SCION_MODELS`, `SCION_HIVEBENCH`, `LLAMA_BIN`, `GGUF_PY`, `SCION_STORAGE`,
+`QWEN4EXP_GGUF_PY`, `SCION_QWEN4EXP_BIN`, `AUTOGRID_REPO`, `SCION_Q4_MODEL_DIR`.
+
 ## Run
 
 ```sh
@@ -112,12 +117,12 @@ one) needs a runtime op and is not expressible as a LoRA.
 
 ## Ops notes
 
-- One heavy GPU process at a time. Training needs both cards only for the
+- One heavy GPU process at a time. Training needs two GPUs only for the
   brief teacher/student coexistence (`device_map auto` with the `max_memory`
-  caps in the script); single-card stages (cache, eval) should pin the free
-  card, not the display card.
-- Run heavy jobs under `systemd-run --user --scope -p MemoryMax=..`; kill by
-  PID, never by pattern.
+  caps in the script); single-GPU stages (cache, eval) should pin a
+  non-display GPU.
+- Run heavy jobs under a memory cap (e.g. `systemd-run --user --scope -p
+  MemoryMax=..`); kill by PID, never by pattern.
 - Corrections and masters must be fp32: bf16 masters swallow adapter-scale
   updates (bulk update RMS ~5e-6 vs bf16 ULP ~6e-5).
 - With `device_map="auto"` the pre-patch experts `forward` is bound onto each

@@ -55,6 +55,20 @@ An earlier proof on the frozen proxy `allenai/OLMoE-1B-7B-0924`: the uncorrected
 mixed GGUF measured **566.7 PPL, and 14.48** with both placements and routers
 (2.12 GB body, 22.2 MB adapter), with CPU and HIP builds agreeing.
 
+## New route: dense models (2026-10-03)
+
+The recipe above repairs MoE routing damage. A dense variant is now open, with
+Cloudflare's **Clef-Flash** (Qwen3.5-9B + joint schema head) as the test bed:
+ternary body via `GGML_PQ2_0_LLOYD=1`, residual-stream corrections re-derived
+for a dense/hybrid stack, and a typed-decision metric (accept/reject parity
+against bf16) that the MoE PPL/KLD work did not have. Measured so far: absmax
+is broken (hidden-state cosine 0.007), Lloyd alone gives 0.417, and uncorrected
+decisions shift down ~0.43 - corrections are load-bearing here too. Plan:
+[`docs/DENSE-TERNARY-QAT.md`](docs/DENSE-TERNARY-QAT.md). The current work is a
+postable ternary Clef community quant (rotation + signed basis + Hessian GPTQ;
+ladder 8684 -> 476 -> 265, f16 12.59), with status and commands in
+[`dense/README.md`](dense/README.md).
+
 ## Quickstart
 
 **Local and free: the OLMoE proxy.** Python 3.10 or newer, torch (ROCm or CUDA
@@ -62,7 +76,13 @@ wheels), `transformers`, `datasets`, `numpy` and `pyyaml`. The run sequence is i
 [`moe/README.md`](moe/README.md). The in-place ternary QAT negative control is
 `moe/olmoe_proxy.py` and the correction trainer is `moe/olmoe_corrections.py`.
 
-**Rental: the 35B path, one 80 GB card, about $7.** Quantize the deployment body
+**Paths.** The harness resolves its external paths through `moe/scion_paths.py`
+and `dense/clef_paths.py`; every default is an environment variable
+(`SCION_WORKSPACE`, `SCION_MODELS`, `LLAMA_BIN`, `GGUF_PY`, ...). Set
+`SCION_WORKSPACE` if models and sibling checkouts live outside the repo's
+parent directory.
+
+**The 35B path: one 80 GB GPU.** Quantize the deployment body
 locally first (`llama-quantize` with the experts mapped to `pq2_0` and
 `GGML_PQ2_0_LLOYD=1`), run the box stages, then merge the exported adapter into
 the body with `moe/merge_adapter_into_body.py`:
@@ -90,13 +110,13 @@ second.
 
 | path | what |
 |---|---|
-| `moe/` | the harness: proxies, correction trainers, port, rental runbook, export and bench tooling, result JSONs |
+| `moe/` | the harness: proxies, correction trainers, port, box-run scripts, export and bench tooling, result JSONs |
 | `docs/` | write-ups: the MoE extension, release table, port decision, tail plan, registers |
-| `serving/` | serving experiments: placement sweep (ternary vs f16 offload, threads, split modes) and the expert-cache handoff |
+| `serving/` | serving experiments: placement sweep (ternary vs f16 offload, threads, split modes) and the expert-cache negative result |
 | `scion_moe/` | vendored `rotation` and RTN quantizer used by the harness |
 | `retention-grid.png` | the release figure (regenerate with `moe/plot_bench.py`, which writes into `moe/results/qwen35-retention/`) |
 
-## Serving notes (measured on two RX 7900 XT cards and a 7800X3D)
+## Serving notes
 
 - the ternary container roughly **halves the CPU-expert-offload penalty** compared to f16 (2.07 GiB OLMoE: 34% and 50% versus 86% and 75% for prefill and decode);
 - **threads should equal physical cores** (`-t 16` collapses generation from 95 to 35 t/s on an 8C/16T CPU);

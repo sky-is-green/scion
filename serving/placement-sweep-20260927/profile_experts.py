@@ -10,15 +10,22 @@ Runs the HF checkpoint on one GPU, reads router logits, counts top-k hits per
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
 import torch
 
-MODEL = "/home/penis/Desktop/work/hivebench/artifacts/ternary/moe/olmoe-hf"
-CORPUS = "/home/penis/Desktop/work/ternary-serve/wiki.test.raw"
-OUT = Path("/home/penis/Desktop/work/ternary-serve/placement-sweep-20260927")
+SCION_WORKSPACE = Path(os.environ.get(
+    "SCION_WORKSPACE", Path(__file__).resolve().parents[2].parent))
+MODEL = os.environ.get(
+    "SCION_OLMOE_MODEL",
+    str(SCION_WORKSPACE / "hivebench/artifacts/ternary/moe/olmoe-hf"))
+CORPUS = os.environ.get(
+    "SCION_CORPUS", str(SCION_WORKSPACE / "ternary-serve/wiki.test.raw"))
+OUT = Path(os.environ.get(
+    "SCION_SWEEP_OUT", Path(__file__).resolve().parent))
 TOKENS = 16384          # 32 x 512-token chunks
 CHUNK = 512
 K_HITS = (4, 8, 12, 16, 24, 32, 48, 64)

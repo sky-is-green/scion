@@ -1,9 +1,9 @@
 # Discussion reply 01: "invalid ggml type 142"
 
-Paste into <https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B/discussions/1>.
-Code block so the markdown survives copying. Facts behind it: upstream
-`master` and the fork's old default branch both stop at `GGML_TYPE_COUNT = 43`;
-`moe-corr-runtime` defines `GGML_TYPE_PQ2_0 = 142` and `GGML_TYPE_COUNT = 144`.
+Reply to the first tester report (discussions/1). Code block so the markdown
+survives copying: upstream `master` and the fork's old default branch both stop
+at `GGML_TYPE_COUNT = 43`; `moe-corr-runtime` defines `GGML_TYPE_PQ2_0 = 142`
+and `GGML_TYPE_COUNT = 144`.
 
 ````markdown
 Thanks, and good catch on the error text.
@@ -26,9 +26,9 @@ I have just made `moe-corr-runtime` the fork's default branch, so a plain clone 
 When it loads, please send `git log -1 --format=%h`, your GPU and VRAM, and pp512/tg128 t/s. CUDA is the one path I could not test myself, so a report from an NVIDIA box is exactly what I want. If anything else fails, paste the full log.
 ````
 
-## Follow-up if he reports it still failing
+## Troubleshooting
 
-Ask for the output of these three, which localise the problem in one round:
+Three checks that localise the problem in one round:
 
 ```bash
 git -C <checkout> rev-parse --abbrev-ref HEAD; git -C <checkout> log -1 --format=%h

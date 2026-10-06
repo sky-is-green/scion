@@ -9,7 +9,7 @@ Everything needed to redraw `retention-grid.*` without re-measuring.
 - `*.log` (46 files) — the raw `llama-perplexity` outputs per model/panel
   (`<model>-ppl.log`, `<model>-kld.log`, `<model>-hellaswag.log`,
   `<model>-winogrande.log`; `bf16-*` is the reference; `local-release-*` is
-  the release measured on the local card)
+  the release measured on a local GPU)
 
 ## The data (for reference)
 
@@ -36,7 +36,7 @@ Everything needed to redraw `retention-grid.*` without re-measuring.
   source (MrFuzzihead BF16).
 - **Tasks**: HellaSwag 400 (zero-shot acc_norm) + Winogrande 400; ~±2% CI.
 - BF16 + all quants measured in one H100 session (same build); the release on
-  the local card, cross-checked (IQ2_M KLD local 0.1638 vs pod 0.1636).
+  a local GPU, cross-checked (IQ2_M KLD local 0.1638 vs H100 0.1636).
 - "ours" = ternary PQ2_0 experts + Q8_0 rest + trained corrections (single
   file, auto-applied); everyone else is an imatrix-calibrated K-quant / IQ
   quant. That distinction is the point of the chart.

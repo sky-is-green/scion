@@ -48,7 +48,7 @@ here the trained corrections are grafted onto a 2.125 bpw ternary body.
 - **Task retention inside the Q4 and BF16 noise band**: HellaSwag 400 gives **79.00%** (BF16 81.25, Q4_K_M 80.00) and Winogrande gives **76.25%** (BF16 76.00, Q4_K_M 76.00). It has the joint-best Winogrande row in the table and the **best PPL of the 2-bit class** (8.354 against IQ2_M 8.413 and Q2_K 8.473).
 - **Trained, not calibrated**: rank-512 correction branches on the attention output and the MoE block output, plus router deltas, trained by output-KD against the BF16 teacher with the deployed quantizer in the loop (ternary Lloyd g128). No imatrix and no calibration corpus, which is what separates this build from the imatrix-calibrated quants on the chart.
 - **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load. There is no sidecar and no adapter plumbing.
-- **The gap is stated, not hidden**: full-vocabulary KLD against BF16 is 0.269 mean, a strong 2-bit-class result but still behind Q4_K_M at 0.031. Closing the distributional tail is the active work ([`TAIL-EXPERIMENT-PLAN.md`](https://github.com/sky-is-green/scion/blob/main/docs/TAIL-EXPERIMENT-PLAN.md)).
+- **The gap is stated, not hidden**: full-vocabulary KLD against BF16 is 0.269 mean, a strong 2-bit-class result but still behind Q4_K_M at 0.031. Tail-aware training was attempted at full scale and did not transfer ([`TAIL-EXPERIMENT-PLAN.md`](https://github.com/sky-is-green/scion/blob/main/docs/TAIL-EXPERIMENT-PLAN.md)).
 
 ## Resources
 
@@ -236,8 +236,12 @@ The corrections improved mean token likelihood (PPL 11.60 uncorrected, 8.35
 after) more than they improved the full-distribution tail. PPL ranks this build
 first of the 2-bit class and KLD ranks it last, and that disagreement is the
 research result: the training matches the teacher's top-50 logits, and the rest
-of the distribution is unconstrained. Tail-aware training is the next step, not
-a claim.
+of the distribution is unconstrained. Tail-aware training **was attempted at
+full scale** (a tail-conditional KD term plus router bias plus a hard-window
+curriculum, the `cur05` recipe) and **did not transfer**: on a 40-layer body the
+teacher puts ~98% of its mass inside the top-512 cache, so the tail terms are
+nearly inert, and the retrain ties this release on every task while PPL regresses
+~2%. The gap stands, and the negative is recorded in the project's register.
 
 ### Full Grid
 
@@ -281,7 +285,7 @@ and method notes:
 
 - **KLD tail** (stated above): distributional fidelity is strong-2-bit, not
   Q4-class. PPL, HellaSwag and Winogrande look Q4-class; KLD is where the gap
-  lives.
+  lives. A full-scale tail-aware retrain was attempted and did not transfer.
 - **Text only**: the base model has a vision tower, and this file carries no
   vision tensors (Q8_0 language path only).
 - **Reasoning distill**: long thinking traces; budget `max_new_tokens`

@@ -1,10 +1,6 @@
 # Reddit copy-paste blocks: Scion-35B-A3B
 
-Three fenced blocks, so a copy from here is exactly what you paste. No links
-anywhere in the body or the comments, on purpose: subreddit link filters and
-new-account link limits would eat them, so every name is spelled out instead.
-The numbers sit in a code block rather than a pipe table, because Reddit does
-not render markdown tables.
+Three fenced blocks, so a copy from here is exactly what you paste.
 
 ## 1. Body
 
@@ -47,7 +43,7 @@ Build scripts, MoE write-up and the negative register are at GitHub `sky-is-gree
 The attached chart is the retention grid: ten community quants plus BF16 under one protocol, and the full table with method notes is on the model card. If the link filter eats the thread, search the names in the post text and DM me. Happy to answer anything about the training recipe or the fork.
 ```
 
-## 3. Optional detail comment (only if the thread asks for depth)
+## 3. Detail comment
 
 ```markdown
 **Protocol.** PPL is wikitext-2 at context 512 over 580 chunks; KLD is full-vocabulary against BF16 logits over 50 chunks (25.5k tokens); HellaSwag and Winogrande are 400 zero-shot tasks each, so treat sub-1% differences as ties. BF16 and the quants were measured in one H100 session; this file was measured on a local RX 7900 XT and cross-checked (IQ2_M KLD, local vs pod: 0.2%).

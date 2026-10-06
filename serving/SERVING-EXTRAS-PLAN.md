@@ -1,25 +1,22 @@
 # Serving extras — plan and status (2026-09-27)
 
 The four Strata/FreeToken-style extras, what each really is in this stack, and
-what is being built. Measured evidence lives in
-`placement-sweep-20260927/SUMMARY.md` and `serving-probes/README.md`.
+what is being built. Measured evidence lives in `placement-sweep-20260927/`.
 
 ## Status
 
 | Extra | Kind | Status |
 |---|---|---|
-| Adaptive per-expert cache | engine (fork) | **built + validated, shelved for performance**: exact (hot16 greedy-identical; hot64 PPL-identical), but the payoff sweep shows no gain — dense `mul_mat_id` keeps the CPU at k experts/token. Real gains need sparse per-token dispatch. Details: `HANDOFF-EXPERT-CACHE.md`, `placement-sweep-20260927/{EQUIVALENCE,THROUGHPUT}.md` |
-| GPU-GPU tensor parallelism (`-sm tensor`) | build/backend | **closed**: only the SYCL backend registers `ggml_backend_split_buffer_type` in this revision; CUDA/HIP never did. VMM was a red herring (`build-hip-vmm/` confirms VMM works, but split buffers still unsupported). |
+| Adaptive per-expert cache | engine (fork) | **built + validated, shelved for performance**: exact (hot16 greedy-identical; hot64 PPL-identical), but the payoff sweep shows no gain — dense `mul_mat_id` keeps the CPU at k experts/token. Real gains need sparse per-token dispatch. Details: `placement-sweep-20260927/{EQUIVALENCE,THROUGHPUT}.md` |
+| GPU-GPU tensor parallelism (`-sm tensor`) | build/backend | **closed**: only the SYCL backend registers `ggml_backend_split_buffer_type` in this revision; CUDA/HIP never did. VMM was a red herring (VMM works, but split buffers are still unsupported). |
 | KV streaming (RAM + GPU window) | engine (fork) | deferred; substitutes first: KV quant (`--cache-type-k/v`), `--no-kv-offload`. KV split across GPUs is also gated on split buffers → unavailable on ROCm. |
 | Semantic KV anchors | serving layer | **measured**: append turns already reuse ~everything (10/1806 tokens); mid-context edits re-evaluate the suffix (899/1806). Only worth engine work if mid-edit loops matter |
 
 Test target for the first real-regime run: **Qwen3.8-Flash-Next GSQ-RCO Q2_0**
-(downloaded to `~/Desktop/work/models/qwen38-q2_0/Q2_0/`, 36G + 27G shards).
-Correctness first on OLMoE (on disk), then single-GPU Q2_0 with the cache.
-First smoke run done 2026-09-27: single-GPU tiering is RAM-bound; dual-GPU
-full residency now loads (57 s) and serves at ~25 t/s decode / ~385 t/s
-prefill after an HSA upload-stall fix (bounce buffer in `ggml-cuda.cu`,
-uncommitted) — see `qwen125-smoke-20260927/RESULTS.md`.
+(36G + 27G shards). Correctness first on OLMoE, then single-GPU Q2_0 with the
+cache. First smoke run (2026-09-27): single-GPU tiering is RAM-bound; dual-GPU
+full residency loads (57 s) and serves at ~25 t/s decode / ~385 t/s prefill
+after an HSA upload-stall fix (bounce buffer in `ggml-cuda.cu`).
 
 ## Adaptive per-expert cache — design (sharpened)
 

@@ -1,0 +1,185 @@
+"""CPU tests for the Phase B router-balancing rules (pure torch, no model)."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+import torch
+
+MOE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(MOE))
+
+import router_balance as rb  # noqa: E402
+
+
+def test_sign_bias_moves_overloaded_experts_down():
+    """The direction the paper pins: overloaded -> bias down.
+
+    The plan doc had ``bias += delta * sign(load - mean)``, which would drive
+    overload further; this test fixes the paper's direction (arXiv 2408.15664).
+    """
+    bias = torch.zeros(4)
+    load = torch.tensor([0.6, 0.25, 0.1, 0.05])   # mean = 0.25
+    out = rb.sign_bias_update(bias, load, delta=1e-3)
+    assert out[0] == pytest.approx(-1e-3)         # overloaded -> down
+    assert out[1] == pytest.approx(0.0)           # at mean -> unchanged
+    assert out[2] == pytest.approx(1e-3)          # underloaded -> up
+    assert out[3] == pytest.approx(1e-3)
+    assert bias.eq(torch.zeros(4)).all()          # input not mutated
+
+
+def test_sign_bias_is_a_fixed_point_at_balance():
+    bias = torch.tensor([0.1, -0.2, 0.3])
+    out = rb.sign_bias_update(bias, torch.full((3,), 1 / 3), delta=1e-3)
+    assert torch.equal(out, bias)
+
+
+def test_load_fraction_counts_routed_slots():
+    idx = torch.tensor([[0, 1], [0, 1], [0, 2]])
+    f = rb.load_fraction(idx, n_experts=3)
+    assert f.tolist() == pytest.approx([0.5, 1 / 3, 1 / 6])
+
+
+def test_quantile_bias_hits_k_over_n_load():
+    """The defining property: after updates, each expert is selected ~k/n.
+
+    One step is close; iterating converges, because alpha_i is recomputed from
+    the biased scores.  This is the invariant the histogram all-reduce serves.
+    """
+    torch.manual_seed(0)
+    T, n, k = 4000, 8, 2
+    logits = torch.randn(T, n) * 1.5
+    bias = torch.zeros(n)
+    loads = []
+    for _ in range(6):
+        bias = rb.quantile_bias_update(bias, logits, k)
+        loads.append(rb.selected_fraction(logits, bias, k))
+    loads = torch.stack(loads)
+    target = k / n
+    assert (loads[-1] - target).abs().max() < 0.01
+    # and it does not make balance worse along the way
+    assert (loads[-1] - target).abs().max() <= (loads[0] - target).abs().max()
+
+
+def test_quantile_bias_is_mean_centered_and_common_mode_invariant():
+    """K3 centers the new bias: ``b <- b_hat - mean(b_hat) * 1``.
+
+    A common offset leaves top-k selection unchanged (and the margins are
+    invariant to it), so centering is numerically free — but without it the
+    common mode can random-walk over a long run.  This also pins that the
+    update cannot depend on the absolute level of the incoming bias.
+    """
+    torch.manual_seed(1)
+    logits = torch.randn(300, 6) * 1.5
+    b1 = rb.quantile_bias_update(torch.zeros(6), logits, k=2)
+    assert abs(float(b1.mean())) < 1e-5
+    b2 = rb.quantile_bias_update(torch.full((6,), 3.0), logits, k=2)
+    assert torch.allclose(b1, b2, atol=1e-5)
+
+
+def test_quantile_bias_is_higher_for_weaker_experts():
+    """A stronger-scoring expert must carry a lower bias (it needs no help)."""
+    torch.manual_seed(1)
+    T, n, k = 2000, 6, 2
+    logits = torch.randn(T, n)
+    logits[:, 0] += 3.0                            # expert 0 dominates
+    bias = rb.quantile_bias_update(torch.zeros(n), logits, k)
+    assert bias[0] < bias[1:].mean()
+    assert bias.argmin().item() == 0
+
+
+def test_quantile_bias_rejects_bad_k():
+    logits = torch.randn(10, 4)
+    with pytest.raises(ValueError):
+        rb.quantile_bias_update(torch.zeros(4), logits, k=0)
+    with pytest.raises(ValueError):
+        rb.quantile_bias_update(torch.zeros(4), logits, k=5)
+
+
+def test_mixture_weights_ignore_the_bias():
+    """Weights come from the raw logits over the selected experts only."""
+    torch.manual_seed(2)
+    logits = torch.randn(5, 7)
+    idx = logits.topk(3, dim=-1).indices
+    w = rb.mixture_weights(logits, idx)
+    assert torch.allclose(w.sum(-1), torch.ones(5), atol=1e-6)
+    # adding any per-expert bias to the *selection* must not move the weights
+    assert torch.allclose(w, rb.mixture_weights(logits, idx), atol=0.0)
+
+
+def test_router_z_loss_penalises_scale():
+    logits = torch.randn(50, 6)
+    small = rb.router_z_loss(logits * 0.1, coeff=1.0)
+    big = rb.router_z_loss(logits * 2.0, coeff=1.0)
+    assert small < big
+    # a constant logit row has logsumexp = c + log n; value is (c + log n)^2
+    const = rb.router_z_loss(torch.zeros(3, 6), coeff=1.0)
+    assert const.item() == pytest.approx(torch.log(torch.tensor(6.0)).item() ** 2)
+    # differentiable, finite gradient
+    x = logits.clone().requires_grad_(True)
+    rb.router_z_loss(x).backward()
+    assert torch.isfinite(x.grad).all()
+
+
+def test_switch_balance_loss_is_coeff_at_uniform_balance():
+    """Uniform probs + perfectly balanced routing must cost exactly ``coeff``."""
+    T, n, k = 100, 4, 2
+    scores = torch.full((T, n), 1.0 / n)
+    idx = torch.stack([torch.arange(T) % n, (torch.arange(T) + 1) % n], dim=-1)
+    val = rb.switch_balance_loss(scores, idx, n_experts=n, coeff=1e-4)
+    assert val.item() == pytest.approx(1e-4, rel=1e-5)
+
+
+# ------------------------------------------------------------ causal bias ---
+
+def test_causal_mass_bias_is_causal_and_zero_at_the_first_token():
+    """Token t may depend only on tokens <= t-1; the first token has no history."""
+    torch.manual_seed(11)
+    logits = torch.randn(7, 5)
+    b = rb.causal_mass_bias(logits, eta=0.5)
+    assert b.shape == (7, 5)
+    assert torch.allclose(b[0], torch.zeros(5), atol=1e-6)
+    logits2 = logits.clone()
+    logits2[5:] += 10.0                     # perturb the future
+    b2 = rb.causal_mass_bias(logits2, eta=0.5)
+    assert torch.allclose(b[:5], b2[:5], atol=1e-6)
+
+
+def test_causal_mass_bias_pushes_a_hot_expert_down():
+    """An expert that absorbed the early mass is pushed down for the rest."""
+    logits = torch.zeros(10, 4)
+    logits[:5, 0] = 5.0                     # expert 0 owns the first half
+    b = rb.causal_mass_bias(logits, eta=1.0)
+    assert b[5:, 0].mean().item() < -0.5    # hot expert pushed down
+    assert (b[5:, 1:] > 0).float().mean().item() > 0.5   # cold experts pushed up
+    assert torch.allclose(b[0], torch.zeros(4), atol=1e-6)
+
+
+def test_causal_mass_bias_is_expert_count_invariant():
+    """The ``* n - 1`` normalisation makes eta independent of the expert count.
+
+    A uniform distribution must produce exactly zero bias at any n, and an
+    expert at twice the uniform rate must be pushed by exactly ``eta`` -- the
+    scale a fixed 256-expert model needs cannot be a different number.
+    """
+    for n in (4, 256):
+        logits = torch.zeros(20, n)
+        b = rb.causal_mass_bias(logits, eta=0.3)
+        assert b.abs().max().item() < 1e-6      # uniform -> no push
+    logits = torch.zeros(20, 4)
+    logits[:10, 0] = 3.0
+    b = rb.causal_mass_bias(logits, eta=0.3)
+    # expert 0 gets a large share of the early mass; bias approaches -eta
+    # (times overload-1), and must be negative and bounded by a few eta
+    assert -5.0 < b[10:, 0].mean().item() < -0.1
+
+
+def test_quantile_damp_scales_the_coordinate_step():
+    torch.manual_seed(12)
+    logits = torch.randn(64, 5)
+    b = torch.zeros(5)
+    marg = rb.margins(logits, b, 2)
+    full = rb.quantile_bias_step(b, marg, 2, damp=1.0)
+    half = rb.quantile_bias_step(b, marg, 2, damp=0.5)
+    assert torch.allclose(half, full * 0.5, atol=1e-6)

@@ -1,0 +1,243 @@
+"""Bias-based router balancing for the qwen35 prefix (Phase B, P0).
+
+The frozen v1 prefix recipe has **no** balancing term: the routers are trained by
+the LM/KD gradient alone.  This module adds the three Phase B balancers as a
+patch of ``Qwen3_5MoeTopKRouter``:
+
+- ``bias``     : DeepSeek ALF-LB (arXiv 2408.15664) — select by ``logits + bias``,
+                 weights stay the raw softmax over the selected experts, and
+                 after each optimizer step ``bias -= delta * sign(load - mean)``.
+- ``quantile`` : Kimi K3 Quantile Balancing — bias from the ``(1 - k/n)``-quantile
+                 of the per-token margins, so each expert's expected load is
+                 ``k/n``.
+- ``zloss``    : OLMoE router z-loss — a differentiable term on
+                 ``logsumexp(logits)^2``.
+
+Everything is off unless ``--balance`` says otherwise, so the frozen v1 recipe
+and the in-flight runs are untouched.  The bias is a registered buffer on each
+gate, so ``save()`` (which keeps ``.gate.`` keys) persists it and the eval
+instrument must be run with the same ``--balance`` setting to load it.
+
+Why a patch: the stock gate computes ``softmax`` first and top-k on the
+probabilities.  A bias has to be added to the *scores* before selection, and the
+mixture weights must stay the unbiased softmax over the selected experts — that
+is the ALF-LB rule.  ``router_balance.py`` holds the pure math; this file is
+only plumbing and state.
+"""
+from __future__ import annotations
+
+import types
+
+import torch
+import torch.nn.functional as F
+
+from router_balance import (causal_mass_bias, margins,  # noqa: F401
+                            margins_from_scores, quantile_bias_step,
+                            sign_bias_update)
+
+KINDS = ("none", "bias", "quantile", "zloss", "cb", "cbqb")
+
+
+def _router_class():
+    from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import (
+        Qwen3_5MoeTopKRouter)
+    return Qwen3_5MoeTopKRouter
+
+
+def _patched(model):
+    return [m for m in model.modules()
+            if getattr(m, "_balance_kind", None) is not None]
+
+
+def _new_stats(n: int) -> dict:
+    return {"counts": torch.zeros(n, dtype=torch.long), "margins": [],
+            "z_terms": []}
+
+
+def _new_seq(n: int) -> dict:
+    """Per-sequence load accumulator (Welford; one sequence per forward row).
+
+    Lives outside ``_balance_stats`` so ``balance_reset`` does not clear it:
+    the variance is only meaningful *across* sequences, so it accumulates for
+    the whole run.  ``mean_seq_load_var`` is the CB arm's own axis — batch load
+    entropy can be uniform while individual sequences are lopsided.
+    """
+    return {"n": 0, "mean": torch.zeros(n, dtype=torch.float32),
+            "m2": torch.zeros(n, dtype=torch.float32)}
+
+
+def _seq_load_update(gate, row_idx) -> None:
+    c = torch.bincount(row_idx.detach().cpu().reshape(-1),
+                       minlength=gate.num_experts).to(torch.float32)
+    p = c / c.sum()
+    s = gate._balance_seq
+    s["n"] += 1
+    d = p - s["mean"]
+    s["mean"] += d / s["n"]
+    s["m2"] += d * (p - s["mean"])
+
+
+def _balanced_forward(self, hidden_states):
+    """Stock forward + selection bias; mixture weights stay unbiased."""
+    hidden = hidden_states.reshape(-1, self.hidden_dim)
+    logits = F.linear(hidden, self.weight)                     # raw scores
+    kind = getattr(self, "_balance_kind", None)
+    bias = getattr(self, "balance_bias", None)
+    choice = logits
+    if bias is not None and kind in ("bias", "quantile", "cbqb"):
+        choice = choice + bias
+    if kind in ("cb", "cbqb"):
+        choice = choice + causal_mass_bias(
+            logits, getattr(self, "_balance_cb_eta", 0.05))
+    probs = F.softmax(choice, dtype=torch.float, dim=-1)
+    _, idx = torch.topk(probs, self.top_k, dim=-1)
+    # mixture weights: raw softmax over the selected experts (bias never enters)
+    weights = F.softmax(logits.gather(-1, idx).float(), dim=-1).to(probs.dtype)
+
+    if kind is not None and self.training:
+        st = self._balance_stats
+        st["counts"] = st["counts"] + torch.bincount(
+            idx.reshape(-1).cpu(), minlength=self.num_experts)
+        # one sequence per batch row (a flat input is one sequence)
+        if hidden_states.dim() == 3:
+            rows = idx.reshape(hidden_states.shape[0], -1)
+        else:
+            rows = idx.reshape(1, -1)
+        for r in rows:
+            _seq_load_update(self, r)
+        if kind == "quantile":
+            st["margins"].append(margins(logits, bias, self.top_k).detach())
+        elif kind == "cbqb":
+            # the buffer update must see the effective selection scores,
+            # including the per-token causal term
+            st["margins"].append(margins_from_scores(choice, self.top_k).detach())
+        elif kind == "zloss":
+            z = torch.logsumexp(logits.float(), dim=-1)
+            st["z_terms"].append((z ** 2).mean())
+    return probs, weights, idx
+
+
+def patch_gate(gate, kind: str, cb_eta: float = 0.05,
+               qb_damp: float = 1.0) -> None:
+    """Patch one gate: forward, bias buffer, stats, kind (idempotent)."""
+    gate.forward = types.MethodType(_balanced_forward, gate)
+    if not hasattr(gate, "balance_bias"):
+        # The buffer must be born on the gate's device: patch_gate runs *after*
+        # device_map has placed the module, so a default-CPU buffer would make
+        # `logits + bias` a cross-device add on the first GPU forward (the
+        # balbias arm hit exactly that).  Tests are CPU-only; the device is
+        # taken from the weight so it follows the model.
+        gate.register_buffer(
+            "balance_bias",
+            torch.zeros(gate.num_experts, device=gate.weight.device))
+    gate._balance_kind = kind
+    gate._balance_cb_eta = cb_eta
+    gate._balance_qb_damp = qb_damp
+    gate._balance_stats = _new_stats(gate.num_experts)
+    gate._balance_seq = _new_seq(gate.num_experts)
+
+
+def patch_router_balance(model, kind: str, cb_eta: float = 0.05,
+                         qb_damp: float = 1.0) -> int:
+    """Patch every gate in ``model`` for ``kind``; returns the gate count.
+
+    Patches the class (so later instances behave) *and* rebinds the loaded
+    instances, because ``device_map`` binds the pre-patch forward on each
+    module — the same reason ``patch_experts`` rebinds.  ``cb_eta`` scales the
+    causal-bias arm's nudge; ``qb_damp`` scales the quantile step (the trained
+    quantile arm's biases reached +-2, i.e. the full step overshoots at our
+    511-token batch — damp < 1 is the direct fix).
+    """
+    if kind not in KINDS or kind == "none":
+        raise ValueError(f"kind must be one of {KINDS[1:]}, got {kind!r}")
+    cls = _router_class()
+    if not getattr(cls, "_balance_patched", False):
+        cls.forward = _balanced_forward
+        cls._balance_patched = True
+    n = 0
+    for m in model.modules():
+        if isinstance(m, cls):
+            patch_gate(m, kind, cb_eta, qb_damp)
+            n += 1
+    return n
+
+
+def balance_diagnostics(model) -> dict:
+    """Load diagnostics over the gates (no reset).
+
+    ``mean_load_entropy`` is the batch-level balance (max ln n); the CB arm's
+    own axis is ``mean_seq_load_var`` — the across-sequence variance of each
+    expert's load share (NaN until 2 sequences have been seen).
+    """
+    ents = []
+    seqvars = []
+    for m in _patched(model):
+        c = m._balance_stats["counts"].float()
+        if c.sum() > 0:
+            p = c / c.sum()
+            ents.append(float(-(p * (p + 1e-12).log()).sum()))
+        s = m._balance_seq
+        if s["n"] >= 2:
+            seqvars.append(float((s["m2"] / (s["n"] - 1)).mean()))
+    return {"n_gates": len(_patched(model)),
+            "mean_load_entropy": (sum(ents) / len(ents)) if ents else float("nan"),
+            "mean_seq_load_var": (sum(seqvars) / len(seqvars))
+            if seqvars else float("nan")}
+
+
+def balance_reset(model) -> None:
+    for m in _patched(model):
+        m._balance_stats = _new_stats(m.num_experts)
+
+
+def balance_update(model, kind: str, delta: float = 1e-3) -> dict:
+    """Apply one bias update from the stats the last forward accumulated.
+
+    Call *after* ``opt.step()``.  Returns the load diagnostics before the reset
+    (the log wants them), then clears the stats for the next step.  ``cb`` has
+    no persistent bias — its causal term is recomputed every forward — so its
+    "update" is diagnostics + reset only (the balcb arm trained without any
+    load logging because this path used to raise for ``cb``).
+    """
+    if kind not in ("bias", "quantile", "cbqb", "cb"):
+        raise ValueError(f"no update for kind {kind!r}")
+    for m in _patched(model):
+        if kind == "cb":
+            continue
+        st = m._balance_stats
+        with torch.no_grad():
+            if kind == "bias":
+                total = int(st["counts"].sum())
+                if total == 0:
+                    continue
+                # counts live on CPU (bincount is cheapest there); the update
+                # must happen on the buffer's device, so move the load over.
+                load = (st["counts"].float() / total).to(m.balance_bias.device)
+                m.balance_bias.copy_(sign_bias_update(m.balance_bias, load, delta))
+            else:  # quantile / cbqb: one damped coordinate step
+                if not st["margins"]:
+                    continue
+                marg = torch.cat(st["margins"], dim=0)
+                m.balance_bias.copy_(quantile_bias_step(
+                    m.balance_bias, marg, m.top_k,
+                    damp=getattr(m, "_balance_qb_damp", 1.0)))
+    diag = balance_diagnostics(model)
+    balance_reset(model)
+    return diag
+
+
+def balance_z_loss(model, coeff: float = 1e-3):
+    """Differentiable z-loss over the collected gate terms; resets the stats.
+
+    Returns ``(loss, diagnostics)``.  The terms were accumulated in the forward
+    with their graph intact, so the loss must be added to the training loss and
+    backpropagated in the same step.
+    """
+    terms = [t for m in _patched(model) for t in m._balance_stats["z_terms"]]
+    if terms:
+        loss = coeff * torch.stack(terms).mean()
+    else:
+        loss = torch.zeros((), requires_grad=False)
+    diag = balance_diagnostics(model)
+    balance_reset(model)
+    return loss, diag

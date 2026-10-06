@@ -16,7 +16,7 @@
 | [D5](#d5--post-hoc-ternarisation-of-the-correction-sidecar-is-not-viable) | Post-hoc ternarised branches are 14–25× worse than STE-trained | Falsified | closed |
 | [D6](#d6--mote-style-up-cycling-does-not-transfer-to-qwen36-35b-a3b) | The frozen-shared-expert trick needs a shared expert worth having | Not applicable | closed |
 | [D7](#d7--hot-expert-gpu-cache-no-throughput-gain) | Static hot/cold expert split is performance-neutral by construction | Rejected (as a perf feature) | closed |
-| [D8](#d8--kld-tail-beyond-the-teachers-top-50-current-path) | Full-vocabulary KLD still trails (the open gap) | Open — current path | open |
+| [D8](#d8--tail-conditioned-kd-does-not-transfer-to-the-full-body) | Tail-conditioned KD does not transfer to the full body | Falsified at full scale | closed |
 
 ---
 
@@ -143,27 +143,57 @@
 - **Verdict:** Rejected as a performance feature at this size. The real fix is
   **sparse per-token dispatch** (variable k), which is kernel work.
 - **Evidence:** `serving/placement-sweep-20260927/THROUGHPUT.md`,
-  `.../EQUIVALENCE.md`, `.../SUMMARY.md`; `serving/HANDOFF-EXPERT-CACHE.md`.
+  `.../EQUIVALENCE.md`, `.../SUMMARY.md`.
 - **Status:** closed.
 - **What it rules out:** static hot/cold residency as a throughput lever on
   OLMoE-class models; layer-level `-ncmoe` placement and single-GPU sizing stay
   the effective levers.
-- **Cost to revisit:** the sparse-dispatch engine project (not scheduled).
+- **Cost to revisit:** the sparse-dispatch engine project.
 
-## D8 — KLD tail beyond the teacher's top-50 (current path)
+## D8 — Tail-conditioned KD does not transfer to the full body
 
-- **Claim/hypothesis:** output-KD on the teacher's top-50 logits is the
-  binding constraint on full-vocabulary fidelity.
-- **Method (planned):** prefix A/B with top-50 vs top-512 caches on the same
-  recipe (`docs/TAIL-EXPERIMENT-PLAN.md`); then one tail term (residual-mass or
-  rank/margin) if Step 1 moves; v2 full run only if justified.
-- **Outcome so far:** PPL improved 11.60 → **8.35**, but full-vocabulary KLD
-  vs BF16 stays 2-bit-class (**0.269** mean vs Q4_K_M 0.031); the 1.7B canary
-  showed the tail failure mode is reliability (rank-2 near-ties), and the
-  constraints are structural: keep the recipe **calibration-free**.
-- **Verdict:** Open — the path being worked.
-- **Evidence:** `docs/QUANT-RETENTION-35B.md`;
-  `serving/…` n/a; upstream `QUANTIZATION-LANDSCAPE.md` §3.6/§7 (forensics repo).
-- **Status:** open (queued; needs a free GPU).
-- **What it rules out:** nothing yet.
-- **Cost to revisit:** Steps 0–1 are free/local; Step 3 is ≈$7–9 if triggered.
+- **Claim/hypothesis:** output-KD on the teacher's top-50 logits is the binding
+  constraint on full-vocabulary fidelity, so a tail-conditional KD term
+  (D_KL1 marginal + D_KL2 conditional, TAD's chain rule) closes the KLD tail at
+  full scale.
+- **Method:** the local 4-layer prefix selected the recipe (`D_KL2 3.0` + router
+  bias + hard-window curriculum 0.05, tag `cur05`; fallback `D_KL2 2.0 + bias`,
+  `pred2.0`), then one full-model run on a rented H100 trained both arms from
+  one cache with the signed recipe and gated them on the community protocol.
+  Later re-measured on a second protocol (ARC / MMLU / TruthfulQA + PPL) and
+  paired with the k=1 drafter.
+- **Outcome — full 35B ship gate (community protocol: wikitext-2 PPL c512
+  580 chunks; KLD 50 chunks vs BF16; HellaSwag/Winogrande 400):**
+
+  | model | PPL | KLD mean | KLD med | KLD p99.9 | KLD max | HellaSwag | Winogrande |
+  |---|---|---|---|---|---|---|---|
+  | v1 release | 8.3539 | 0.2694 | 0.1346 | 4.7579 | 7.2432 | 79.00 | 76.25 |
+  | v2 `cur05`-soup | 8.5478 | 0.2666 | 0.1256 | 5.4674 | 7.8929 | 78.00 | 75.25 |
+  | v2 `cur05`-final | 8.6228 | 0.2715 | 0.1286 | 5.3851 | 7.8410 | — | — |
+  | v2 `pred2.0`-soup | 8.5452 | 0.2675 | 0.1254 | 5.3657 | 7.9904 | 77.75 | 75.25 |
+
+  On the prefix the same family improved the tail (first sub-2.0 prefix max).
+  At full depth the result inverts on the axis that mattered: **mean/median KLD
+  marginally better (−1.0% / −6.7%), but p99.9/max worse (+14.9% / +9.0%)**,
+  PPL **+2.3%**, tasks a tie (all within CI). A second protocol reproduced the
+  tie (v1/v2: ARC-C 57.19/57.19, ARC-E 80.00/79.47, MMLU 40.15/39.60,
+  TruthfulQA 32.56/31.82; fresh PPL 8.2731/8.4517). Paired k=1 drafter: v1
+  1.368×, v2 1.302× — the drafter transfers, the body does not improve.
+- **Mechanism:** the full-model teacher puts **96–99%** of its mass on the
+  top-512 cache, versus **17–20%** on the 4-layer prefix. The tail-conditioned
+  terms act on the complement, so their effective strength drops ~20–80×
+  (measured ~1/60 on the Flash-Next cache) — nearly inert by construction. The
+  binding term at full depth is the top-512 support fit the v1 recipe already
+  had; the 4-layer prefix is **not a valid calibration proxy for tail-weighted
+  objectives**.
+- **Verdict:** Falsified at full scale. Tail-conditioned KD does not close the
+  KLD tail on a deep body, and prefix tail gains do not transfer.
+- **Evidence:** `docs/TAIL-EXPERIMENT-PLAN.md`, `docs/SCION-RECIPE.md` §5;
+  artifacts above.
+- **Status:** closed (negative). The DSpark multi-token drafter is a separate
+  closed negative in the drafter lane.
+- **What it rules out:** tail-conditioned KD (D_KL1/D_KL2) as a lever at full
+  depth for this class; prefix-tail gains as a predictor of full-body tail; the
+  shallow prefix as a proxy for any objective acting outside the top-512.
+- **Cost to revisit:** a target/proxy whose body actually carries large tail
+  mass, or a different tail mechanism (topological, not a loss term).

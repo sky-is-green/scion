@@ -1,5 +1,5 @@
 #!/bin/bash
-# 35B rental — one-shot box runbook (A100/H100 80 GB, RunPod).
+# 35B — one-shot box runbook (A100/H100 80 GB).
 # Run stage by stage; every stage is resumable (cache/ckpts land on the volume).
 # The deployment body is built LOCALLY already; the box only trains + exports.
 #

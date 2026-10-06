@@ -82,17 +82,17 @@ The OLMoE recipe is now ported into `qwen35_moe_proxy.py`:
 - `export_branches_lora.py` maps the qwen35moe keys (`ssm_out` /
   `attn_output` / `ffn_moe_out`) and writes the compact q1_0_g128 adapter.
 
-Rental run order: `cache` (FP teacher resident, ~1-2 h) -> `ref` (same
+Box run order: `cache` (FP teacher resident, ~1-2 h) -> `ref` (same
 session) -> free teacher -> `train` (student only) -> `eval` -> export.
 
-## Smoke-test plan (before renting)
+## Smoke-test plan
 
 - `scripts/pilot/inspect_model_targets.py` on the real config — **green**.
 - Prefix smoke of the patched forward + correction steps — **green** (drift
   0.307, agreement 0.825, loss 8.74 -> 5.38).
 - Materialise the prefix's expert banks to a ternary HF dir and scan with
   AUTOGRID — next; needs a short single-card run.
-- Full-model `cache`/`train`/`eval` dry run stays for the rented card (the
+- Full-model `cache`/`train`/`eval` dry run stays for a larger GPU (the
   full 35B does not fit here).
 
 ## Open decisions
