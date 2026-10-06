@@ -126,10 +126,18 @@ absmax ternary codecs (imatrix a no-op) and collapse to 1.9-2.1M PPL + token
 soup; a plain **Q2_K beats our artifact outright** (13.06 PPL, clean
 generation, 3.56 GiB, mainline) vs 23.25 / math loop / 5.52 GiB / fork-only.
 The QAT pipeline still wins the ternary comparison by 4-5 orders of magnitude,
-but the real bar is unmet; the next step is one proper QAT run (mixed corpus +
-logits KD, 5-10M tokens) accepted on clean generation, PPL ≤ ~18 and KL/top-1
-vs bf16.  Decision side (for the record): body fidelity is decoupled from the
-frozen head (QAT probe AUC 0.573); bf16 Clef remains the validator.
+but the real bar is unmet.  **Derisk-first result (2026-10-06, negative):** the
+same objective at 0.8B (mixed corpus 50/20/30 prose/math/code, hidden + logits
+KD, 1500 steps, generation samples every 300) plateaus at **PPL 42.4** best
+(f16 27.2) and free generation **never recovers** — code nonsense, math wrong
+then looping, prose rambling at every checkpoint; 5x the earlier derisk budget
+bought ~3 PPL points over the 300-step hidden+logits run (45.5) and is worse
+than the 300-step mixed-base run (40.4).  Scaling this recipe to the 9B is not
+justified: the generation blocker is not a budget problem at these training
+scales.  The community-quant lane is therefore **on hold** (artifact kept as
+research; nothing released).  Decision side (for the record): body fidelity is
+decoupled from the frozen head (QAT probe AUC 0.573); bf16 Clef remains the
+validator.
 
 ## Validated forward (2026-10-03)
 

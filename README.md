@@ -22,7 +22,7 @@ in the loop**.
 |---|---|
 | **Scion-35B-A3B** | **released**: 11.34 GB / 2.61 bpw ternary experts + embedded corrections, plus an optional k=1 MTP drafter. Runtime `v0.4.1`. CPU and ROCm verified; CUDA/Windows binaries published but runtime-unverified (see [platform scope](docs/PLATFORM-SCOPE.md)). |
 | **Scion-FlashNext-176B-A6B** | **released** (2026-10-05): the 125B MoE (6B activated) + the 51.2B-parameter n-gram table in one 60.17 GB file at 2.72 bpw; PTQ1_0 ternary experts + embedded corrections. CUDA, ROCm and CPU verified; runtime branch `qwen4exp-proto`. |
-| **Dense (Clef-Flash)** | **in progress, not released**: the rotated-basis + GPTQ + QAT ladder reaches 23.25 PPL / 5.52 GiB, but free generation still degrades and a plain Q2_K (13.06 PPL, 3.56 GiB) beats it. Next step: one proper QAT run. See [`dense/README.md`](dense/README.md). |
+| **Dense (Clef-Flash)** | **in progress, not released**: the rotated-basis + GPTQ + QAT ladder reaches 23.25 PPL / 5.52 GiB, but free generation still degrades and a plain Q2_K (13.06 PPL, 3.56 GiB) beats it. The 2026-10-06 derisk run (0.8B, 1500 steps, mixed corpus + logits KD) plateaus at 42.4 PPL with generation still broken, so scaling the same recipe is not justified and the lane is on hold. See [`dense/README.md`](dense/README.md). |
 
 Negative results are kept in [`FAILURES.md`](FAILURES.md); runtime support
 boundaries and what a backend report must carry are in
@@ -102,13 +102,15 @@ for a dense/hybrid stack, and a typed-decision metric (accept/reject parity
 against bf16) that the MoE PPL/KLD work did not have. Measured so far: absmax
 is broken (hidden-state cosine 0.007), Lloyd alone gives 0.417, and uncorrected
 decisions shift down ~0.43 - corrections are load-bearing here too. Plan:
-[`docs/DENSE-TERNARY-QAT.md`](docs/DENSE-TERNARY-QAT.md). The current work is a
+[`docs/DENSE-TERNARY-QAT.md`](docs/DENSE-TERNARY-QAT.md). The work is a
 postable ternary Clef community quant; the ladder so far (f16 = 12.59 PPL):
 deployed 8684 -> signed RTN 476 -> GPTQ+act-order 141.6 -> 128-w Hessians 120.6
 -> +`ffn_down` F16 75.2 -> **QAT 23.25** (5.52 GiB). The 2026-10-06 community
 gate found a plain Q2_K at 13.06 PPL / 3.56 GiB beats the ternary artifact, so
-nothing is released; status and next steps are in
-[`dense/README.md`](dense/README.md).
+nothing is released; the follow-up derisk run (0.8B, mixed corpus + logits KD,
+1500 steps) confirmed free generation does not recover with scale on this
+recipe (PPL plateau ~42.4; code/math still degenerate), so the lane is on hold.
+Status: [`dense/README.md`](dense/README.md).
 
 ## Quickstart
 
