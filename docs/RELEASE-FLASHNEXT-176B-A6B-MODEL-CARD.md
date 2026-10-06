@@ -48,7 +48,7 @@ here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
 - **Trained, not calibrated**: rank-512 correction branches on the attention outputs and the MoE block output, plus router deltas, trained by output-KD against the teacher with the **deployed quantizer in the loop** (ternary Lloyd g128). **No imatrix and no calibration corpus**, which is what separates this build from the imatrix-calibrated quants above.
 - **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load, and the 28.8 GB n-gram table ships in the same file with per-row decoding. No sidecar, no adapter plumbing, no shards.
 - **The gap is stated, not hidden**: the 48-layer KLD gate gives **mean 0.5800** (support-dominated: 92.9% of that mass is the top-512 support fit); code and logic are the weak categories (1/3 each) on the 20-task capability suite; and the step-4000 extension was trained, gated (0.5880, flat/worse) and **is not shipped**.
-- **A/B against ISTA's Q2_0, one harness**: HellaSwag 400 is **82.00 vs 81.50** (a tie inside the ±2% band) and Winogrande 400 is **77.50 vs 74.75** at 6.2 GB smaller, while wikitext-2 PPL trails (**5.457 vs 5.240**) — the 1.75 bpw ternary experts buy size, not likelihood.
+- **A/B against ISTA's Q2_0, one harness**: HellaSwag 400 is **82.00 vs 81.50** (a tie on the paired test) and Winogrande 400 is **77.50 vs 74.75** (a positive signal, not conclusive) at 6.2 GB smaller, while wikitext-2 PPL trails (**5.457 vs 5.240**) — the 1.75 bpw ternary experts buy size, not likelihood.
 
 ## Resources
 
@@ -197,10 +197,11 @@ hf download SkyIsNotGreen/Scion-FlashNext-176B-A6B Scion-FlashNext-176B-A6B-Q6K.
 ## Benchmarks
 
 Community protocol (the same harness as the 35B grid): wikitext-2 PPL
-(`-c 512 --chunks 580`), HellaSwag 400 and Winogrande 400 zero-shot (about
-±2% CI at 400 tasks). The community row compares this release to ISTA's
-GSQ-RCO Q2_0 in one session, on one build. The KLD gate and cap_eval are the
-project's own harnesses.
+(`-c 512 --chunks 580`), HellaSwag 400 and Winogrande 400 zero-shot. Task
+selection is deterministic (the same 400 tasks for every model), so the
+multiple-choice comparison is paired; the community section below quotes the
+paired (McNemar) test. The KLD gate and cap_eval are the project's own
+harnesses.
 
 - **KLD gate**: 48 layers, 8 wikitext windows x 512 tokens (4088 tokens), the
   student run through the same compact path the training used, the teacher
@@ -241,11 +242,12 @@ on the GPU. ISTA's file is as published; PPL is wikitext-2 context 512,
 | ISTA-DASLab GSQ-RCO Q2_0 | 66.4 GB | 5.2396 ± 0.0326 | 81.50% | 74.75% ± 2.18 |
 
 Read it as a size/quality trade: the 1.75 bpw ternary experts trail ISTA's
-≈2.4 bpw GSQ-RCO experts on likelihood (≈4%) and hold or lead on the two
-multiple-choice tasks — HellaSwag is a tie inside the ±2% band, Winogrande
-favors this file by about 1.8σ (suggestive, not conclusive). PPL was reproduced
-on a second build (ours 5.4566, ISTA 5.2402) with the patch present, so the
-patch is not a factor in the comparison.
+≈2.4 bpw GSQ-RCO experts on likelihood (≈4%), while on the two multiple-choice
+tasks the paired comparison over the same 400 tasks is a **tie on HellaSwag**
+(12 vs 10 discordant tasks, McNemar p = 0.83) and a **positive but not
+conclusive edge on Winogrande** (38 vs 27 discordant tasks, p = 0.22). PPL was
+reproduced on a second build (ours 5.4566, ISTA 5.2402) with the patch present,
+so the patch is not a factor in the comparison.
 
 ISTA's published reasoning suite (AIME25 96.67, GPQA-Diamond 89.39,
 LiveCodeBench v6 81.14; task average 89.07, zero-shot average 78.00) is from
