@@ -42,6 +42,36 @@ def test_checkers_positive_and_negative():
         check_completion({"type": "nope"}, "x")
 
 
+def test_strip_reasoning_and_scoring():
+    assert cap_eval.strip_reasoning("<think>a</think> b") == "b"
+    assert cap_eval.strip_reasoning("plain answer") == "plain answer"
+    assert cap_eval.strip_reasoning("<think>unclosed") == ""
+    cases = [
+        # exact: the answer after the block is what counts
+        ({"type": "exact", "value": "blue"},
+         "<think>The user wants BLUE. I should comply.</think>\nblue", True),
+        # exact: only a think block means no answer
+        ({"type": "exact", "value": "blue"},
+         "<think>The user wants BLUE.</think>", False),
+        # truncated mid-thought
+        ({"type": "exact", "value": "blue"}, "<think>BLUE but cut off", False),
+        # numeric: a number in the reasoning must not satisfy the check
+        ({"type": "numeric", "value": 7, "tol": 0.5},
+         "<think>maybe 7?</think>The answer is 42.", False),
+        ({"type": "numeric", "value": 42, "tol": 0.5},
+         "<think>maybe 7?</think>The answer is 42.", True),
+        # code: reasoning must not confuse the code extraction
+        ({"type": "python_output", "value": "42"},
+         "<think>I could print 41.</think>\n```python\nprint(42)\n```", True),
+        # contains: reasoning mentions the wrong entity
+        ({"type": "contains", "values": ["paris"]},
+         "<think>Not Lyon.</think>Paris", True),
+    ]
+    for check, completion, want in cases:
+        passed, _ = check_completion(check, completion)
+        assert passed == want, (check, completion)
+
+
 def test_tasks_file_valid():
     doc = json.loads((Path(cap_eval.__file__).parent / "cap_tasks.json").read_text())
     tasks = doc["tasks"]

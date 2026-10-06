@@ -50,8 +50,24 @@ def strip_code(text: str) -> str:
     return m[0] if m else text
 
 
+_THINK_RE = re.compile(r"<think\b[^>]*>.*?</think\s*>", re.S | re.I)
+_THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*$", re.S | re.I)
+
+
+def strip_reasoning(text: str) -> str:
+    """Drop reasoning blocks before scoring: the answer is what counts.
+
+    An unclosed <think> block (generation cut mid-thought) is dropped too,
+    which scores as no answer rather than credit for reasoning traces.
+    """
+    text = _THINK_RE.sub(" ", text)
+    text = _THINK_OPEN_RE.sub(" ", text)
+    return text.strip()
+
+
 def check_completion(check: dict, completion: str) -> tuple[bool, str]:
     """Returns (passed, detail). All matching is case-insensitive."""
+    completion = strip_reasoning(completion)
     t = check["type"]
     if t == "contains":
         missing = [v for v in check["values"] if v.lower() not in completion.lower()]
