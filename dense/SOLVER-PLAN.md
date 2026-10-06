@@ -128,3 +128,109 @@ scale, and the exported artifact is faithful (bridge hidden cos 0.838 vs f16
 0.9999).  **Do not run this plan again as-is** until the community-baseline
 gate (TQ1_0/PTQ1_0 Clef-Flash comparison, HANDOFF CURRENT THREAD item 4) says
 the pipeline is worth a larger corpus + budget run.
+
+## Proper run v2 — mixed corpus + top-k logits KD (draft for approval, 2026-10-06)
+
+**Draft for operator approval.  No spend until approved.**  The gate is in:
+plain ternary codecs are unusable (1.9-2.1M PPL), the pipeline is the only
+ternary route, but v1 fails free generation and a plain Q2_K beats it
+(13.06 PPL, clean, 3.56 GiB).  v2 must fix generation first and land
+PPL ≤ ~18 before any release.
+
+### What changes vs v1
+
+| | v1 (done, ~$3.9) | v2 (this plan) |
+|---|---|---|
+| KD target | f16 hidden states only | hidden + **top-k logits** (k=128, teacher, cached) |
+| corpus | wikitext, 1.05M unique tokens (prose only) | **mixed** ~50% prose / 20% math / 30% code, ~2.5M unique tokens |
+| token budget | 1.2M token-steps (~1.2 epochs) | **5-8M token-steps** (2-3 epochs) |
+| acceptance | wikitext PPL | PPL + **free generation** + teacher-forced NLL + KL/top-1 vs f16 |
+| base | all-ternary h128 GPTQ (120.62) | same (mixed `--skip-targets mlp.down_proj` documented as fallback) |
+
+### Corpus (all local, no downloads on the pod)
+
+- **prose** (50%): `Salesforce/wikitext` (103/2 train) from the local HF cache;
+- **math** (20%): `EleutherAI/hendrycks_math` (7 configs) + `openai/gsm8k`
+  train, both cached;
+- **code** (30%): permissively-licensed local trees (`llama.cpp`, `scion`,
+  `hivebench`, `FreeToken`, `llama-qwen4exp`, `prism-ml-llama.cpp`;
+  `*.py,c,cc,cpp,h,hpp,cu,md`), build/output dirs excluded, deduplicated.
+  No overlap with wikitext-2 test (PPL) or the cascade bench (decisions).
+- New `dense/clef_mixed_corpus.py` -> `mixed-windows.npy` (int32
+  `[n_windows, 512]`) + `mixed-corpus.json` (provenance, per-source token
+  counts, SHA-256).  Target 2.5M tokens (4880 windows), cap 3M.
+
+### Cache (built locally, uploaded)
+
+`dense/clef_cache.py` gains `--topk 128 --windows-npy <file>`: per token
+`hidden` (f16, ~8 KB) + `topk_idx` (int32) + `topk_val` (f16, ~0.75 KB at
+k=128) -> **~22 GB** for 2.5M tokens on the external drive; rsync to the pod
+(v1 uploaded 8.6 GB of cache + the 17.9 GB f16 GGUF the same way).
+
+### Trainer deltas (`dense/qat_9b.py`)
+
+- `HiddenCache` reads the optional top-k arrays; `--kd-logits W --kd-temp T`
+  adds a top-k KD term (student logits gathered at the teacher's indices, KL
+  against the teacher's renormalized top-k; tail mass documented).
+- `--eval-nll`: holdout student NLL + teacher top-1 agreement — the
+  generation-predictive metric (v1 only watched hidden cos 0.85).
+- unchanged: rotation fold + Lloyd g128 STE, Adafactor lr 5e-5 cosine to
+  0.1x, clip 1.0, checkpointing, `--kernel chunked` (matches the locally
+  captured cache at cos 0.9999).
+- pod smoke gate: 50 steps, sane loss trend, memory headroom logged; abort
+  (cheaply) if not.
+
+### Pod plan (offline teacher, 48 GB class)
+
+Local prep first (free, ~1-2 h): corpus + cache build; the KL base-logits
+file for acceptance can also be built locally later.
+
+Pod: **1x 48 GB (L40S, as v1; v1-proven memory profile)** at ~$2.0-2.3/h
+secure; hourly billing; hard caps **6 h wall / $15 / auto-teardown**, external
+watchdog, `--max-steps-wall 21600` (`RENTAL-RUNBOOK.md` §3-§6).  If the smoke
+shows batch 4 does not fit, step down 4 -> 3 -> 2 with the same wall cap
+(batch 4 = ~7.4M tokens planned, batch 2 = ~3.7M; the wall/dollars are the
+caps, the token count is the dial).  An 80 GB A100/H100 at ≤ $3/h is the
+upgrade path if the operator prefers headroom/speed over the v1-proven shape.
+
+```
+PYTHONPATH=<gguf-py> python dense/qat_9b.py --model ./clef-flash-ternary \
+    --cache ./teacher-cache-mixed --out ./qat-run2 \
+    --steps 3600 --batch 4 --seq 512 --kd-logits 0.5 --kd-temp 1.0 \
+    --eval-every 100 --eval-nll --save-every 300 --max-steps-wall 21600
+```
+
+Checkpoints + `qat.json` rsynced back as they land; nothing is left only on
+the pod.
+
+### Export + acceptance (local, free)
+
+Export masters -> V2 all-ternary GGUF (`dense/clef_export_qat.py`, GDN
+reorder), then:
+
+1. `llama-perplexity` wikitext-2 c512 x100: **target ≤ 18** (1.43x f16;
+   stretch ≤ 16) vs f16 12.59 / Q2_K 13.06 / v1 23.25.
+2. Free generation, fixed-seed suite (same 3 probes + 3 extra code/math
+   prompts): **no loops, correct math, valid code**; teacher-forced NLL on
+   f16-clean text should approach f16 (v1: 2.02 vs 1.24).
+3. Community norm on a ~250k-token mixed file: `llama-perplexity
+   --save-all-logits` on f16, then each candidate with
+   `--kl-divergence --kl-divergence-base` (reports KL, Δp RMS, same-top-p).
+4. Only if 1-3 pass: release prep per `docs/HF-RELEASE-NOTES.md`.  Posting
+   remains a separate decision; never automatic.
+
+### Decision rules
+
+- **Green** (release candidate): generation clean + PPL ≤ 18 + KL/top-1 in
+  Q2_K-class distance -> prep the HF release and re-run the comparison table.
+- **Amber**: generation clean but PPL 18-25 -> decide between a third run
+  (longer / mixed base) and shipping the Q2_K class instead.
+- **Red**: generation still degrades or PPL > 25 -> park the ternary lane
+  (documented; no HF upload), bf16 Clef + Q2_K-class stay the offerings.
+
+### Approval needed
+
+1x 48 GB GPU for ≤ 6 h, hard cap **$15** (estimate $10-14; at the v1 pace
+(5.2 s/step at batch 2) 3600 steps = 4-8 h depending on whether batch 4 fits,
+so the 6 h wall cap is expected to bind first at **~5-7M token-steps**), plus
+~1-2 h local prep and ~1 h local acceptance.  No downloads, no HF posting.

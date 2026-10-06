@@ -138,7 +138,10 @@ Decisions are decoupled from body fidelity (nodown AUC 0.503).
    (needs approval): one proper QAT run (mixed corpus incl. code/math,
    5-10M tokens, hidden + top-k logits KD, ~$8-15) accepted on clean
    generation on this probe suite, PPL ≤ ~18, and KL/top-1 vs bf16 on
-   ~250k mixed tokens before any HF upload.**  Machine record:
+   ~250k mixed tokens before any HF upload.**  Draft with exact corpus,
+   cache format, trainer deltas, pod commands, budget and decision rules:
+   `dense/SOLVER-PLAN.md` "Proper run v2" (draft for approval).  Machine
+   record:
    `hivebench/experiments/cascade/results/clef-flash-validator-20261003/community-gate-20261006.json`.
 5. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
    test was rotate-quantize-unrotate, a different scheme); if Goal B lands,
