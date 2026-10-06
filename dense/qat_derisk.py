@@ -295,6 +295,11 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=5e-5)
     ap.add_argument("--warmup", type=int, default=10)
     ap.add_argument("--train-windows", type=int, default=2048)
+    ap.add_argument("--corpus-npy", default="",
+                    help="pre-tokenized int32 [n, seq] windows (mixed corpus); "
+                         "overrides --train-windows construction")
+    ap.add_argument("--sample-every", type=int, default=0,
+                    help="generate the probe suite every N steps (0 = final only)")
     ap.add_argument("--eval-windows", type=int, default=16)
     ap.add_argument("--eval-every", type=int, default=25)
     ap.add_argument("--group", type=int, default=128)
@@ -331,7 +336,12 @@ def main() -> int:
     student = load_text_model(snap, device, dtype=torch.float32)
 
     eval_windows = load_windows(tok, args.eval_windows, args.seq, "test")
-    train_windows = load_windows(tok, args.train_windows, args.seq, "train")
+    if args.corpus_npy:
+        train_windows = [list(map(int, w)) for w in np.load(args.corpus_npy)]
+        print(f"corpus {args.corpus_npy}: {len(train_windows)} windows x "
+              f"{args.seq}", flush=True)
+    else:
+        train_windows = load_windows(tok, args.train_windows, args.seq, "train")
     print(f"windows: train {len(train_windows)} eval {len(eval_windows)} x {args.seq}",
           flush=True)
 
@@ -370,6 +380,28 @@ def main() -> int:
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
     history = [{"step": 0, "ppl": ppl_rtn, "loss": None}]
+
+    PROBE_PROMPTS = [
+        ("The history of the Roman Empire begins with", 0.7, 120),
+        ("def fibonacci(n):", 0.7, 120),
+        ("Question: A train travels 240 km in 3 hours. What is its "
+         "average speed? Answer:", 0.0, 100),
+    ]
+    samples: list[dict] = []
+
+    def take_samples(step: int) -> None:
+        for prompt, temp, n in PROBE_PROMPTS:
+            text = generate(student, tok, prompt, n=n, temp=temp, seed=args.seed)
+            samples.append({"step": step, "prompt": prompt,
+                            "temperature": temp, "text": text})
+            print(f"--- sample step {step} temp {temp}: {prompt}\n"
+                  f"{text[:400]}\n", flush=True)
+
+    if args.sample_every:
+        print("post-hoc ternary samples (step 0)", flush=True)
+        take_samples(0)
+        student.train()
+
     t0 = time.time()
     for step, batch in enumerate(sample_batches(
             train_windows, args.batch, args.steps, args.seed), start=1):
@@ -401,19 +433,13 @@ def main() -> int:
             print(f"[{time.strftime('%H:%M:%S')}] eval step {step}: PPL {ppl:.4f}",
                   flush=True)
             student.train()
+        if args.sample_every and step % args.sample_every == 0:
+            take_samples(step)
+            student.train()
 
-    samples = []
-    if args.gen_samples:
-        prompts = [
-            ("The history of the Roman Empire begins with", 0.7, 120),
-            ("def fibonacci(n):", 0.7, 120),
-            ("Question: A train travels 240 km in 3 hours. What is its "
-             "average speed? Answer:", 0.0, 100),
-        ]
-        for prompt, temp, n in prompts:
-            text = generate(student, tok, prompt, n=n, temp=temp, seed=args.seed)
-            samples.append({"prompt": prompt, "temperature": temp, "text": text})
-            print(f"--- sample temp {temp}: {prompt}\n{text[:400]}\n", flush=True)
+    if args.gen_samples and (not samples or samples[-1]["step"] != args.steps):
+        take_samples(args.steps)
+        student.train()
 
     result = {
         "model_dir": str(snap),

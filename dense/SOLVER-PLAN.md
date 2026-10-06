@@ -131,6 +131,14 @@ the pipeline is worth a larger corpus + budget run.
 
 ## Proper run v2 — mixed corpus + top-k logits KD (draft for approval, 2026-10-06)
 
+**Update (2026-10-06):** no rental yet.  Running the free, longer **0.8B
+derisk first** (`qwen35-0.8b-qat-derisk/run_mixedcorpus`: mixed corpus
+(`dense/clef_mixed_corpus.py`, 1024 prose / 410 math / 615 code windows) +
+hidden+logits KD, 1500 steps, generation samples every 300 steps, same
+generation suite) to see whether free generation cleans up with budget
+before spending on the pod.  Pod decision is gated on it: if generation is
+still degenerate at 4-8x the earlier derisk budget, re-scope or park.
+
 **Draft for operator approval.  No spend until approved.**  The gate is in:
 plain ternary codecs are unusable (1.9-2.1M PPL), the pipeline is the only
 ternary route, but v1 fails free generation and a plain Q2_K beats it
