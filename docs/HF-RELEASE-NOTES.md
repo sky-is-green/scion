@@ -48,9 +48,17 @@ fail on first use.  The sidecar corrections remain decision-degenerate
 already have many 4-8 bit quants (bartowski/ggml-org GGUFs, MLX, FP8/NVFP4,
 EXL3, OpenVINO, W4A16 AutoRound/GPTQ for both sizes) but **no ternary Clef**;
 the ternary bar is PrismML's trained Ternary-Bonsai-8B (~1.44x PPL at
-2.03 GiB, near-base benchmarks).  Gate before any upload: beat the
-community-standard TQ1_0/PTQ1_0 Clef-Flash baseline (+imatrix) on PPL **and**
-generation, with KL/top-1-style evaluation.
+2.03 GiB, near-base benchmarks).  **Community ternary gate measured
+(2026-10-06):** plain TQ1_0/TQ2_0/PTQ1_0 are naive absmax codecs and collapse
+to 1.9-2.1M PPL (token soup; imatrix no-op), while a plain **Q2_K beats our
+artifact outright — 13.06 PPL, clean generation, 3.56 GiB, mainline** vs
+23.25 / math loop / 5.52 GiB / fork-only.  Gate outcome: **no release**; the
+QAT pipeline still wins the ternary comparison, but the release bar (trained
+Bonsai ~1.44x, or the Q2_K-class baseline) is not met.  Next (needs approval)
+is one proper QAT run (mixed corpus + logits KD, 5-10M tokens, ~$8-15)
+accepted on clean generation, PPL <= ~18 and KL/top-1 vs bf16 before any
+upload.  Record: `hivebench/experiments/cascade/results/
+clef-flash-validator-20261003/community-gate-20261006.json`.
 
 ## Suggested upload set (once a quant passes the gate)
 

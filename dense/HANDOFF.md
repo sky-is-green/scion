@@ -110,13 +110,36 @@ Decisions are decoupled from body fidelity (nodown AUC 0.503).
    (WHT-rotated, third-party fork).  Evaluation norm is **KL / top-1 vs bf16
    on ~250k mixed tokens incl. code** (localbench) or benchmark suites —
    wikitext PPL + a few samples is below it.  Our QAT is novel for Clef but
-   not competitive, so **do not post yet**.  **Next (gating, local, ~1 h):**
-   quantize `clef-flash-f16.gguf` to `TQ1_0` / `TQ2_0` / `PTQ1_0` (optional
-   `llama-imatrix` first) and measure PPL + generation with the same harness.
-   If plain community ternary matches or beats our GPTQ+rotation+QAT result,
-   the pipeline is a research dead end at this scale (park, or go
-   Bonsai-style trained-low-bit, GPU-days); if ours clearly wins, we have a
-   contribution and a target for a proper corpus+budget run.
+   not competitive, so **do not post yet**.
+   **Gate done (2026-10-06, local, ~1.5 h, no rental).**  Built the
+   baselines from `clef-flash-f16.gguf` with the fork's tools
+   (`dense/clef_gate_chain.sh`: `llama-imatrix` on `v2/wiki.test.raw`, then
+   quantize + 100x512 PPL + free generation via `dense/clef_gen_probe.py`):
+
+   | plain baseline | size | PPL | free generation |
+   |---|---|---|---|
+   | TQ1_0 ± imatrix | 2.68 GiB | 1,860,827 | token soup (server 500) |
+   | TQ2_0 + imatrix | 2.98 GiB | 1,860,827 | token soup |
+   | PTQ1_0 + imatrix | 2.73 GiB | 2,097,117 | token soup |
+   | Q2_K + imatrix (non-ternary ref) | 3.56 GiB | **13.06** | clean |
+   | (QAT artifact, same harness) | 5.52 GiB | 23.25 | math loop 0.846 |
+
+   The plain ternary codecs are **absmax** ternarization (`quantize_row_tq1_0_ref`
+   sets `d = max|w|`, no Lloyd; PTQ1_0 is the same rule at group 128 and
+   ignores `GGML_PQ2_0_LLOYD`) — imatrix is a no-op for them (TQ1_0 ±imatrix
+   PPL identical to 4 dp), they are BitNet-oriented, and per-tensor cos 0.69
+   vs f16 (deployed Lloyd ≈0.90) makes the collapse honest.  Two independent
+   runtimes (fork + Prism build) produce the same soup.  **The QAT pipeline
+   wins the ternary comparison by 4-5 orders of magnitude, but the real
+   competition is elsewhere: a plain Q2_K beats the QAT artifact on PPL
+   (13.06 vs 23.25), generation (clean vs math loop) and size (3.56 vs
+   5.52 GiB), on stock runtimes.**  The community ternary bar (trained
+   Bonsai ~1.44x) remains unmet.  **Decision: no release; proposed next
+   (needs approval): one proper QAT run (mixed corpus incl. code/math,
+   5-10M tokens, hidden + top-k logits KD, ~$8-15) accepted on clean
+   generation on this probe suite, PPL ≤ ~18, and KL/top-1 vs bf16 on
+   ~250k mixed tokens before any HF upload.**  Machine record:
+   `hivebench/experiments/cascade/results/clef-flash-validator-20261003/community-gate-20261006.json`.
 5. MoE aside: the Scion MoE route never used runtime rotation (its one rotation
    test was rotate-quantize-unrotate, a different scheme); if Goal B lands,
    porting is worth it — `build_lora_mm_id` supports expert rotation for

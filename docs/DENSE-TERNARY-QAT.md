@@ -343,3 +343,19 @@ PrismML's *trained* Ternary-Bonsai-8B (2.03 GiB, ~1.44x, near-base benchmarks)
 and TAARDIS-27B.  Gating next step: quantize the Clef-Flash f16 to
 TQ1_0/TQ2_0/PTQ1_0 (+optional imatrix) and compare PPL + generation before any
 release or larger training spend.
+
+**Community ternary gate done (2026-10-06, local ~1.5 h).**  Plain baselines
+built from `clef-flash-f16.gguf` (`dense/clef_gate_chain.sh`, imatrix on
+wikitext, `dense/clef_gen_probe.py` for generation): TQ1_0 ±imatrix
+**1,860,827** PPL / TQ2_0 **1,860,827** / PTQ1_0 **2,097,117** — all token
+soup, because these codecs are naive **absmax** ternary (no Lloyd; imatrix a
+no-op) and are meant for BitNet-trained weights; f16 12.59, our QAT 23.25.
+The non-ternary reference wins outright: **Q2_K +imatrix is 13.06 PPL with
+clean generation in 3.56 GiB on mainline**, better than the QAT artifact on
+every axis (23.25, math loop, 5.52 GiB, fork-only).  Decision: no release;
+the pipeline still clearly beats every *ternary* baseline but not the real
+bar (trained Bonsai ~1.44x).  Proposed (needs approval): one proper QAT run,
+mixed corpus + logits KD, 5-10M tokens, ~$8-15, accepted on clean generation,
+PPL ≤ ~18 and KL/top-1 vs bf16 on mixed tokens.  Full record:
+`hivebench/experiments/cascade/results/clef-flash-validator-20261003/`
+(`TERNARY-NOTES.md`, `community-gate-20261006.json`).

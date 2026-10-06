@@ -24,6 +24,7 @@ residual branches, evaluated through the joint head.  Plan:
 | `clef_v2_convert.py` | Goal-B quantizer: rotated-basis PQ2_0 conversion from the f16 GGUF (signs, mixed precision, Hessian GPTQ, `prism.hadamard.*` metadata; `--self-test`) |
 | `clef_v2_hessians.py` | per-linear `XᵀX/N` capture for GPTQ (bf16 recurrent-GDN forward, layer-group passes) |
 | `clef_v2_ppl.sh` / `clef_v2_sweep_gpu.sh` / `clef_v2_sweep_cpu.sh` | wikitext PPL harness, mixed-precision sweep, CPU fallback |
+| `clef_gate_chain.sh` / `clef_gen_probe.py` | community-ternary gate: imatrix + TQ1_0/TQ2_0/PTQ1_0/Q2_K quantize -> PPL -> fixed-seed free-generation probes through `llama-server` + `/completion` |
 
 ## Established on this box (2026-10-03)
 
@@ -128,9 +129,17 @@ signed RTN **476** -> GPTQ+act-order **141.6** -> 128-w Hessians **120.6** ->
 control is clean; logits-KD and mixed derisks at 0.8B did not fix it at our
 ~1.2M-token training budget, and the community bar is PrismML's *trained*
 Ternary-Bonsai-8B (2.03 GiB, ~1.44x PPL, near-base benchmarks) — so **no
-release yet**.  Next (gating, local): TQ1_0/TQ2_0/PTQ1_0 Clef-Flash baselines
-(+imatrix) as the comparison.  Details, commands and assets:
-[`HANDOFF.md`](HANDOFF.md) **CURRENT THREAD**.  Decision side (for the record):
+release yet**.  **Gate measured (2026-10-06, local):** plain TQ1_0/TQ2_0/PTQ1_0
+are naive absmax ternary codecs (imatrix a no-op) and collapse to 1.9-2.1M
+PPL + token soup; a plain **Q2_K beats our artifact outright** (13.06 PPL,
+clean generation, 3.56 GiB, mainline) vs 23.25 / math loop / 5.52 GiB /
+fork-only.  The QAT pipeline still wins the ternary comparison by 4-5 orders
+of magnitude, but the real bar is unmet; proposed next (needs approval) is one
+proper QAT run (mixed corpus + logits KD, 5-10M tokens, ~$8-15) accepted on
+clean generation, PPL ≤ ~18 and KL/top-1 vs bf16.  Details, commands and
+assets: [`HANDOFF.md`](HANDOFF.md) **CURRENT THREAD**; full gate record:
+`hivebench/experiments/cascade/results/clef-flash-validator-20261003/`
+(`community-gate-20261006.json`).  Decision side (for the record):
 body fidelity is decoupled from the frozen head (QAT probe AUC 0.573); bf16
 Clef remains the validator.
 
