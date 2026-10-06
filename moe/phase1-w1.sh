@@ -8,14 +8,16 @@
 #   arm C : --top-logits 512           isolates top-k expansion from AYOT
 #
 # Arm B (AYOT traces) is NOT here: it needs teacher traces, which need the full
-# BF16 teacher on a rental pod.
+# BF16 teacher on a large-memory GPU.
 #
 # Stop rules honoured: cache and train share --windows/--corpus-chars/--seq/--seed
 # (or the KD targets desync), and every stage echoes its exact flags.
 set -euo pipefail
 
-PY="${PY:-$HOME/Desktop/work/.venv-rocm/bin/python}"
-export MOE_ARTIFACTS="${MOE_ARTIFACTS:-$HOME/Desktop/work/hivebench/artifacts/ternary/moe}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKSPACE="${SCION_WORKSPACE:-$(dirname "$ROOT")}"
+PY="${PY:-${SCION_PYTHON:-python3}}"
+export MOE_ARTIFACTS="${MOE_ARTIFACTS:-$WORKSPACE/hivebench/artifacts/ternary/moe}"
 MOE="$MOE_ARTIFACTS/qwen35"
 PROXY=moe/qwen35_moe_proxy.py
 KLD=moe/kld_eval.py
@@ -32,12 +34,11 @@ RECIPE=(--quant lloyd --branch-quant g128 --branch-target both --rank 512
 # the subset kld_eval.py actually accepts
 RECIPE_EVAL=(--quant lloyd --branch-quant g128 --branch-target both --rank 512)
 
-# CARD selects the GPU. Default 1 (the headless card). Set CARD=0 to use the
-# display card instead.
+# CARD selects the GPU (default 1).
 #
 # One job at a TIME, not one job per card.  load_prefix materialises the prefix
 # in fp32 on the host (~17 GB for a 4-layer prefix) before moving it to the GPU,
-# so two concurrent load_prefix jobs exceed this box's 30 GB of RAM no matter how
+# so two concurrent load_prefix jobs exceed a 30 GB host's RAM no matter how
 # many cards are idle.  That is what killed the first --kd-weight sweep: two
 # copies of the same arm plus a KLD run, all racing on one checkpoint path.
 CARD="${CARD:-1}"
@@ -59,7 +60,7 @@ acquire() {
     else
       echo "REFUSING: stage '$holder' already holds $LOCKDIR" >&2
       echo "  another stage is running; they all load the FP prefix (~17 GB host" >&2
-      echo "  RAM each), so two at once exceed this box's 30 GB." >&2
+      echo "  RAM each), so two at once exceed a 30 GB host." >&2
       echo "  If that process is gone, re-run with STALE_PID=1." >&2
       exit 3
     fi
@@ -223,7 +224,7 @@ kld-body)
 
 steer)
   # W3 diagnostic, rides along on the same card
-  run env PYTHONPATH="$HOME/Desktop/work/autogrid" \
+  run env PYTHONPATH="${AUTOGRID_REPO:-$WORKSPACE/autogrid}" \
       "$PY" moe/steer_probe.py --prefix-layers 4 --device cuda:0 \
       --windows 2 --seq 512 --quantizer lloyd --group 128 \
       --out "$MOE/steer-rank.json"

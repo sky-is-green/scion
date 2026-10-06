@@ -50,10 +50,9 @@ import ptq1_0  # noqa: E402
 from qwen4exp_proxy import (MODEL as DEFAULT_MODEL_DIR,  # noqa: E402
                             dequant_fp8_block, unpack_ternary_codes,
                             _encode_slice)
+from scion_paths import QWEN4EXP_GGUF_PY  # noqa: E402
 
-GGUF_PY = Path(os.environ.get(
-    "QWEN4EXP_GGUF_PY",
-    "/home/penis/Desktop/work/llama-qwen4exp/gguf-py"))
+GGUF_PY = str(QWEN4EXP_GGUF_PY)
 sys.path.insert(0, str(GGUF_PY))
 import gguf  # noqa: E402
 from gguf.tensor_mapping import TensorNameMap  # noqa: E402
@@ -250,8 +249,8 @@ class Exporter:
         """Read one HF tensor dequantized, in row chunks (bounded RAM).
 
         embed_tokens/lm_head are 635M fp8 params each: a full fp32
-        materialization is 2.5 GB transient, which OOMs this 30 GB box when
-        other sessions are resident.  Chunks keep the transient ~0.5 GB.
+        materialization is 2.5 GB transient, which OOMs a 30 GB host when
+        other work is resident.  Chunks keep the transient ~0.5 GB.
         """
         from safetensors import safe_open  # noqa: F401 (handle cache warms it)
         h = self._handle(self.weight_map[key])
@@ -546,8 +545,8 @@ class Exporter:
 
         Peak is one expert's fp8 (~25 MB) + one repack (~14 MB) + the
         accumulated output bytes (~0.55 GB/layer total).  Stacking all 512
-        experts as fp32 (the first version) peaked ~20 GB and OOMed this
-        30 GB box twice — never again.
+        experts as fp32 (the first version) peaked ~20 GB and OOMed a
+        30 GB host twice — never again.
         """
         import gc
 

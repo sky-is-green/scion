@@ -25,6 +25,8 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
+from clef_paths import LLAMA_BIN
+
 PROBES = [
     {"name": "prose", "prompt": "The history of the Roman Empire begins with",
      "temperature": 0.7, "n_predict": 120},
@@ -91,7 +93,7 @@ def main() -> int:
     ap.add_argument("--model", required=True)
     ap.add_argument("--name", required=True)
     ap.add_argument("--outdir", required=True)
-    ap.add_argument("--server", default="/home/penis/llama.cpp/build/bin/llama-server")
+    ap.add_argument("--server", default=str(LLAMA_BIN / "llama-server"))
     ap.add_argument("--server-arg", action="append", default=[],
                     help="extra llama-server arg (repeatable), e.g. --no-jinja "
                          "to keep /completion raw on models whose output the "

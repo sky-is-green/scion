@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 MOE = Path(__file__).resolve().parents[1]
@@ -19,7 +20,7 @@ RUNNER = MOE / "phase1-w1.sh"
 
 def _run(args, env=None, timeout=120):
     e = dict(os.environ)
-    e.setdefault("LOCKDIR", "/tmp/opencode/test-lock")
+    e.setdefault("LOCKDIR", os.path.join(tempfile.gettempdir(), "test-lock"))
     e.update(env or {})
     return subprocess.run(["bash", str(RUNNER), *args], capture_output=True,
                           text=True, env=e, timeout=timeout)

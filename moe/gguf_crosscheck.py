@@ -14,7 +14,9 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "/home/penis/Desktop/work/llama-qwen4exp/gguf-py")
+from scion_paths import QWEN4EXP_GGUF_PY
+
+sys.path.insert(0, str(QWEN4EXP_GGUF_PY))
 import gguf  # noqa: E402
 from gguf.quants import dequantize  # noqa: E402
 

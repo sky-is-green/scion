@@ -27,12 +27,14 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from scion_paths import GGUF_PY
+
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--head", required=True, help="checkpoint with _mtp_head.*")
     ap.add_argument("--out", required=True, help="sidecar .gguf to write")
-    ap.add_argument("--gguf-py", default="/home/penis/llama.cpp/gguf-py")
+    ap.add_argument("--gguf-py", default=str(GGUF_PY))
     ap.add_argument("--source", default="", help="release/model id for metadata")
     ap.add_argument("--accept-fineweb", type=float, default=None)
     ap.add_argument("--accept-wikitext", type=float, default=None)

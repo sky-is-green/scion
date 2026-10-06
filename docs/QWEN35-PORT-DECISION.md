@@ -102,7 +102,7 @@ tracking, but a converged number requires a full ~20k run.
 
 ## Result — 3k screening (2026-09-24)
 
-`artifacts/rmd/cross-qwen3.5-2b-conv3k/` — `COMPLETE`, exit 0, teacher PPL
+`COMPLETE`, exit 0, teacher PPL
 16.70, best ratio **3.0091 (33.2%)** at step 3000 (still descending), peak
 reserved 9.65 GiB, 3669 s.  Matched-step mean ratio (steps 500–3000):
 

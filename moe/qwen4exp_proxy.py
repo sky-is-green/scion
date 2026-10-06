@@ -101,12 +101,13 @@ from router_bias import (balance_diagnostics, balance_update,  # noqa: E402
                          balance_z_loss, _new_seq, _new_stats,
                          _seq_load_update)
 from router_balance import causal_mass_bias, margins, margins_from_scores  # noqa: E402
+from scion_paths import Q4_MODEL_DIR  # noqa: E402
 
 ART = Path(os.environ.get("MOE_ARTIFACTS", HERE / "artifacts"))
 # Local mirror of the official FP8 checkpoint (config + tokenizer + index +
 # `shards/`).  Override with Q4_MODEL or --model-dir.
 MODEL = Path(os.environ.get(
-    "Q4_MODEL", "/home/penis/Desktop/work/models/qwen38-flashnext-fp8"))
+    "Q4_MODEL", str(Q4_MODEL_DIR)))
 OUT = ART / "qwen4exp"
 CACHE = OUT / "teacher-cache.pt"
 FP8_BLOCK = 128               # fine-grained weight block [128, 128]
@@ -1642,10 +1643,12 @@ def quantize_rows(rows: torch.Tensor, bits: int, group: int = 32
         qmax = 127.0
     elif bits == 4:
         qmax = 7.0
+    elif bits == 3:
+        qmax = 3.0
     elif bits == 2:
         qmax = 1.0
     else:
-        raise ValueError(f"unsupported PLE bits {bits} (8/4/2/16)")
+        raise ValueError(f"unsupported PLE bits {bits} (8/4/3/2/16)")
     scale = g.abs().amax(dim=-1, keepdim=True).clamp_min(1e-8) / qmax
     codes = torch.clamp(torch.round(g / scale), -qmax, qmax)
     deq = (codes * scale).reshape(rows.shape).to(rows.dtype)

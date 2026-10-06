@@ -3,8 +3,7 @@
 Scion's recipe was built for MoE: ternary expert banks plus residual-stream
 corrections that repair routing damage. This note opens the dense variant,
 using Cloudflare's **Clef-Flash** (Qwen3.5-9B + joint schema head, Apache-2.0)
-as the test bed. No training code here yet; the run happens in a dedicated
-session.
+as the test bed. No training code here yet.
 
 ## Why dense is a different problem
 
@@ -18,7 +17,7 @@ session.
   have: typed decision parity (accept/reject, p_correct) against bf16, not only
   PPL/KLD. The head itself stays bf16/int8; only the backbone is quantized.
 
-## Measured on this box (2026-10-03)
+## Measurements (2026-10-03)
 
 | step | result |
 |---|---|
@@ -28,16 +27,15 @@ session.
 | hidden-state bridge (no quantizer change) | exact on f16: cos 1.0000 vs HF `last_hidden_state` |
 | bf16 validator baseline (CPU) | 67/70 correct verdicts train, 26/30 test at 0.5; ~3.2 s/check |
 
-Full notes: `hivebench/experiments/cascade/results/clef-flash-validator-20261003/TERNARY-NOTES.md`.
-The comparison matches the MoE record: uncorrected body is not usable, the
-corrections are the recipe.
+The comparison matches the MoE record: the uncorrected body is not usable and
+the corrections are the recipe.
 
 ## Plan for the training session
 
 1. **Teacher cache.** Run the bf16 backbone over the calibration corpus and
    cache per-token final hidden states (and, where affordable, per-layer
-   states) plus the head's target decisions. The 9B teacher fits the box on
-   CPU or split across the two 7900 XT; cache size is the dial.
+   states) plus the head's target decisions. The 9B teacher fits on CPU or split
+   across two GPUs; cache size is the dial.
 2. **Student forward with the deployed quantizer.** The ternary backbone is
    the frozen student; the rank branches and the frozen joint head sit on top.
    Train with the real `GGML_PQ2_0_LLOYD=1` weights, exactly as deployed
@@ -84,7 +82,7 @@ tokenizer), so the in-loop student is built by **reverse-mapping the deployed
 PQ2_0 GGUF** into a transformers `Qwen3_5TextModel` (no download). Code:
 `dense/clef_dense_load.py` (new sibling route to `moe/`; dense has no router
 and a different tap set, so it does not belong in the MoE harness). Findings,
-all reproduced on this box:
+all reproduced locally:
 
 - **Mapping is exact.** f16 GGUF -> torch, `missing=0 unexpected=0`; the whole
   inverted converter (transpose orientation, zero-centred RMSNorm `w-1`,
@@ -132,23 +130,21 @@ branch quantizer).
   at rank 512 (268M branch params, fp32 masters + grads) OOM'd one 21.5 GB RX
   7900 XT during backward (19.0 GB allocated, ~1.5 GB short). `attn_out`/rank
   256 fits; the full `both`/rank 512 config needs the two-card split (one
-  model-parallel process, per the U2 policy) or CPU embedding offload.
+  model-parallel process) or CPU embedding offload.
 
 Fallback if corrections fall short: full end-to-end ternary QAT of the body
 (rotation + STE/KD + managed schedule) is the forensics' known dense lever
 (`recover.py`); our sidecar route is the cheaper Scion shape and was the MoE
 winner.
 
-## Stage C: rental pilot (2026-10-03)
+## Stage C: 48 GB pilot (2026-10-03)
 
-One A40 48 GB (RunPod, `clef-pilot`, ~$0.4-0.8/hr) runs the f32 correction pilot:
-f32 body (31.8 GB) + rank-512 branches on both taps + recurrent GDN + decision
-KD, 35.8 GB VRAM peak, ~15 s/step, stable (no NaN).  Artifacts uploaded:
-PQ2 GGUF, `hf-head/`, `lm_head.safetensors`, the teacher cache, the fork's
-`gguf-py`, and `dense/`.  `dense/preflight.py` runs first.
+A 48 GB GPU runs the f32 correction pilot: f32 body (31.8 GB) + rank-512
+branches on both taps + recurrent GDN + decision KD, 35.8 GB VRAM peak,
+~15 s/step, stable (no NaN).  `dense/preflight.py` runs first.
 
-**Preflight caveat (important).** On the A40, the PQ2 **f32 recurrent torch
-forward** matches the CPU ggml bridge at only **cos 0.948** (per-token
+**Preflight caveat (important).** On the pilot GPU, the PQ2 **f32 recurrent
+torch forward** matches the CPU ggml bridge at only **cos 0.948** (per-token
 0.91-0.99), versus 0.9975 for the *f16* body locally.  The ternary weights
 amplify the torch-vs-ggml kernel difference (forensics F4 again).  So the
 torch-eval parity is a **proxy**; the honest number must come from the
@@ -168,7 +164,7 @@ checker at 0.5:
 
 The correction is decisive on the proxy: correct verdicts recover 26->68 and
 7->29, above both Tiny-Jev and bf16 Clef on verdict count (a different FA/FR
-mix: 2 train FAs vs bf16's 0).  Cost: ~$0.6 (A40, ~1 h), pod deleted.
+mix: 2 train FAs vs bf16's 0).
 **Outstanding:** the honest deployment number requires packaging the branches
 (`attn_out` as a LoRA on `attn_output`/`ssm_out`; `mlp_out` needs the dense
 `qwen35` `ffn_out` fork hook) and re-running the benchmark through the CPU
@@ -182,9 +178,9 @@ uncorrected PQ2 body produced **different sets** of non-finite records (23 then
 forward is finite on a probed record, and the branch wrapper is finite on that
 record -- so the failure is ROCm/bf16 kernel nondeterminism at a numerical edge,
 not a mapping or wrapper bug.  llama.cpp (f32/f16 CPU accumulation) is stable on
-the same file.  **Consequence: torch-bf16 on this box cannot train or evaluate
-the 9B reliably.**  f32 fixes it (torch body 31.8 GB, does not fit 21.5 GB), so
-the production run needs the 48 GB rental; the local pilot lane is closed.
+the same file.  **Consequence: torch-bf16 cannot train or evaluate the 9B reliably.**
+f32 fixes it (torch body 31.8 GB, does not fit a 21.5 GB card), so the
+production run needs a 48 GB GPU.
 
 **GDN backward instability (2026-10-03).** The deployed CPU runtime is the
 *recurrent* GDN, so training should use it for transfer.  But the transformers
@@ -194,11 +190,10 @@ perturbation (matches forensics F4).  Truncated BPTT (state detached every 64
 tokens) did not fix it; the **chunked** fallback is the stable training form
 (30+ steps, loss falling), at the cost of a forward that differs from the
 recurrent deployment (f16 per-token cos 0.82 at token 39).  The clean fix is a
-**48 GB rental with the body in fp32 and the recurrent forward**: f32 body is
-31.8 GB (does not fit locally), the recurrent backward is stable in f32, and the
-forward then matches the deployment exactly.  Local (21.5 GB) can only pilot the
-chunked form; transfer to the recurrent runtime must be measured through the CPU
-bridge.
+**48 GB GPU with the body in fp32 and the recurrent forward**: f32 body is
+31.8 GB, the recurrent backward is stable in f32, and the forward then matches
+the deployment exactly.  A 21.5 GB card can only pilot the chunked form;
+transfer to the recurrent runtime must be measured through the CPU bridge.
 
 **Loop smoke passed (2026-10-03).** A bounded 2-layer prefix run
 (`--prefix-layers 2`, rank 16, both taps, 3 steps) under
@@ -207,8 +202,8 @@ trainer: deployed-PQ2 load -> branch attach (g128 STE) -> recurrent GDN ->
 hidden KD -> CPU decision-KD grad bridge through the joint head -> double-grad
 backward with checkpointing -> Adafactor step -> checkpoint. Peak VRAM 4.94 GB,
 no OOM. Full-model VRAM remains the only unproven local quantity (~21 GB > one
-21.5 GB card), so the production run is slated for a 48 GB rental
-(`dense/RENTAL-RUNBOOK.md`), with `dense/preflight.py` as the first action.
+21.5 GB card), so the production run needs a 48 GB GPU, with
+`dense/preflight.py` as the first action.
 
 ## Stage D: packaging + CPU-bridge benchmark (2026-10-03)
 
@@ -239,7 +234,7 @@ measurable end to end.
 **CPU latency: ~49 ms/token** (recurrent GDN prefill; 13.8-28.6 s per
 278-589-token record), one-time model load 7.4 s, head sidecar 40-90 ms/check.
 The bf16 transformer validator was ~3.2 s/check, so the CPU lane is ~5-8x
-slower; the non-display card is the fallback for the harness backend.
+slower; a second GPU is the fallback for the harness backend.
 
 Artifacts: `models/clef-flash-ternary/corrections/packaged/` (adapter, merged
 release, `bridge-{uncorrected,corrected}.json`).  Fork patch committed locally
@@ -284,8 +279,8 @@ conversion v1** are done (`scion/dense/clef_v2_convert.py`).  V2 lifts body
 fidelity a lot — wikitext PPL 8684 -> **514** (f16 12.59), hidden cos 0.336 ->
 **0.498** — but decisions through the frozen head stay at chance (probe AUC
 **0.464**; deployed body 0.569; teacher 0.844), so **do not post yet**.  The
-remaining route: a ranking-loss retrain of the decision channel (rental, needs
-approval) accepted on the frozen probe's AUC/BA.  Local PTQ work is exhausted:
+remaining route: a ranking-loss retrain of the decision channel, accepted on
+the frozen probe's AUC/BA.  Local PTQ work is exhausted:
 the no-rotation control shows the fidelity gain is entirely the rotation;
 mixed precision recovers at most ~2x (non-monotone — `nomlp` 846 vs V2 514,
 `nodown` 265) and the best variant still scores **AUC 0.503** on the frozen
@@ -294,9 +289,7 @@ not move either, bf16 Clef (67/70, 26/30, discriminating) stays the decision
 validator and the ternary line (V2 + mixed precision) is the
 generation-fidelity artifact.  Evaluation protocol from now on: AUC /
 TPR-at-fixed-FPR / balanced accuracy + always-accept baseline, never verdict
-count alone.  Full context: [`../dense/HANDOFF.md`](../dense/HANDOFF.md);
-license/release checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).  No
-push; rentals need approval.
+count alone.  License/release checklist: [`HF-RELEASE-NOTES.md`](HF-RELEASE-NOTES.md).
 
 ## Stage H: Goal B — the ternary community quant (2026-10-04)
 
@@ -307,7 +300,7 @@ local pipeline is complete and self-tested: `dense/clef_v2_convert.py` (fold
 PQ2_0 pack, `prism.hadamard.*` metadata, optional Hessian GPTQ with the
 deployed Lloyd group scales, mixed-precision `--keep-f16`, `--no-rotation`
 control) + `dense/clef_v2_hessians.py` (200 per-linear `XᵀX/N` from the bf16
-recurrent-GDN forward; current set on the external drive) + the PPL harness.
+recurrent-GDN forward) + the PPL harness.
 
 Ladder so far (f16 12.59; TAARDIS-27B reference 13.61 at 2.125 bpw): deployed
 PQ2_0 8684 -> identity-sign RTN 514 -> signed RTN **476** -> mixed-precision
@@ -318,21 +311,18 @@ without act-order, 476 signed RTN), **128-window Hessians take it to 120.62**,
 and keeping `ffn_down` F16 on top lands at **75.20** (1.60x; 8.13 GiB) — the
 wide, weakly measured 12288-d Hessians stay out of the ternary set.  Flip-polish was implemented and
 **falsified** (proxy -35-95% per tensor, PPL 75.2 -> 3012.9): PTQ is
-exhausted, so rotation-in-the-loop KD/QAT (rental, needs approval) is the next
-route, with the base choice 75.2 (mixed, 8.13 GiB) vs 120.6 (all-ternary,
+exhausted, so rotation-in-the-loop KD/QAT is the next route, with the base
+choice 75.2 (mixed, 8.13 GiB) vs 120.6 (all-ternary,
 5.52 GiB).  **Solver derisk:** `dense/qat_derisk.py` on Qwen3.5-0.8B recovers
 post-hoc ternary 34,938 -> 57.1 PPL (2.1x f16) in 300 steps / 21 min;
 all-ternary 600 steps -> 48.4, mixed base (`down_proj` F16) 10,020 -> 48.8 in
-300 steps — the rental recipe (rotation-in-the-loop STE + hidden KD) is
+300 steps — the production recipe (rotation-in-the-loop STE + hidden KD) is
 validated at small scale.  **QAT landed (2026-10-05):** the all-ternary h128
-body trained against the f16 hidden-state cache (1200 steps, one L40S 48 GB,
-~$3.9) reaches **PPL 23.25** in the same 5.52 GiB container (5.2x over the
+body trained against the f16 hidden-state cache (1200 steps on a 48 GB GPU)
+reaches **PPL 23.25** in the same 5.52 GiB container (5.2x over the
 120.62 PTQ ceiling; f16 12.59).  Frozen probe on the QAT body: AUC 0.573, best
-BA 0.500 (decisions stay decoupled; bf16 keeps the validator).  Plan with
-exact 9B memory numbers: [`dense/SOLVER-PLAN.md`](SOLVER-PLAN.md).  Exact
-commands, assets, disk/GPU constraints and the
-continuation checklist: [`../dense/HANDOFF.md`](../dense/HANDOFF.md) CURRENT
-THREAD.
+BA 0.500 (decisions stay decoupled; bf16 keeps the validator).  Exact commands, assets, and disk/GPU constraints live in the `dense/`
+harness.
 
 **Post-QAT reality check (2026-10-06).**  The QAT body's free generation is
 degraded (code/math; the f16 control is clean) and logits-KD/mixed derisks at
@@ -342,7 +332,7 @@ bit Clef/Clef-Flash quants but **no ternary Clef**; the ternary quality bar is
 PrismML's *trained* Ternary-Bonsai-8B (2.03 GiB, ~1.44x, near-base benchmarks)
 and TAARDIS-27B.  Gating next step: quantize the Clef-Flash f16 to
 TQ1_0/TQ2_0/PTQ1_0 (+optional imatrix) and compare PPL + generation before any
-release or larger training spend.
+release or larger training run.
 
 **Community ternary gate done (2026-10-06, local ~1.5 h).**  Plain baselines
 built from `clef-flash-f16.gguf` (`dense/clef_gate_chain.sh`, imatrix on
@@ -354,8 +344,6 @@ The non-ternary reference wins outright: **Q2_K +imatrix is 13.06 PPL with
 clean generation in 3.56 GiB on mainline**, better than the QAT artifact on
 every axis (23.25, math loop, 5.52 GiB, fork-only).  Decision: no release;
 the pipeline still clearly beats every *ternary* baseline but not the real
-bar (trained Bonsai ~1.44x).  Proposed (needs approval): one proper QAT run,
-mixed corpus + logits KD, 5-10M tokens, ~$8-15, accepted on clean generation,
-PPL ≤ ~18 and KL/top-1 vs bf16 on mixed tokens.  Full record:
-`hivebench/experiments/cascade/results/clef-flash-validator-20261003/`
-(`TERNARY-NOTES.md`, `community-gate-20261006.json`).
+bar (trained Bonsai ~1.44x).  Next step: one proper QAT run, mixed corpus +
+logits KD, 5-10M tokens, accepted on clean generation, PPL ≤ ~18 and KL/top-1
+vs bf16 on mixed tokens.

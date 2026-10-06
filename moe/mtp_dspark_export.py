@@ -17,7 +17,7 @@ the k=1 sidecar.
 
 Usage:
   python moe/mtp_dspark_export.py --head DIR/mtp-dspark-head-v2-cur05.pt \
-    --out DIR/mtp-dspark-v2-cur05.gguf --gguf-py /home/penis/llama.cpp/gguf-py \
+    --out DIR/mtp-dspark-v2-cur05.gguf --gguf-py /path/to/gguf-py \
     --source qwen35-release-v2-cur05-soup --verify
 """
 from __future__ import annotations
@@ -28,6 +28,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
+
+from scion_paths import GGUF_PY
 
 KEYS = [
     ("mtp2.pos", "dspark.pos", np.float32),
@@ -45,7 +47,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--head", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--gguf-py", default="/home/penis/llama.cpp/gguf-py")
+    ap.add_argument("--gguf-py", default=str(GGUF_PY))
     ap.add_argument("--source", default="")
     ap.add_argument("--accept", type=float, default=None, help="generation tokens/forward")
     ap.add_argument("--verify", action="store_true")

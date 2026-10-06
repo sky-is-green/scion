@@ -27,8 +27,11 @@ import torch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-WORKSPACE = Path("/home/penis/Desktop/work")
-sys.path.insert(0, str(WORKSPACE / "bonsai2-ternary-forensics"))
+from clef_paths import CLEF_MODEL, WORKSPACE  # noqa: E402
+
+_BONSAI = WORKSPACE / "bonsai2-ternary-forensics"
+if _BONSAI.is_dir():
+    sys.path.insert(0, str(_BONSAI))
 
 from clef_dense_load import load_text_model_streamed, patch_recurrent_gdn  # noqa: E402
 from clef_cache import generic_windows  # noqa: E402
@@ -53,7 +56,7 @@ TARGET_SUFFIXES = {
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--model", default="/home/penis/Desktop/work/models/clef-flash-ternary")
+    ap.add_argument("--model", default=str(CLEF_MODEL))
     ap.add_argument("--out", required=True)
     ap.add_argument("--windows", type=int, default=48)
     ap.add_argument("--seq", type=int, default=512)

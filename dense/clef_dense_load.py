@@ -7,7 +7,7 @@ training loop.  No HF checkpoint download: the GGUF already holds the weights,
 and for PQ2_0 the dequantised values are exactly what the runtime multiplies
 (verified byte-identical to the fork's ``dequantize_row_pq2_0``).
 
-Memory discipline (learned the hard way: a naive build OOM'd the 30 GB host):
+Memory discipline (a naive build OOM'd the host):
   * never materialise a full state dict -- the iterator yields one tensor at a
     time and the streamed loader assigns it straight onto the model;
   * never use fp32 tensors for a 9B model (36 GB); use bf16/f16 (18 GB);
@@ -318,7 +318,7 @@ def patch_truncated_gdn(model, chunk: int = 64) -> int:
     The deployed CPU runtime is the recurrent form, so this keeps the forward
     exactly right -- but the recurrent fallback unrolls the whole sequence and
     its backward NaN's after one step on this 9B (the recurrence amplifies, per
-    the Bonsai-2 forensics F4).  Detaching the carried state every ``chunk``
+    the dense forensics F4).  Detaching the carried state every ``chunk``
     tokens bounds the backward horizon to ``chunk`` while leaving the forward
     bit-for-bit the recurrent one.  Returns the layer count.
     """

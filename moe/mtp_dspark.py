@@ -30,6 +30,7 @@ import torch.nn.functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mtp_release_train import load_gguf_tensor, rms  # noqa: E402
+from scion_paths import GGUF_PY  # noqa: E402
 
 
 # ------------------------------------------------------------------- head ---
@@ -259,7 +260,7 @@ def build() -> argparse.ArgumentParser:
         p = sub.add_parser(name)
         p.add_argument("--probe-dir", required=True)
         p.add_argument("--gguf", required=True)
-        p.add_argument("--gguf-py", default="/home/penis/llama.cpp/gguf-py")
+        p.add_argument("--gguf-py", default=str(GGUF_PY))
         p.add_argument("--device", default="cuda:0")
         p.add_argument("--seq", type=int, default=512)
         p.add_argument("--n-train", type=int, default=3056)

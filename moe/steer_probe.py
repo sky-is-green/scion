@@ -18,7 +18,7 @@ candidates; they are deliberately out of scope here.
 
 Example:
 
-    PYTHONPATH=~/Desktop/work/autogrid HIP_VISIBLE_DEVICES=1 \\
+    PYTHONPATH=$AUTOGRID_REPO HIP_VISIBLE_DEVICES=1 \\
     python moe/steer_probe.py --prefix-layers 4 --device cuda:0 \\
         --quantizer lloyd --group 128 --out $MOE/steer-rank.json
 
@@ -39,10 +39,11 @@ import torch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from scion_paths import AUTOGRID_REPO  # noqa: E402
 
 ART = Path(os.environ.get("MOE_ARTIFACTS", HERE / "artifacts"))
 OUT = ART / "qwen35"
-AUTOGRID = Path(os.environ.get("AUTOGRID_REPO", Path.home() / "Desktop/work/autogrid"))
+AUTOGRID = AUTOGRID_REPO
 
 
 # ------------------------------------------------------------------ pure -----

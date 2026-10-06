@@ -1,15 +1,14 @@
 # Community post: Prism ML
 
-Paste the block below into the Community tab of
-`prism-ml/Ternary-Bonsai-2-27B-gguf`. It is a code block so the markdown
-survives copying. Follow-up to discussion #62.
+Community-tab note for `prism-ml/Ternary-Bonsai-2-27B-gguf`, a follow-up to
+discussion #62. Code block so the markdown survives copying.
 
 ```markdown
 Update to my previous post ([#62](https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf/discussions/62)): the MoE side is finished.
 
 **Scion-35B-A3B** is [empero-ai/Qwen3.8-35B-A3B-Distill](https://huggingface.co/empero-ai/Qwen3.8-35B-A3B-Distill) quantized to 2.61 bpw: 11.34 GB, one file, and it fits a single 20 GB card with room for context.
 
-The recipe: the expert banks go into a ternary `PQ2_0` container (2-bit codes, one fp16 scale per 128 weights), and rank-512 low-rank corrections are trained on the residual stream (attention output, MoE block output, plus router deltas) by output-KD against the BF16 teacher, with the deployed quantizer in the loop. The corrections are embedded in the GGUF, so there is no `--lora` step at load time. Training took about 4,000 steps on rented H100 time ($7.26).
+The recipe: the expert banks go into a ternary `PQ2_0` container (2-bit codes, one fp16 scale per 128 weights), and rank-512 low-rank corrections are trained on the residual stream (attention output, MoE block output, plus router deltas) by output-KD against the BF16 teacher, with the deployed quantizer in the loop. The corrections are embedded in the GGUF, so there is no `--lora` step at load time. Training took about 4,000 steps on a rented H100.
 
 Numbers, all under one protocol (wikitext-2 PPL, KLD against BF16 logits, HellaSwag and Winogrande at 400 tasks):
 

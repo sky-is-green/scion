@@ -13,7 +13,7 @@ post-norm hiddens, collected by the fork's `test-mtp-probe` tool:
 
 Usage:
   python moe/mtp_release_train.py --probe-dir $MOE/qwen35/mtp-release \
-    --gguf ~/Desktop/qwen35-release.gguf --n-train 1024 --n-eval 16 \
+    --gguf /path/to/qwen35-release.gguf --n-train 1024 --n-eval 16 \
     --steps 4096 --out $MOE/qwen35/mtp-release-head.pt --report ...json
 
 CPU-testable helpers (`head_forward`, `acceptance`) have no model dependency.
@@ -30,6 +30,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from scion_paths import GGUF_PY
+
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
@@ -37,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="dir with win_XX_h.bin / win_XX_argmax.bin / tokens.bin")
     ap.add_argument("--gguf", required=True,
                     help="the released model (token_embd/output_norm/output)")
-    ap.add_argument("--gguf-py", default="/home/penis/llama.cpp/gguf-py",
+    ap.add_argument("--gguf-py", default=str(GGUF_PY),
                     help="path to the fork's gguf-py (for GGUF dequant)")
     ap.add_argument("--n-train", type=int, default=1024)
     ap.add_argument("--n-eval", type=int, default=16)

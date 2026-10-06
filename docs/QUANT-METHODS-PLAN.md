@@ -3,9 +3,9 @@
 **Status:** CPU side landed 2026-09-28 (tests green); Phase 1 (prefix arms A/C,
 gate, `lmonly` ablation) complete on `scion-test`. The W1 gate fails on the
 correction objective — the loss rebalance and the residual-mass term are now
-measured (`RESEARCH-HANDOFF.md` §3/§7.8), and the third chain-rule piece
+measured, and the third chain-rule piece
 (TAD's D_KL2, sampled tail tokens) is built and queued. DeepSeek-V4.1 pulls are
-folded in below, including the pre-rental expected-improvement gate.
+folded in below, including the expected-improvement gate.
 **Related:** [TAIL-EXPERIMENT-PLAN.md](TAIL-EXPERIMENT-PLAN.md) (the KLD-tail
 path), [MOE-EXTENSION.md](MOE-EXTENSION.md), `../moe/README.md`,
 `../moe/catq.py`, `../moe/kd_loss.py`, `../moe/ayot.py`, `autogrid_ext.steer`.
@@ -58,8 +58,7 @@ Measured observations (keep these honest):
 1. Prompts: a question set for trace generation (decision needed: fineweb
    slice vs a reasoning/coding set; TernaryQuench uses agentic traces with
    tool calls).  Trace generation needs the full BF16 teacher; ~70 GB does not
-   fit locally, so it rides a rental window (minutes on the pod; bundle with a
-   v2 run).
+   fit locally.
 2. Cache arms (existing stage, same seed/windows):
    - A: `--top-logits 50` (v1 reference)
    - B: `--top-logits 512 --corpus-file traces.jsonl --agentic-frac 0.1`
@@ -114,7 +113,7 @@ Consequences for the order below:
 3. Not now: W4 (filters the largest KD losses, i.e. the term that is not the
    problem), W2a (body quantizer, cannot close a loss-function gap), arm B.
 
-`kld-*.json` and `kld-cov512.json` in `$MOE_ARTIFACTS/qwen35/`. `kld_eval.py`
+The `kld-*.json` and `kld-cov512.json` records hold the per-run numbers. `kld_eval.py`
 reports `sharper_than_teacher` and `topk_coverage` so this failure mode cannot be
 mistaken for a quantizer regression. p99.9 was unresolved in all runs (rank 5 of
 4088) — the comparison was argued on `max` and the mean. `top1_agreement` is
@@ -186,7 +185,7 @@ between the two loss terms**, not the size of k and not a missing tail term.
    preferred tail term over rank/margin: the top-512 cache holds 17% of teacher
    mass, so 83% is available to match, and the failure is not specifically
    near-tie flips.
-   **BUILT (2026-09-28, session 2), unmeasured, and kdw 2.0 is the argument for
+   **BUILT (2026-09-28), unmeasured, and kdw 2.0 is the argument for
    it:** kdw 2.0 moved the mean −25.3% and left p99/max flat (−1%), which is what
    a term that can only see 17% of the mass predicts. Built as the marginal KL of
    the two-way support/complement split — the piece of the gate's own metric that
@@ -203,7 +202,7 @@ between the two loss terms**, not the size of k and not a missing tail term.
    *tail-conditional* piece, so the third build (TAD's D_KL2, estimated from
    sampled tail tokens — Sparse Logit Sampling) is **built and queued**:
    `--kd-tailcond-weight` (default 0.0), `phase1-w1.sh cache-tail` +
-   `train-tailcond <w>`. Numbers: `RESEARCH-HANDOFF.md` §3/§7.8.
+   `train-tailcond <w>`.
 
 3. W1 re-run on the winning configuration: A vs C, and B once traces exist.
    Top-512 alone bought 19% and is worth keeping, but it is not the fix.
@@ -215,15 +214,13 @@ between the two loss terms**, not the size of k and not a missing tail term.
 6. W3 anytime (diagnostic).
 
 Trace generation gates **arm B only**: arms A/C, W2, W3 and W4 run without
-traces, and generation can be bundled into any pod session (it is minutes on
-the teacher), so it does not have to be the first thing through the gate.
+traces, and generation is cheap next to training (it is minutes on the
+teacher), so it does not have to be the first thing through the gate.
 
 ## Folded in: DeepSeek-V4.1-Flash pulls (2026-09-28)
 
 The V4.1 technical report is a pretraining/serving report (no ternary or PTQ
-content), but four mechanisms transfer. The full item-by-item mapping lives in
-local design notes, not in this repo. What enters *this* plan, in the current
-order:
+content), but four mechanisms transfer. The four mechanisms that transfer enter *this* plan, in the current order:
 
 ### P0 — routing: bias-based load balancing (every router run)
 
@@ -301,30 +298,30 @@ order:
   retrofittable to Scion.
 - **Not foldable:** KDA/Gated MLA/QSA/MSA/SiTU-GLU/sparse attention (trained-in);
   Muon optimisers (frozen-body training does not need them); MiMo's 7k open RL
-  environments (agent-eval work for hivebench, not the compression recipe).
+  environments (agent-eval work, not the compression recipe).
 - **Watchlist:** Qwen4 (in training), MiMo V3 (HySparse2), GLM-5.3-Pro,
   MiniMax M3.5/M4 weights, Meta Avocado (2027, closed).
 
 ### Parked — ToMoE expert masks (not a V4.1 pull)
 
-`moe/olmoe_masks.py` + its test are untracked and stay parked: masks are a
+`moe/olmoe_masks.py` + its test are not run yet: masks are a
 *structure* change tested under an objective we now know is broken. Run them
 only after the loss shape is fixed, and with bias-based routing as the balancer.
 
-### Rental gate — expect the improvement before booking a pod
+### Pre-registration gate
 
-No rented GPU run until a short expected-improvement memo exists, written from
+No large GPU run until a short expected-improvement memo exists, written from
 local evidence:
 
 - measured local effect sizes for each accepted recipe change (prefix KLD/PPL
   deltas, per arm, with the coverage caveat);
 - the projected full-model effect, with assumptions and error bars stated;
-- a go/no-go threshold written down *before* the quote (e.g. "mean KLD <= body +
+- a go/no-go threshold written down before the run (e.g. "mean KLD <= body +
   x, max <= y, PPL not worse than z");
-- cost per expected point of KLD, and what would falsify the projection.
+- what would falsify the projection.
 
-The pod only runs the memo; AYOT trace generation can be bundled once the memo
-says go.
+The run only executes the memo; AYOT trace generation can be bundled once the
+memo says go.
 
 ## Non-goals
 

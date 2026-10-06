@@ -7,13 +7,21 @@
 #
 # Local only (no rental); the non-display card is card0 / PCI 07.  Run detached:
 #   systemd-run --user --unit=clef-gate /bin/sh \
-#       /home/penis/Desktop/work/scion/dense/clef_gate_chain.sh
+#       ./dense/clef_gate_chain.sh
 set -u
 
-B=/home/penis/llama.cpp/build/bin
-T=/home/penis/Desktop/work/models/clef-flash-ternary
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WORKSPACE="${SCION_WORKSPACE:-$(dirname "$ROOT")}"
+MODELS="${SCION_MODELS:-$WORKSPACE/models}"
+CLEF_MODEL="${SCION_CLEF_MODEL:-$MODELS/clef-flash-ternary}"
+LLAMA_BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin}"
+GGUF_PY="${GGUF_PY:-$HOME/llama.cpp/gguf-py}"
+TMP="${TMPDIR:-/tmp}"
+
+B="$LLAMA_BIN"
+T="$CLEF_MODEL"
 V=$T/v2
-D=/home/penis/Desktop/work/scion/dense
+D="$ROOT/dense"
 export HIP_VISIBLE_DEVICES=1
 export PATH=/usr/local/bin:/usr/bin:/bin
 cd "$V" || exit 1

@@ -1,4 +1,4 @@
-"""RCO allocation on the 4-layer qwen35 prefix (session 8 build).
+"""RCO allocation on the 4-layer qwen35 prefix.
 
 Body-only allocator -- the surface RCO is meant to decide (handoff Sec. 7.2):
 

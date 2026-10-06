@@ -1,4 +1,4 @@
-"""Solver QAT on the 9B Clef f16 body (rental, student-only).
+"""QAT on the 9B Clef f16 body (student-only).
 
 Trains the ternary masters of the reverse-loaded Clef body against a
 precomputed f16 teacher hidden-state cache (built locally by `clef_cache.py
@@ -10,7 +10,7 @@ Memory plan (48 GB card): bf16 masters (13.8 GB) + bf16 grads (13.8 GB) +
 frozen bf16 weights (~4 GB) + checkpointed activations (batch 2 x 512) —
 fits with ~8 GB headroom; `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
 
-Usage (on the pod):
+Usage:
     PYTHONPATH=/path/gguf-py python dense/qat_9b.py \
         --model ./clef-flash-ternary --cache ./teacher-cache \
         --out ./qat-run --steps 800 --batch 2 --seq 512
@@ -30,8 +30,11 @@ import torch.nn.functional as F
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-WORKSPACE = Path("/home/penis/Desktop/work")
-sys.path.insert(0, str(WORKSPACE / "bonsai2-ternary-forensics"))
+from clef_paths import WORKSPACE  # noqa: E402
+
+_BONSAI = WORKSPACE / "bonsai2-ternary-forensics"
+if _BONSAI.is_dir():
+    sys.path.insert(0, str(_BONSAI))
 
 from clef_dense_load import load_text_model_streamed, patch_recurrent_gdn  # noqa: E402
 from qat_derisk import make_rot, ROTATED, UNROTATED  # noqa: E402
@@ -223,7 +226,7 @@ def main() -> int:
     ap.add_argument("--dtype", default="bfloat16", choices=("bfloat16", "float32"))
     ap.add_argument("--kernel", default="chunked", choices=("chunked", "recurrent"),
                     help="GDN prefill kernel; the cache was captured recurrent and "
-                         "chunked matches it at cos 0.9999 on the pod")
+                         "chunked matches it at cos 0.9999")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--max-steps-wall", type=int, default=6 * 3600)
     args = ap.parse_args()

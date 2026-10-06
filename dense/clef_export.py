@@ -18,7 +18,7 @@ eval forward.  ``--dtype q1_0_g128`` packs them in the fork's native layout
 (2.125 bpw); the default.
 
 Usage:
-    PYTHONPATH=/home/penis/llama.cpp/gguf-py \\
+    PYTHONPATH=$GGUF_PY \\
     .venv-rocm/bin/python dense/clef_export.py \\
         --load .../branches-r512-g128-step78.pt \\
         --out .../clef-flash-corr-r512.lora.gguf \\
@@ -35,10 +35,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from clef_paths import GGUF_PY
+
 try:
     from gguf import GGUFWriter
 except ImportError:  # running without the fork's gguf-py on PYTHONPATH
-    sys.path.insert(0, "/home/penis/llama.cpp/gguf-py")
+    sys.path.insert(0, str(GGUF_PY))
     from gguf import GGUFWriter
 
 HERE = Path(__file__).resolve().parent

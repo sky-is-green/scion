@@ -33,7 +33,7 @@ measurement and ``p99_resolved`` is false.  The gate should lean on ``max`` and
 rather than merely reported) until the instrument runs at >= 1e5 tokens, which
 needs more eval windows than host memory allows for a 248k vocab.
 
-Example (4-layer prefix on the free card):
+Example (4-layer prefix, single GPU):
 
     HIP_VISIBLE_DEVICES=1 python moe/kld_eval.py --prefix-layers 4 \\
         --device cuda:0 --quant lloyd --branch-quant g128 --branch-target both \\
@@ -111,7 +111,7 @@ def kld_decompose(tlp: torch.Tensor, slp: torch.Tensor, k: int,
     measurement that decides which piece of the gate's own metric the next
     objective term should target: the top-k KD loss optimises only "support",
     the residual-mass term only "marginal", and "tail" is TAD's D_KL2 /
-    TA-OPD's lower-bound bias (see RESEARCH-HANDOFF §7.1a).  The complement
+    TA-OPD's lower-bound bias (see the tail plan's chain-rule notes).  The complement
     masses are computed in log space (``logsumexp`` of the masked log-probs),
     never as ``1 - w`` in probability space.
     """
@@ -329,10 +329,10 @@ def host_memory_guard(need_bytes: int, reserve_gb: float = 9.0) -> None:
     ``load_prefix`` loads the prefix on the host before moving it to the GPU,
     and the parked teacher log-probs stay in host RAM for the whole student
     pass.  Sixteen windows at seq 512 with a 248k vocab is ~8 GB of cache;
-    together with the old fp32 host construction that OOM'd the 30 GB box
-    (session 3, 00:20), which is where the original 18 GB reserve came from.
+    together with the old fp32 host construction that OOM'd a 30 GB host,
+    which is where the original 18 GB reserve came from.
     The loader now constructs in bf16 and uses ``assign=True``, and a measured
-    4-layer load peaks at **7.0 GB** (2026-09-29, session 4), so the reserve is
+    4-layer load peaks at **7.0 GB** (2026-09-29), so the reserve is
     9 GB -- re-measure it if the loader changes again.  Reads MemAvailable and
     refuses loudly instead of dying mid-pass.
     """
@@ -452,7 +452,7 @@ def build_parser() -> argparse.ArgumentParser:
                          "over the teacher's top-k. 0 = off. Teacher and student are "
                          "co-resident here, so it is one extra reduction per token, "
                          "and it says which piece the next objective term should "
-                         "target (RESEARCH-HANDOFF §7.1a).")
+                         "target (see the tail plan's chain-rule notes).")
     ap.add_argument("--tail-samples", type=int, default=0,
                     help="with --decompose-topk: estimate the tail-conditional piece "
                          "from this many sampled tail tokens per position (unbiased; "
@@ -528,7 +528,7 @@ def main() -> None:
     # Refuse a teacher cache that cannot coexist with the prefix reload.  The
     # parked log-probs live in host RAM through the student pass, and load_prefix
     # materialises the prefix in fp32 on the host (~17 GB for 4 layers) first --
-    # 16 windows OOM'd the 30 GB box at 00:20 (session 3); 8 windows is the
+    # 16 windows OOM'd a 30 GB host; 8 windows is the
     # tested-safe size.
     need = sum(d.numel() - 1 for d in data) * vocab * 4
     host_memory_guard(need)

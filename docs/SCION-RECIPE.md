@@ -5,9 +5,7 @@ in particular the forthcoming **Qwen 4.0** (`qwen4_exp`) — without re-deriving
 it. Frozen, measured, signed for the 35B v1/v2 runs; the numbers below are the
 evidence. Companion docs: [`MOE-EXTENSION.md`](MOE-EXTENSION.md) (the MoE
 write-up), [`RELEASE-35B-MODEL-CARD.md`](RELEASE-35B-MODEL-CARD.md),
-[`QUANT-RETENTION-35B.md`](QUANT-RETENTION-35B.md) (the gate protocol),
-[`RENTAL-RUNBOOK-V2.md`](RENTAL-RUNBOOK-V2.md) (pod ops). Live state:
-`~/Desktop/RESEARCH-HANDOFF.md`.
+[`QUANT-RETENTION-35B.md`](QUANT-RETENTION-35B.md) (the gate protocol).
 
 ## 1. The method in one paragraph
 
@@ -78,7 +76,7 @@ Common flags for both arms (the **one variable** between them is
 
 - `both` = corrections on MoE output **and** attention output.
 - Do **not** add `--alloc-file` (the RCO/sensitivity allocations were measured
-  and neither is a strict win over all-ternary; §3 of the handoff).
+  and neither is a strict win over all-ternary).
 - **`--resume` is unsafe for the main recipe** (the trainer pairs the cache
   iterator from 0 with a step-offset data index → misaligned windows). Restart
   the arm; the cache survives.
@@ -154,7 +152,7 @@ post-norm hidden + the next token's embedding; the final projection reuses the
 target's `output_norm`/`output` (no second vocab projection).
 
 1. **Taps** — the fork's `test-mtp-probe <model.gguf> <tokens.bin> N seq outdir`
-   (in `/home/penis/llama.cpp`, branch `moe-corr-runtime`) dumps per-position
+   (branch `moe-corr-runtime` in the runtime fork) dumps per-position
    fp32 post-norm hidden + the greedy argmax. Build `tokens.bin` with the
    target tokenizer over the training corpus (mix, 3088 windows × 512).
 2. **k=1 sidecar** — `moe/mtp_release_train.py` (fc1/gelu/fc2, self-distilled
@@ -176,14 +174,12 @@ target's `output_norm`/`output` (no second vocab projection).
    this MoE (every verified token activates its own experts), so multi-token
    does not pay here. **Ship the k=1 sidecar; only revisit a multi-token head
    for a target with a cheaper verify (dense attention / shared experts).**
-   Numbers: `hivebench/artifacts/ternary/moe/qwen35/mtp-dspark-numbers/`.
 4. `moe/mtp_eval.py --chain K` measures the naive stale-hidden chain (a head
    without per-position state does **not** pay).
 
 ## 8. Porting to Qwen 4.0 (`qwen4_exp`) — checklist
 
-Same recipe, new runtime work first (see `§8.14` of the handoff for the port
-recon):
+Same recipe, new runtime work first:
 
 1. **Runtime pin.** `qwen4_exp` is in transformers `main` (pin a commit) or
    vLLM/SGLang; shadow-install and smoke a tiny forward.
@@ -209,6 +205,6 @@ recon):
 
 - One cache; two arms (`cur05` primary, `pred2.0` fallback) trained from it; a
   merged single-file GGUF per arm; adapters + eval JSONs; the community gate
-  table; a k=1 sidecar (and, if the numbers hold, the DSpark multi-token head);
-  the runlog and the handoff updated. **No release before the community gate
-  and, for the multi-token drafter, before the real (batched-verify) speedup.**
+  table; a k=1 sidecar (and, if the numbers hold, the DSpark multi-token head).
+  **No release before the community gate and, for the multi-token drafter,
+  before the real (batched-verify) speedup.**

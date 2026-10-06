@@ -38,8 +38,11 @@ import torch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-WORKSPACE = Path("/home/penis/Desktop/work")
-sys.path.insert(0, str(WORKSPACE / "bonsai2-ternary-forensics"))
+from clef_paths import GGUF_PY, WORKSPACE  # noqa: E402
+
+_BONSAI = WORKSPACE / "bonsai2-ternary-forensics"
+if _BONSAI.is_dir():
+    sys.path.insert(0, str(_BONSAI))
 
 from quant import ternary_absmean, ternary_lloyd, ternary_lloyd_scales  # noqa: E402
 from clef_export import pack_q1_0_g128  # noqa: E402
@@ -49,7 +52,7 @@ from bonsai_forensics.run_quant import rotate_hessian  # noqa: E402
 try:
     from gguf import GGMLQuantizationType, GGUFReader, GGUFValueType, GGUFWriter, Keys
 except ImportError:  # running without the fork's gguf-py on PYTHONPATH
-    sys.path.insert(0, "/home/penis/llama.cpp/gguf-py")
+    sys.path.insert(0, str(GGUF_PY))
     from gguf import GGMLQuantizationType, GGUFReader, GGUFValueType, GGUFWriter, Keys
 
 BLOCK = 1024

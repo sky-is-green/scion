@@ -1,13 +1,12 @@
 # Community post: empero-ai
 
-Paste the block below into the Community tab of
-`empero-ai/Qwen3.8-35B-A3B-Distill`. It is a code block so the markdown survives
-copying.
+Community-tab note for `empero-ai/Qwen3.8-35B-A3B-Distill`. Code block so the
+markdown survives copying.
 
 ```markdown
 Thanks for the distill. I quantized `Qwen3.8-35B-A3B-Distill` down to **2.61 bpw** and wanted to show you the result.
 
-**Scion-35B-A3B**: the expert banks in a ternary container (2-bit codes plus one fp16 group scale per 128 weights), everything else Q8_0, plus small **trained** rank-512 corrections (attention output, MoE block output and router deltas), trained by output-KD against the BF16 teacher with the deployed quantizer in the loop. No imatrix, no calibration corpus, no full-model QAT. The corrections are the only trained part, and the run cost about $7 of rented H100 time.
+**Scion-35B-A3B**: the expert banks in a ternary container (2-bit codes plus one fp16 group scale per 128 weights), everything else Q8_0, plus small **trained** rank-512 corrections (attention output, MoE block output and router deltas), trained by output-KD against the BF16 teacher with the deployed quantizer in the loop. No imatrix, no calibration corpus, no full-model QAT. The corrections are the only trained part.
 
 - **11.34 GB / 2.61 bpw, single file** (corrections embedded, no `--lora`), 6.3x smaller than the BF16 reference.
 - Task retention (400 tasks each): HellaSwag **79.00** and Winogrande **76.25** against BF16's 81.25 and 76.00, inside the ±2% noise band; best PPL of the 2-bit class (8.354 versus IQ2_M's 8.413).

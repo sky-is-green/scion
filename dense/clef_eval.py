@@ -28,13 +28,13 @@ from clef_dense_load import (load_text_model_streamed, patch_recurrent_gdn,  # n
                              patch_truncated_gdn)
 import clef_head as H  # noqa: E402
 from clef_corrections import TeacherCache, attach_branches  # noqa: E402
+from clef_paths import CLEF_MODEL, HIVE  # noqa: E402
 
-HIVE = Path("/home/penis/Desktop/work/hivebench/experiments/cascade")
 EVAL_JSON = {
     "train": HIVE / "results/clef-flash-judge-eval-train.json",
     "test": HIVE / "results/clef-flash-judge-eval-test.json",
 }
-DEFAULT_MODEL = "/home/penis/Desktop/work/models/clef-flash-ternary"
+DEFAULT_MODEL = str(CLEF_MODEL)
 
 
 def load_reference(split: str, refs_dir: Path | None = None) -> dict:

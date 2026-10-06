@@ -1,6 +1,6 @@
 """Calibrate the uncorrected PQ2_0 noul output — free v0 baseline.
 
-The held-out checkpoint (`hivebench/.../TERNARY-NOTES.md` Stage E) showed the
+The held-out checkpoint showed the
 trained corrections flatten ranking (AUC < chance); the uncorrected body keeps
 ranking (AUC 0.80 bench-train / 0.57 held-out) but is miscalibrated (useful
 threshold ~0.46, not 0.5).  This script fits a monotone recalibration of the
@@ -41,15 +41,16 @@ import torch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, "/home/penis/Desktop/work/hivebench")  # checker import
+from clef_paths import BRIDGE, CLEF_MODEL, HIVE, HIVEBENCH  # noqa: E402
+if HIVEBENCH.is_dir():
+    sys.path.insert(0, str(HIVEBENCH))  # checker import
 import clef_head as H  # noqa: E402
 from clef_corrections import TeacherCache  # noqa: E402
 from clef_eval import load_reference  # noqa: E402
 
-HIVE = Path("/home/penis/Desktop/work/hivebench/experiments/cascade")
-DEFAULT_MODEL = "/home/penis/Desktop/work/models/clef-flash-ternary"
+DEFAULT_MODEL = str(CLEF_MODEL)
 DEFAULT_BODY = f"{DEFAULT_MODEL}/clef-flash-PQ2_0.gguf"
-DEFAULT_BRIDGE = "/home/penis/Desktop/work/hivebench/tools/clef-bridge/clef_embed"
+DEFAULT_BRIDGE = BRIDGE
 DEFAULT_BENCH = f"{DEFAULT_MODEL}/corrections/packaged/bridge-uncorrected.json"
 DEFAULT_HOLDOUT = f"{HIVE}/results/clef-flash-validator-20261003"
 

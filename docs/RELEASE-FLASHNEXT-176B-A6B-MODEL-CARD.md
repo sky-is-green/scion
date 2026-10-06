@@ -136,7 +136,7 @@ Thinking mode emits a long `<think>` trace before the answer; budget
   keeps the PLE table and the experts host-side and the attention side on the
   GPU; `--numa distribute` tells the OS the mapping is random-access and kills
   the readahead amplification.
-- Threads: physical cores are the right default (`-t 16` on the pod), and
+- Threads: physical cores are the right default (`-t 16` on the box), and
   CPU-only serving (`-ngl 0`) is fully functional — it is how this release was
   measured.
 

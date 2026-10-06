@@ -24,6 +24,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -34,10 +35,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import clef_head as H  # noqa: E402
 from clef_corrections import TeacherCache  # noqa: E402
+from clef_paths import BRIDGE, CLEF_MODEL, HIVE  # noqa: E402
 
-HIVE = Path("/home/penis/Desktop/work/hivebench/experiments/cascade")
-DEFAULT_MODEL = "/home/penis/Desktop/work/models/clef-flash-ternary"
-DEFAULT_BRIDGE = "/home/penis/Desktop/work/hivebench/tools/clef-bridge/clef_embed"
+DEFAULT_MODEL = str(CLEF_MODEL)
+DEFAULT_BRIDGE = BRIDGE
 HOLDOUT = HIVE / "results/clef-flash-validator-20261003"
 
 
@@ -102,7 +103,7 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="debug: first N records")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
-    work = Path(f"/tmp/opencode/clef-diag-{args.phase}")
+    work = Path(tempfile.gettempdir()) / f"clef-diag-{args.phase}"
 
     if args.phase == "teacher":
         tasks = tasks_index()

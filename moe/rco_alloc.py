@@ -9,7 +9,7 @@ Ported from IST-DASLab/RCO (arXiv 2605.00649, Apache-2.0):
     budget-constrained DP forward (Gumbel-perturbed logits -> one discrete
     assignment inside the byte budget).
 
-Local adaptation, recorded in ``RESEARCH-HANDOFF.md`` Sec. 7.2:
+Local adaptation of the RCO allocation:
 
   - groups = quantizable 2-D weight tensors (per-layer); options = container
     levels {2 = ternary (the deployable Lloyd g128 rule), 4, 6, 8} bits/param

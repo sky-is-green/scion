@@ -5,8 +5,7 @@ terms (`D_KL2 3.0` + bias + curriculum 0.05) did not transfer: the full 35B v2
 ties v1 (mean/median KLD marginally better, p99.9/max worse, PPL +2.3%). The
 full teacher puts 96–99% of its mass on the top-512 cache (vs 17–20% on the
 prefix), so the tail terms act at ~1/60 strength. Register entry: `FAILURES.md`
-D8; full numbers there and in the handoff §3c/§3d. The plan below is kept as the
-record of what was done.
+D8. The plan below is kept as the record of what was done.
 **Related:** `QUANT-RETENTION-35B.md`, `QUANTIZATION-LANDSCAPE.md` §3.6/§7,
 `RELEASE-35B-MODEL-CARD.md`.
 
@@ -35,8 +34,7 @@ HIP_VISIBLE_DEVICES=1 llama-perplexity -m qwen35-body-pq2_0-q8rest.gguf \
   --kl-divergence --kl-divergence-base bf16-kld-50chunks.kld
 ```
 
-Plus body HellaSwag/Winogrande 400 (`/tmp/opencode/bench-body.sh` is ready;
-it failed earlier only because card 1 was busy).
+Plus body HellaSwag/Winogrande 400.
 
 ## Step 1 — prefix A/B (local, free)
 
@@ -75,7 +73,7 @@ Pick one after seeing Step 1:
 - **a. residual-mass term** — match the teacher's remaining probability mass
   (sample k low-probability vocab entries per token; stochastic but unbiased);
 
-  **Status: BUILT (2026-09-28, session 2), unmeasured.** Built as the
+  **Status: BUILT (2026-09-28), unmeasured.** Built as the
   *marginal* KL of the two-way support/complement split rather than a sampled
   estimator: `kd_loss.support_mass` + `kd_loss.residual_mass_kl`, wired as
   `--kd-tail-weight` (default 0.0) and `phase1-w1.sh train-tail <w>` (which
@@ -118,11 +116,10 @@ Pick one after seeing Step 1:
 Implementation sketch: `--kd-tail-weight` in `moe/qwen35_moe_proxy.py`'s train
 loss; keep a CPU unit test.  Do not change the frozen v1 recipe.
 
-## Step 3 — v2 full run (rental, only if justified)
+## Step 3 — v2 full run (only if justified)
 
 Only if Steps 1–2 show a clear, reproducible tail win **and** a v2 release is
-wanted: repeat the v1 rental recipe with the new objective (~$7–9).  Not
-scheduled; v1 ships regardless.
+wanted: repeat the v1 recipe with the new objective. v1 ships regardless.
 
 ## Explicit non-goal
 

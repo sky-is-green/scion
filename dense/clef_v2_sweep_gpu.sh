@@ -3,13 +3,22 @@
 # back-to-back (minimises the idle runtime-PM window that wedged the card) and
 # aborts loudly if ROCm disappears rather than falling into the CPU path.
 set -u
-PY=/home/penis/Desktop/work/.venv-rocm/bin/python
-S=/home/penis/Desktop/work/scion
-T=/home/penis/Desktop/work/models/clef-flash-ternary
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WORKSPACE="${SCION_WORKSPACE:-$(dirname "$ROOT")}"
+MODELS="${SCION_MODELS:-$WORKSPACE/models}"
+CLEF_MODEL="${SCION_CLEF_MODEL:-$MODELS/clef-flash-ternary}"
+LLAMA_BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin}"
+GGUF_PY="${GGUF_PY:-$HOME/llama.cpp/gguf-py}"
+TMP="${TMPDIR:-/tmp}"
+
+PY="${SCION_PYTHON:-python3}"
+S="$ROOT"
+T="$CLEF_MODEL"
 V=$T/v2
-export PYTHONPATH=/home/penis/llama.cpp/gguf-py
+export PYTHONPATH="$GGUF_PY"
 export HIP_VISIBLE_DEVICES=1
-PPL=/home/penis/llama.cpp/build/bin/llama-perplexity
+PPL="$LLAMA_BIN/llama-perplexity"
 cd "$S"
 
 if [ ! -f "$V/clef-flash-v2-noedge.gguf" ]; then

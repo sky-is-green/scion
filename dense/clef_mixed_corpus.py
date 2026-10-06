@@ -8,7 +8,7 @@ Sources (all local; no downloads; cached HF datasets only):
 
 Windows never cross source boundaries.  Writes <out>/windows.npy (int32
 [n, seq]) + <out>/corpus.json (provenance, ratios, per-source token counts,
-sha256).  Shared by the 0.8B derisk and the v2 9B run (SOLVER-PLAN.md).
+sha256).  Shared by the 0.8B derisk and the v2 9B run.
 
 Usage:
   clef_mixed_corpus.py --tokenizer <snap> --out <dir> --tokens 1048576 --seq 512
@@ -25,14 +25,19 @@ from pathlib import Path
 
 import numpy as np
 
+from clef_paths import REPO, WORKSPACE
+
 DEFAULT_CODE_ROOTS = [
-    "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/llama.cpp",
-    "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion",
-    "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/hivebench",
-    "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/FreeToken",
-    "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/llama-qwen4exp",
-    "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/prism-ml-llama.cpp",
+    str(WORKSPACE / "llama.cpp"),
+    str(REPO),
+    str(WORKSPACE / "hivebench"),
+    str(WORKSPACE / "FreeToken"),
+    str(WORKSPACE / "llama-qwen4exp"),
+    str(WORKSPACE / "prism-ml-llama.cpp"),
 ]
+_code_roots_env = os.environ.get("SCION_CODE_ROOTS")
+if _code_roots_env:
+    DEFAULT_CODE_ROOTS = _code_roots_env.split(",")
 CODE_EXTS = {".py", ".c", ".cc", ".cpp", ".h", ".hpp", ".cu", ".md"}
 SKIP_DIRS = {"build", ".git", "__pycache__", "node_modules", ".venv", "vendor",
              "worktrees", "site-packages", ".cache"}

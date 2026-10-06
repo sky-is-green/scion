@@ -12,10 +12,15 @@
 # Usage: repack_body_kquant.sh <in.gguf> <out.gguf> [body-type]
 #   BIN=/path/to/llama-quantize  (default: the fork's CPU build)
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKSPACE="${SCION_WORKSPACE:-$(dirname "$ROOT")}"
+QWEN4EXP_BIN="${SCION_QWEN4EXP_BIN:-$WORKSPACE/llama-qwen4exp/build-q4exp-proto/bin}"
+
 IN="${1:?usage: repack_body_kquant.sh <in.gguf> <out.gguf> [body-type]}"
 OUT="${2:?usage: repack_body_kquant.sh <in.gguf> <out.gguf> [body-type]}"
 TYPE="${3:-Q8_0}"
-BIN="${BIN:-/home/penis/Desktop/work/llama-qwen4exp/build-q4exp-proto/bin/llama-quantize}"
+BIN="${BIN:-$QWEN4EXP_BIN/llama-quantize}"
 [ -x "$BIN" ] || { echo "llama-quantize not executable: $BIN" >&2; exit 2; }
 [ -s "$IN" ] || { echo "input missing: $IN" >&2; exit 2; }
 time "$BIN" \

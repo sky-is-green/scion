@@ -1,7 +1,7 @@
 """Honest CPU-bridge decision benchmark for the packaged dense Clef corrections.
 
 For every bench record in the teacher cache this runs the fork bridge
-(``hivebench/tools/clef-bridge/clef_embed``, CPU, one model load) on the body
+(the bridge executable, CPU, one model load) on the body
 under test, loads the f32 per-token hidden states, runs the joint head (CPU
 f32), and scores ``p_correct`` against the recorded bf16 probability and the
 programmatic checker at 0.5 -- the same rows and metric as ``dense/clef_eval.py``,
@@ -15,7 +15,7 @@ Usage:
     .venv-rocm/bin/python dense/clef_bridge_eval.py \
         --cache .../corrections/cache-smoke \
         --body .../clef-flash-PQ2_0-corr-r512-g128-step78.gguf \
-        --bridge hivebench/tools/clef-bridge/clef_embed \
+        --bridge /path/to/clef_embed \
         --tag corrected --out .../corrections/packaged/bridge-corrected.json
 """
 from __future__ import annotations
@@ -37,8 +37,9 @@ sys.path.insert(0, str(HERE))
 import clef_head as H  # noqa: E402
 from clef_corrections import TeacherCache  # noqa: E402
 from clef_eval import load_reference  # noqa: E402
+from clef_paths import CLEF_MODEL  # noqa: E402
 
-DEFAULT_MODEL = "/home/penis/Desktop/work/models/clef-flash-ternary"
+DEFAULT_MODEL = str(CLEF_MODEL)
 
 
 def sha256(path: Path) -> str:

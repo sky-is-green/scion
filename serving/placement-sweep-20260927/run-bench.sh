@@ -8,7 +8,7 @@
 #
 # Usage: ./run-bench.sh
 set -u
-cd "$(dirname "$0")/.."          # ternary-serve/
+cd "$(dirname "$0")/.."          # repo root (adjust if nested)
 BIN=build-hip/bin/llama-bench
 PPL=build-hip/bin/llama-perplexity
 OUT=placement-sweep-20260927

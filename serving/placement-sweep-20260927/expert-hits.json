@@ -1,6 +1,6 @@
 {
- "model": "/home/penis/Desktop/work/hivebench/artifacts/ternary/moe/olmoe-hf",
- "corpus": "/home/penis/Desktop/work/ternary-serve/wiki.test.raw",
+ "model": "hivebench/artifacts/ternary/moe/olmoe-hf",
+ "corpus": "ternary-serve/wiki.test.raw",
  "chunks": 32,
  "tokens": 16384,
  "layers": 16,

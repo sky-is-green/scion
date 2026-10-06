@@ -35,12 +35,12 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from clef_dense_load import load_text_model_streamed, patch_recurrent_gdn  # noqa: E402
 import clef_head as H  # noqa: E402
+from clef_paths import CLEF_MODEL, HIVE  # noqa: E402
 
-HIVE = Path("/home/penis/Desktop/work/hivebench/experiments/cascade")
 TASKS = HIVE / "tasks-bench.json"
 TRAIN_REPORT = HIVE / "results/strata-bench-train-20261003/report.json"
 TEST_REPORT = HIVE / "results/strata-bench-test-labels-20261003/report.json"
-DEFAULT_MODEL = "/home/penis/Desktop/work/models/clef-flash-ternary"
+DEFAULT_MODEL = str(CLEF_MODEL)
 
 
 def load_bench() -> list[dict]:

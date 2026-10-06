@@ -7,8 +7,8 @@ the -exp(A_log) and the 1+w norm conventions (2026-10-03).
 
 Usage:
     python moe/gguf_ref_sweep.py <ours.gguf> [ref.gguf] [--big]
-    ref.gguf defaults to the symlinked ISTA reference; requires the 1.1T
-    backup drive mounted at /run/media/penis/30CE2C97CE2C577E.
+    ref.gguf defaults to the symlinked ISTA reference on a mounted backup
+    drive (override with SCION_STORAGE or pass it explicitly).
     --big also checks token_embd/output (needs ~4 GB transient).
 """
 from __future__ import annotations
@@ -19,13 +19,15 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "/home/penis/Desktop/work/llama-qwen4exp/gguf-py")
+from scion_paths import QWEN4EXP_GGUF_PY, STORAGE
+
+sys.path.insert(0, str(QWEN4EXP_GGUF_PY))
 import gguf  # noqa: E402
 from gguf.quants import dequantize  # noqa: E402
 
-DEFAULT_REF = ("/run/media/penis/30CE2C97CE2C577E/storage/flashnext-backup/"
-               "models/qwen38-q2_0/Q2_0/"
-               "Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf")
+DEFAULT_REF = str(STORAGE / "flashnext-backup" /
+                  "models/qwen38-q2_0/Q2_0" /
+                  "Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf")
 BIG = ("token_embd.weight", "output.weight")
 
 

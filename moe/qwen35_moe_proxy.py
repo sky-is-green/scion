@@ -25,8 +25,8 @@ mixing), ``--top-logits`` (tail-plan step 1).
 
 Ops: training needs the FP teacher and ternary student resident together, so it
 needs a card that holds both (or two cards via ``--device-map auto`` with
-``--max-memory``); single-card stages should pin the free card
-(``HIP_VISIBLE_DEVICES=1``).
+``--max-memory``); single-GPU stages should pin a non-display GPU (for example
+``HIP_VISIBLE_DEVICES=1``).
 """
 
 from __future__ import annotations
@@ -465,7 +465,7 @@ def load_full(args):
 def ternarize_banks(model, args) -> None:
     """Freeze the expert banks in place under the selected scale rule.
 
-    ``--alloc-file`` (the RCO port, session 8) replaces the all-ternary hand
+    ``--alloc-file`` (the RCO port) replaces the all-ternary hand
     map with a per-bank bit assignment: 2 = the deployed Lloyd ternary rule,
     4/6/8 = symmetric g128 integer codes with fp16 scales.  Default off, so
     the frozen v1 path is untouched.

@@ -3,11 +3,20 @@
 #   128-window Hessian capture -> GPTQ + Lloyd + act-order -> PPL.
 # Started via: systemd-run --user --unit=clef-h128 ...
 set -e
-PY=/home/penis/Desktop/work/.venv-rocm/bin/python
-S=/home/penis/Desktop/work/scion
-T=/home/penis/Desktop/work/models/clef-flash-ternary
-EXT=/run/media/penis/30CE2C97CE2C577E/storage
-export PYTHONPATH=/home/penis/llama.cpp/gguf-py
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WORKSPACE="${SCION_WORKSPACE:-$(dirname "$ROOT")}"
+MODELS="${SCION_MODELS:-$WORKSPACE/models}"
+CLEF_MODEL="${SCION_CLEF_MODEL:-$MODELS/clef-flash-ternary}"
+LLAMA_BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin}"
+GGUF_PY="${GGUF_PY:-$HOME/llama.cpp/gguf-py}"
+TMP="${TMPDIR:-/tmp}"
+
+PY="${SCION_PYTHON:-python3}"
+S="$ROOT"
+T="$CLEF_MODEL"
+EXT="${SCION_STORAGE:-$WORKSPACE/storage}"
+export PYTHONPATH="$GGUF_PY"
 export HIP_VISIBLE_DEVICES=1
 
 echo "== capture 128 windows $(date -Is)"
@@ -22,7 +31,7 @@ echo "== gptq act-order $(date -Is)"
 
 echo "== ppl $(date -Is)"
 cd "$T/v2"
-/home/penis/llama.cpp/build/bin/llama-perplexity \
+"$LLAMA_BIN/llama-perplexity" \
     -m clef-flash-v2-signs-gptq-lloyd-ao-h128.gguf \
     -f wiki.test.raw -c 512 --chunks 100 -ngl 99 \
     > ppl100-gptq-lloyd-ao-h128.log 2>&1

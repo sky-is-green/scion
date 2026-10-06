@@ -1,6 +1,6 @@
 # External prior art: TAARDIS (CodeMasterCody3D) — notes for the dense Clef route
 
-Surveyed 2026-10-03 while the packaging bridge benchmark ran.  TAARDIS is the
+Surveyed 2026-10-03.  TAARDIS is the
 direct ancestor of our fork (`taardis-lora`, `Q1_0_g128`, `blk.N.ssm_readout`
 all come from it), so this is not just related work — it is the route's
 upstream.  Everything below is public; none of it was downloaded into the
@@ -89,8 +89,7 @@ GGUF artifacts; nothing we can lift for the Clef correction route.  The only
 tangential asset is the 2023 ESM-2 LoRA/QLoRA code — our branch/trainer design
 is already equivalent or beyond it.
 
-## Do not download without approval
+## Not used as data
 
 The 27B teacher caches, Hessians and `manifest.pt` are large and specific to
-Qwen3.8-27B; useful as format references, not as data for Clef.  Per policy,
-ask before pulling any of them.
+Qwen3.8-27B; useful as format references, not as data for Clef.

@@ -1,6 +1,6 @@
 # HF release notes — clef-flash ternary corrections (pre-post checklist)
 
-Checked 2026-10-03, before the local generalization track.  Everything in the
+Checked 2026-10-03.  Everything in the
 chain is permissive; posting is a documentation exercise, not a legal one.
 
 ## License matrix
@@ -54,11 +54,9 @@ to 1.9-2.1M PPL (token soup; imatrix no-op), while a plain **Q2_K beats our
 artifact outright — 13.06 PPL, clean generation, 3.56 GiB, mainline** vs
 23.25 / math loop / 5.52 GiB / fork-only.  Gate outcome: **no release**; the
 QAT pipeline still wins the ternary comparison, but the release bar (trained
-Bonsai ~1.44x, or the Q2_K-class baseline) is not met.  Next (needs approval)
-is one proper QAT run (mixed corpus + logits KD, 5-10M tokens, ~$8-15)
-accepted on clean generation, PPL <= ~18 and KL/top-1 vs bf16 before any
-upload.  Record: `hivebench/experiments/cascade/results/
-clef-flash-validator-20261003/community-gate-20261006.json`.
+Bonsai ~1.44x, or the Q2_K-class baseline) is not met.  Next step is one proper
+QAT run (mixed corpus + logits KD, 5-10M tokens) accepted on clean generation,
+PPL <= ~18 and KL/top-1 vs bf16 before any upload.
 
 ## Suggested upload set (once a quant passes the gate)
 
@@ -74,5 +72,5 @@ clef-flash-validator-20261003/community-gate-20261006.json`.
 ## Code credits state (for the card)
 
 The conversion/eval tooling lives in `scion/dense/` (Apache-2.0) and
-`hivebench/tools/clef-bridge/` (MIT); the runtime is the local llama.cpp fork
+`hivebench/tools/clef-bridge/` (MIT); the runtime is the llama.cpp fork
 (MIT), itself carrying TAARDIS virtual-target support (MIT, Cody Dixon).

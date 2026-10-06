@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import struct
 import sys
+import tempfile
 from argparse import Namespace
 from pathlib import Path
 
@@ -19,14 +20,16 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import qwen4exp_export as qx
+import scion_paths
 
 
 def make_exporter(**kw):
-    d = {"model_dir": "/home/penis/Desktop/work/models/qwen38-flashnext-fp8",
+    d = {"model_dir": str(scion_paths.Q4_MODEL_DIR),
          "layers": 2, "experts": "ptq1_0", "body": "f16", "branches": "none",
          "branch_dtype": "f16", "branch_quant": "g128",
          "deploy_quant": "lloyd", "routers": "replace", "adapter_recipe": "",
-         "use_temp_file": False, "out": "/tmp/opencode/test-export.gguf"}
+         "use_temp_file": False,
+         "out": str(Path(tempfile.gettempdir()) / "test-export.gguf")}
     d.update(kw)
     return qx.Exporter(Namespace(**d))
 
@@ -266,9 +269,11 @@ def test_body_quantize_paths():
 
 def test_tokenizer_vocab_matches_hf_size():
     import json
+    vocab_path = scion_paths.Q4_MODEL_DIR / "vocab.json"
+    if not vocab_path.exists():
+        pytest.skip(f"no vocab.json under {scion_paths.Q4_MODEL_DIR}")
     ex = make_exporter()
-    vocab = json.load(
-        open("/home/penis/Desktop/work/models/qwen38-flashnext-fp8/vocab.json"))
+    vocab = json.load(open(vocab_path))
     assert len(vocab) == 248044
     assert int(ex.hp["vocab_size"]) == 248320
 

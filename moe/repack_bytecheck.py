@@ -2,14 +2,20 @@
 """Byte-identity check of the copied containers between the original export
 and the Q6_K body repack: adapters fully, experts + PLE table sampled.
 Memory-bounded: 1 MiB chunked reads via gguf-py offsets."""
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/home/penis/Desktop/work/llama-qwen4exp/gguf-py")
+from scion_paths import HIVE_ARTIFACTS, QWEN4EXP_GGUF_PY
+
+sys.path.insert(0, str(QWEN4EXP_GGUF_PY))
 import gguf  # noqa: E402
 
-A_PATH = "/home/penis/Desktop/work/hivebench/artifacts/ternary/moe/qwen4exp/qwen4exp-48l-ptq1_0-corr-step3000-ple.gguf"
-B_PATH = "/home/penis/Desktop/work/hivebench/artifacts/ternary/moe/qwen4exp/qwen4exp-48l-ptq1_0-corr-step3000-ple-q6k.gguf"
+_ART = HIVE_ARTIFACTS / "ternary" / "moe" / "qwen4exp"
+A_PATH = os.environ.get(
+    "SCION_REPACK_A", str(_ART / "qwen4exp-48l-ptq1_0-corr-step3000-ple.gguf"))
+B_PATH = os.environ.get(
+    "SCION_REPACK_B", str(_ART / "qwen4exp-48l-ptq1_0-corr-step3000-ple-q6k.gguf"))
 CHUNK = 1 << 20
 
 

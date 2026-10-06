@@ -13,11 +13,12 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import scion_paths
 import steer_probe as sp
 
 autogrid = pytest.importorskip("autogrid_ext.steer")
 pytestmark = pytest.mark.skipif(
-    not (Path.home() / "Desktop/work/autogrid").exists(), reason="no autogrid fork")
+    not scion_paths.AUTOGRID_REPO.exists(), reason="no autogrid fork")
 
 
 def _model():

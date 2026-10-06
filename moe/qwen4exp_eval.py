@@ -15,7 +15,7 @@ load plus a 4 GB park swap-thrashed the 31 GB box.  ``--stage teacher`` and
 ``--stage student`` run the two halves as separate processes; ``both`` keeps
 the single-process flow for small prefixes.
 
-Example (2-layer real-weights prefix, free card, wikitext seed 999):
+Example (2-layer real-weights prefix, single GPU, wikitext seed 999):
 
     PYTHONPATH=<shadow> HIP_VISIBLE_DEVICES=1 python moe/qwen4exp_eval.py \\
         --prefix-layers 2 --device cuda:0 --quant lloyd --branch-quant g128 \\

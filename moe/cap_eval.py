@@ -5,7 +5,7 @@ completion with a deterministic local checker
 (contains/exact/numeric/regex/python).  Two backends:
 
 - ``cli``    : one llama-cli process per task (simple, but reloads the model
-              20 times -- this OOMed the 30 GB box once; kept for tiny files).
+              20 times -- this caused OOM once on a 30 GB host; kept for tiny files).
 - ``server`` : a SINGLE llama-server load, one ``/completion`` POST per task.
   ``--server-bin`` starts and stops the server for the run; ``--server-url``
   uses an already-running one.

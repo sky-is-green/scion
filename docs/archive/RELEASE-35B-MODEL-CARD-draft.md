@@ -3,7 +3,6 @@
 Draft model card for the downloadable artifact.  Base: `empero-ai/Qwen3.8-35B-A3B-Distill`
 (Apache-2.0), a Qwen3.8 distill into the Qwen3.6-35B-A3B MoE architecture
 (`qwen35moe`, 40 layers, 256 experts, 8 routed/token, ~3B active, 262k context).
-Confirm the upload name before publishing.
 
 ## Files
 
@@ -98,5 +97,4 @@ weights, ~16 GB comfortable.
 - BF16 GGUF used to build the body: `MrFuzzihead/Qwen3.8-35B-A3B-Distill-APEX-GGUF`,
   sha256 `ecbe9e21…666660` (verified equal, tensor-for-tensor, to the empero BF16
   reference used for KLD).
-- Rental evidence and costs: `RENTAL-RESULTS-35B.md` ($7.26, H100 SXM, EUR-IS-3).
 - License: **Apache-2.0**, inherited from the base.

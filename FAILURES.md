@@ -143,12 +143,12 @@
 - **Verdict:** Rejected as a performance feature at this size. The real fix is
   **sparse per-token dispatch** (variable k), which is kernel work.
 - **Evidence:** `serving/placement-sweep-20260927/THROUGHPUT.md`,
-  `.../EQUIVALENCE.md`, `.../SUMMARY.md`; `serving/HANDOFF-EXPERT-CACHE.md`.
+  `.../EQUIVALENCE.md`, `.../SUMMARY.md`.
 - **Status:** closed.
 - **What it rules out:** static hot/cold residency as a throughput lever on
   OLMoE-class models; layer-level `-ncmoe` placement and single-GPU sizing stay
   the effective levers.
-- **Cost to revisit:** the sparse-dispatch engine project (not scheduled).
+- **Cost to revisit:** the sparse-dispatch engine project.
 
 ## D8 — Tail-conditioned KD does not transfer to the full body
 
@@ -158,7 +158,7 @@
   full scale.
 - **Method:** the local 4-layer prefix selected the recipe (`D_KL2 3.0` + router
   bias + hard-window curriculum 0.05, tag `cur05`; fallback `D_KL2 2.0 + bias`,
-  `pred2.0`), then one 35B pod window (1×H100, `$12.60`) trained both arms from
+  `pred2.0`), then one full-model run on a rented H100 trained both arms from
   one cache with the signed recipe and gated them on the community protocol.
   Later re-measured on a second protocol (ARC / MMLU / TruthfulQA + PPL) and
   paired with the k=1 drafter.
@@ -179,8 +179,6 @@
   tie (v1/v2: ARC-C 57.19/57.19, ARC-E 80.00/79.47, MMLU 40.15/39.60,
   TruthfulQA 32.56/31.82; fresh PPL 8.2731/8.4517). Paired k=1 drafter: v1
   1.368×, v2 1.302× — the drafter transfers, the body does not improve.
-  (Full artifacts: `hivebench/artifacts/ternary/moe/qwen35/rental-v2/gate/`,
-  `.../community-v1-v2/`.)
 - **Mechanism:** the full-model teacher puts **96–99%** of its mass on the
   top-512 cache, versus **17–20%** on the 4-layer prefix. The tail-conditioned
   terms act on the complement, so their effective strength drops ~20–80×
@@ -190,10 +188,10 @@
   objectives**.
 - **Verdict:** Falsified at full scale. Tail-conditioned KD does not close the
   KLD tail on a deep body, and prefix tail gains do not transfer.
-- **Evidence:** `RESEARCH-HANDOFF.md` §3c/§3d/§9; `docs/SCION-RECIPE.md` §5;
+- **Evidence:** `docs/TAIL-EXPERIMENT-PLAN.md`, `docs/SCION-RECIPE.md` §5;
   artifacts above.
 - **Status:** closed (negative). The DSpark multi-token drafter is a separate
-  closed negative in the drafter lane (handoff §3c).
+  closed negative in the drafter lane.
 - **What it rules out:** tail-conditioned KD (D_KL1/D_KL2) as a lever at full
   depth for this class; prefix-tail gains as a predictor of full-body tail; the
   shallow prefix as a proxy for any objective acting outside the top-512.

@@ -5,11 +5,20 @@
 # set which is copied as F16 (and not listed in the rotation metadata).  PPL is
 # the wikitext-2 test, c512, 100 chunks, same settings as the V2 baseline.
 set -e
-PY=/home/penis/Desktop/work/.venv-rocm/bin/python
-S=/home/penis/Desktop/work/scion
-T=/home/penis/Desktop/work/models/clef-flash-ternary
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WORKSPACE="${SCION_WORKSPACE:-$(dirname "$ROOT")}"
+MODELS="${SCION_MODELS:-$WORKSPACE/models}"
+CLEF_MODEL="${SCION_CLEF_MODEL:-$MODELS/clef-flash-ternary}"
+LLAMA_BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin}"
+GGUF_PY="${GGUF_PY:-$HOME/llama.cpp/gguf-py}"
+TMP="${TMPDIR:-/tmp}"
+
+PY="${SCION_PYTHON:-python3}"
+S="$ROOT"
+T="$CLEF_MODEL"
 V=$T/v2
-export PYTHONPATH=/home/penis/llama.cpp/gguf-py
+export PYTHONPATH="$GGUF_PY"
 export HIP_VISIBLE_DEVICES=1
 cd "$S"
 
@@ -19,7 +28,7 @@ run() {
   echo "== $tag (keep f16: $keep)"
   "$PY" dense/clef_v2_convert.py --in "$T/clef-flash-f16.gguf" \
       --out "$V/clef-flash-v2-$tag.gguf" --keep-f16 "$keep"
-  ( cd "$V" && /home/penis/llama.cpp/build/bin/llama-perplexity \
+  ( cd "$V" && "$LLAMA_BIN/llama-perplexity" \
       -m "clef-flash-v2-$tag.gguf" -f wiki.test.raw -c 512 --chunks 100 -ngl 99 \
       > "ppl-$tag.log" 2>&1 )
   grep -E "Final estimate" "$V/ppl-$tag.log"

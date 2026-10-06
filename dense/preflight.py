@@ -1,4 +1,4 @@
-"""Rental/local preflight: prove the training environment matches the deployment.
+"""Environment preflight: prove the training environment matches the deployment.
 
 Run this as the *first* action on any new machine, before a single training
 step.  It builds the f16 backbone from the GGUF with the reverse loader, patches
@@ -10,8 +10,8 @@ Exit code is non-zero on any mismatch, so a guardrail script can abort.
 
     python dense/preflight.py \
         --gguf .../clef-flash-f16.gguf \
-        --tokens /tmp/opencode/tokens.txt \
-        --reference /tmp/opencode/f16_cpu.npy \
+        --tokens /tmp/tokens.txt \
+        --reference /tmp/f16_cpu.npy \
         --min-cos 0.999
 """
 from __future__ import annotations

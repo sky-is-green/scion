@@ -1,7 +1,7 @@
 """QAT derisk on Qwen3.5-0.8B (same hybrid arch as Clef).
 
 Validates the rotation-in-the-loop ternary QAT + teacher-KD recipe planned for
-the 9B Clef rental, at a scale that fits the local box.
+the 9B Clef run, at a scale that fits the local box.
 
   * student = Qwen3.5-0.8B text model (24 layers, full_attention_interval=4,
     hidden 1024) with the attention/MLP linears replaced by block-Hadamard
@@ -19,7 +19,7 @@ c512 windows) on the non-display GPU.
 
 Usage:
     HIP_VISIBLE_DEVICES=1 .venv-rocm/bin/python dense/qat_derisk.py \
-        --model-dir /home/penis/.cache/huggingface/hub/models--Qwen--Qwen3.5-0.8B/snapshots/<rev> \
+        --model-dir <hf-snapshot-dir> \
         --out models/qwen35-0.8b-qat-derisk/run1 --steps 300
 """
 from __future__ import annotations
@@ -39,8 +39,11 @@ from torch.utils.checkpoint import checkpoint
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-WORKSPACE = Path("/home/penis/Desktop/work")
-sys.path.insert(0, str(WORKSPACE / "bonsai2-ternary-forensics"))
+from clef_paths import WORKSPACE  # noqa: E402
+
+_BONSAI = WORKSPACE / "bonsai2-ternary-forensics"
+if _BONSAI.is_dir():
+    sys.path.insert(0, str(_BONSAI))
 
 from quant import _lloyd_scale  # noqa: E402
 from bonsai_forensics import rotation as bf_rotation  # noqa: E402

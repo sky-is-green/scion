@@ -1,5 +1,5 @@
 {
-  "checkpoint": "/home/penis/Desktop/work/hivebench/artifacts/ternary/moe/olmoe/olmoe-doctors-r512-d8192-step8192.pt",
+  "checkpoint": "hivebench/artifacts/ternary/moe/olmoe/olmoe-doctors-r512-d8192-step8192.pt",
   "rank": 512,
   "windows": 8,
   "baseline_fp32_ppl": 37.1077,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare ternary codebook rules on real FP expert weights.
 
-The classical-math lane (RESEARCH-HANDOFF §7.7 B) says three things we can
+The classical-math lane says three things we can
 measure offline, on the actual weight distribution, with no model forward:
 
 1. **Data-free vs per-tensor adaptivity.**  The shipped TurboQuant recipe
@@ -38,6 +38,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from moe_proxy import ternary_absmean, ternary_lloyd  # noqa: E402
+from scion_paths import HIVE_ARTIFACTS  # noqa: E402
 
 #: Lloyd-Max reconstruction point for a 3-level quantizer on N(0,1)
 GAUSS_C = 1.224
@@ -105,8 +106,7 @@ def companded_absmean(w: torch.Tensor, group: int = 128,
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--artifacts", default=str(Path.home() / "Desktop/work/hivebench"
-                                              / "artifacts/ternary/moe"))
+    ap.add_argument("--artifacts", default=str(HIVE_ARTIFACTS / "ternary" / "moe"))
     ap.add_argument("--layer", type=int, default=10)
     ap.add_argument("--experts", type=int, default=4,
                     help="how many experts of the tensor to load (slice)")

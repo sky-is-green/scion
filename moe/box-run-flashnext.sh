@@ -1,5 +1,5 @@
 #!/bin/bash
-# Flash-Next rental — one-shot box runbook (2xH200 FP8 cache, then 1xH200 train).
+# Flash-Next — one-shot box runbook (2xH200 FP8 cache, then 1xH200 train).
 #
 # Runtime is PINNED: qwen4_exp exists only on transformers main at commit
 # f339035b (our 5.5.0 rejects the arch), and it needs tokenizers 0.23.x.
@@ -22,8 +22,8 @@
 #   bash box-run-flashnext.sh gate-student # W1 48-layer KLD: student gate
 #   bash box-run-flashnext.sh ple-ab      # W2 PLE precision A/B (release pricing)
 #
-# Budget discipline: Flash-Next cap $55, stop at 80% ($44) and report; release
-# the second GPU before training (the cache is on the volume).
+# Resource discipline: release the second GPU before training (the cache is on
+# the volume).
 set -euo pipefail
 
 export PIP_BREAK_SYSTEM_PACKAGES="${PIP_BREAK_SYSTEM_PACKAGES:-1}"
@@ -186,7 +186,7 @@ train-resume)
 deploy-checkpoint)
     cd "$REPO"
     # raw training ckpt -> deployed form (branch+router only, balance_bias
-    # dropped) so gate-student / export can consume it on the pod.
+    # dropped) so gate-student / export can consume it on the box.
     RAW="${RAW_CKPT:-$Q/qwen4exp-corr-r512-g128-step4096-cur05-4096.pt}"
     DEP="${DEP_CKPT:-$Q/qwen4exp-corr-r512-g128-step4096-cur05-deployed.pt}"
     [ -f "$RAW" ] || { echo "REFUSING: $RAW missing" >&2; exit 4; }
@@ -245,7 +245,7 @@ gate-teacher)
     GATE_STEP="${GATE_STEP:-3000}"
     CKPT="$Q/qwen4exp-corr-r512-g128-step${GATE_STEP}-${GATE_TAG}-deployed.pt"
     [ -f "$CKPT" ] || { echo "REFUSING: $CKPT missing -- upload the deployed" >&2
-        echo "$GATE_STEP checkpoint first (w1w2-prep.sh writes it locally)." >&2; exit 4; }
+        echo "$GATE_STEP checkpoint first (stage it locally before the run)." >&2; exit 4; }
     TCACHE="$Q/tcache-48l"
     time python moe/qwen4exp_eval.py \
         --prefix-layers 48 --ple rows --device cpu \
@@ -280,7 +280,7 @@ gate-student)
     ;;
 export)
     cd "$REPO"
-    # dense f16 factors (no fork gguf-py needed on the pod); the substantive
+    # dense f16 factors (no fork gguf-py needed on the box); the substantive
     # merge into a release body is the local P3 step.
     for tag in cur05 kd5; do
         ckpt="$Q/qwen4exp-corr-r512-g128-step4096-$tag.pt"
@@ -298,7 +298,7 @@ export)
 ple-ab)
     cd "$REPO"
     acquire
-    # W2: PLE precision sweep on the pod fp8 route (2-layer prefix).  The
+    # W2: PLE precision sweep on the box fp8 route (2-layer prefix).  The
     # output name matches the watchdogs' fetch pattern (qwen4exp-eval-*.json);
     # the final artifact stops the spend guard.
     time python moe/qwen4exp_proxy.py ple-ab --model-dir "$Q4_MODEL" \

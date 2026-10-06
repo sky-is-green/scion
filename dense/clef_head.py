@@ -17,7 +17,9 @@ from typing import Any
 
 import torch
 
-DEFAULT_MODEL_DIR = Path("/home/penis/Desktop/work/models/clef-flash-ternary")
+from clef_paths import CLEF_MODEL
+
+DEFAULT_MODEL_DIR = CLEF_MODEL
 DEFAULT_INSTRUCTION = "The candidate answer is correct and complete for the task."
 
 

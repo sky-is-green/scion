@@ -11,7 +11,7 @@ Usage:
   # training: both cards via device_map auto (teacher + student coexist briefly)
   HIP_VISIBLE_DEVICES=0,1 python olmoe_corrections.py train \
       --device-map auto --steps 2000 --rank 64
-  # single-card stages (eval, cache): pin the free card, not the display card
+  # single-GPU stages (eval, cache): pin a non-display GPU
   HIP_VISIBLE_DEVICES=1 python olmoe_corrections.py eval --rank 64 --load <ckpt>
 """
 

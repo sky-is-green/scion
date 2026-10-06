@@ -1,10 +1,10 @@
-loading /home/penis/Desktop/work/hivebench/artifacts/ternary/moe/olmoe-hf ...
+loading hivebench/artifacts/ternary/moe/olmoe-hf ...
 (null): No such file or directory
 (null): No such file or directory
 Loading weights:   0%|          | 0/179 [00:00<?, ?it/s]Loading weights:   2%|▏         | 4/179 [00:00<00:29,  5.93it/s]Loading weights:   8%|▊         | 15/179 [00:01<00:13, 12.35it/s]Loading weights:  15%|█▍        | 26/179 [00:02<00:12, 12.40it/s]Loading weights:  21%|██        | 37/179 [00:03<00:11, 12.09it/s]Loading weights:  27%|██▋       | 48/179 [00:03<00:09, 14.17it/s]Loading weights:  33%|███▎      | 59/179 [00:04<00:09, 12.44it/s]Loading weights:  34%|███▍      | 61/179 [00:04<00:09, 12.56it/s]Loading weights:  39%|███▉      | 70/179 [00:06<00:12,  9.08it/s]Loading weights:  40%|████      | 72/179 [00:06<00:11,  9.25it/s]Loading weights:  45%|████▌     | 81/179 [00:07<00:09,  9.82it/s]Loading weights:  51%|█████▏    | 92/179 [00:08<00:07, 11.91it/s]Loading weights:  58%|█████▊    | 103/179 [00:08<00:05, 13.68it/s]Loading weights:  59%|█████▊    | 105/179 [00:08<00:05, 13.78it/s]Loading weights:  64%|██████▎   | 114/179 [00:09<00:05, 12.39it/s]Loading weights:  70%|██████▉   | 125/179 [00:10<00:03, 14.40it/s]Loading weights:  76%|███████▌  | 136/179 [00:11<00:03, 14.09it/s]Loading weights:  82%|████████▏ | 147/179 [00:11<00:02, 13.97it/s]Loading weights:  88%|████████▊ | 158/179 [00:12<00:01, 14.86it/s]Loading weights:  94%|█████████▍| 169/179 [00:13<00:00, 15.75it/s]Loading weights: 100%|██████████| 179/179 [00:13<00:00, 13.64it/s]
 loaded in 15s | device: cuda:0
 layers=16 experts=64 top_k=8
-profiling 32 chunks x 512 tokens of /home/penis/Desktop/work/ternary-serve/wiki.test.raw
+profiling 32 chunks x 512 tokens of ternary-serve/wiki.test.raw
   8/32 chunks (2s)
   16/32 chunks (2s)
   24/32 chunks (3s)
@@ -21,4 +21,4 @@ top-K expert cache coverage (mean over layers):
    48     1224.0   90.1%   86.0%   93.6%
    64     1632.0  100.0%  100.0%  100.0%
 
-wrote /home/penis/Desktop/work/ternary-serve/placement-sweep-20260927/expert-hits.json
+wrote ternary-serve/placement-sweep-20260927/expert-hits.json

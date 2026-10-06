@@ -2,12 +2,21 @@
 # CPU fallback for the mixed-precision sweep (ROCm is down on this host).
 # Same variants, 25 chunks, all through the fixed build-cpu rotation path.
 set -u
-PY=/home/penis/Desktop/work/.venv-rocm/bin/python
-S=/home/penis/Desktop/work/scion
-T=/home/penis/Desktop/work/models/clef-flash-ternary
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WORKSPACE="${SCION_WORKSPACE:-$(dirname "$ROOT")}"
+MODELS="${SCION_MODELS:-$WORKSPACE/models}"
+CLEF_MODEL="${SCION_CLEF_MODEL:-$MODELS/clef-flash-ternary}"
+LLAMA_BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin}"
+GGUF_PY="${GGUF_PY:-$HOME/llama.cpp/gguf-py}"
+TMP="${TMPDIR:-/tmp}"
+
+PY="${SCION_PYTHON:-python3}"
+S="$ROOT"
+T="$CLEF_MODEL"
 V=$T/v2
-export PYTHONPATH=/home/penis/llama.cpp/gguf-py
-PPL=/home/penis/llama.cpp/build-cpu/bin/llama-perplexity
+export PYTHONPATH="$GGUF_PY"
+PPL="${LLAMA_BIN_CPU:-$WORKSPACE/llama.cpp/build-cpu/bin}/llama-perplexity"
 cd "$S"
 
 conv() {

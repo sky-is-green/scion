@@ -1,7 +1,7 @@
 #!/bin/bash
-# 35B v2 rental — one-shot box runbook (H100/H200 80 GB+, RunPod).
+# 35B v2 — one-shot box runbook (H100/H200 80 GB+).
 #
-# Recipe signed 2026-09-30 (EXPECTED-IMPROVEMENT-MEMO.md §5):
+# Recipe (2026-09-30):
 #   primary  cur05    = D_KL2 3.0 + bias + hard-window curriculum 0.05
 #   fallback pred2.0  = D_KL2 2.0 + bias, trained from the SAME cache
 #   (one variable between arms: --kd-tailcond-weight 3.0 vs 2.0)
@@ -15,7 +15,7 @@
 #   bash box-run-v2.sh train-fallback # pred2.0
 #   bash box-run-v2.sh eval
 #   bash box-run-v2.sh export
-#   bash box-run-v2.sh gate           # ship gate (see docs/RENTAL-RUNBOOK-V2.md)
+#   bash box-run-v2.sh gate           # ship gate
 #
 # Code delivery: the pod needs the session-8 tree (--alloc-file plumbing etc.).
 # Either push scion-test and set SCION_COMMIT, or drop a tarball at
@@ -157,12 +157,11 @@ export)
     echo "download the adapters for both arms (and the eval JSONs) before terminating"
     ;;
 gate)
-    echo "Ship gate (memo §3): the full-model, full-vocab community KLD vs the"
+    echo "Ship gate: the full-model, full-vocab community KLD vs the"
     echo "uncorrected body and the v1 class, HellaSwag/Winogrande 400 unchanged,"
     echo "and the 1.7B canary set.  Commands and artifact conventions:"
     echo "  docs/RELEASE-35B-MODEL-CARD.md + docs/QUANT-RETENTION-35B.md"
-    echo "  and the v1 workspace logs (rental/workspace/eval-*.log)."
-    echo "Run this against BOTH arms; the memo's acceptance clauses are in §3."
+    echo "Run this against BOTH arms."
     ;;
 *)
     echo "unknown stage: $stage" >&2; exit 2 ;;

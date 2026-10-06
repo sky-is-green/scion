@@ -7,7 +7,7 @@ hidden-state KD to the f16 teacher (primary) and decision KD through the frozen
 joint head (secondary).
 
 Dense-specific decisions, grounded in the Bonsai-2 27B forensics
-(`bonsai2-ternary-forensics/docs/FAILURES.md` F4/F6/F7 and the recipe ledger):
+(the forensics failure register F4/F6/F7 and the recipe ledger):
   * **end-to-end only** -- per-layer/block-wise KD compounds and is a dead-end;
   * the deployed CPU runtime uses the **recurrent** GDN; patch it in, or the
     corrections will not transfer;
@@ -41,9 +41,9 @@ from clef_dense_load import (load_text_model_streamed, patch_recurrent_gdn,  # n
                              patch_truncated_gdn)
 from quant import ternary_lloyd, ternary_absmean  # noqa: E402
 import clef_head as H  # noqa: E402
+from clef_paths import CLEF_MODEL, HIVE  # noqa: E402
 
-DEFAULT_MODEL = "/home/penis/Desktop/work/models/clef-flash-ternary"
-HIVE = Path("/home/penis/Desktop/work/hivebench/experiments/cascade")
+DEFAULT_MODEL = str(CLEF_MODEL)
 EVAL_JSON = {
     "train": HIVE / "results/clef-flash-judge-eval-train.json",
     "test": HIVE / "results/clef-flash-judge-eval-test.json",
@@ -320,7 +320,7 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--dtype", choices=["bfloat16", "float32"], default="bfloat16",
-                    help="body dtype; float32 is the stable rental config")
+                    help="body dtype; float32 is the stable full-model config")
     ap.add_argument("--rank", type=int, default=512)
     ap.add_argument("--branch-quant", choices=["g128", "rank", "fp32"], default="g128")
     ap.add_argument("--target", choices=["attn_out", "mlp_out", "both"], default="both")
