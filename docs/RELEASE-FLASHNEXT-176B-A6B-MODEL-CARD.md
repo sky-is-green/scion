@@ -36,7 +36,7 @@ parameters in the file**: the 125B language model (6B activated) plus the
 expert banks plus small trained corrections, and the n-gram table (PLE) at
 Q4_0 with per-row decoding — no full-precision masters, no full-model QAT.
 
-> **2.72 bpw** | **60.17 GB** (3.1x smaller than the FP8 release) | **smallest unpruned Flash-Next quant published that we know of** | **cap_eval 15/20, 0 harness errors** | **HellaSwag 400 82.0, Winogrande 400 77.5**
+> **2.72 bpw** | **60.17 GB** (3.1x smaller than the FP8 release) | **smallest unpruned Flash-Next quant published that we know of** | **cap_eval 15/20, 0 harness errors** | **HellaSwag 400 82.00%, Winogrande 400 77.50%**
 
 The name comes from grafting. A scion is the shoot grafted onto a rootstock, and
 here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
@@ -87,7 +87,7 @@ leaves it at F16). Effective overall: **2.72 bpw** (Q6_K variant).
 | :--- | ---: | ---: | ---: |
 | FP8 (official release) | — | 185.6 GB | 1.0x |
 | ggml-org IQ4_NL | 4.5 | 102.0 GB | 1.8x |
-| Mooney PQ2_0 (ternary) | ~2.1 | 92.0 GB | 2.0x |
+| Mooney PQ2_0 (ternary) | ≈2.1 | 92.0 GB | 2.0x |
 | GSQ-RCO IQ3_S | 3.4 | 83.6 GB | 2.2x |
 | GSQ-RCO IQ3_XXS | 3.1 | 75.8 GB | 2.4x |
 | GSQ-RCO IQ2_XS | 2.3 | 68.0 GB | 2.7x |
@@ -223,7 +223,7 @@ project's own harnesses.
 Top-1 agreement 0.7236; teacher entropy 1.4212 nats (top-1 0.6751) vs student
 1.8358 (0.6249) — the student is not sharper than the teacher. Chain-rule
 split of the mean: **support 0.5387 (92.9%)**, marginal 0.0270 (4.7%), tail
-0.0143 (2.5%). The KD objective sees the top-512 support (~98.6% of the
+0.0143 (2.5%). The KD objective sees the top-512 support (≈98.6% of the
 teacher mass), so the support fit is what was trained; the tail is nearly
 inert by design.
 
@@ -241,7 +241,7 @@ on the GPU. ISTA's file is as published; PPL is wikitext-2 context 512,
 | ISTA-DASLab GSQ-RCO Q2_0 | 66.4 GB | 5.2396 ± 0.0326 | 81.50% | 74.75% ± 2.18 |
 
 Read it as a size/quality trade: the 1.75 bpw ternary experts trail ISTA's
-~2.4 bpw GSQ-RCO experts on likelihood (~4%) and hold or lead on the two
+≈2.4 bpw GSQ-RCO experts on likelihood (≈4%) and hold or lead on the two
 multiple-choice tasks — HellaSwag is a tie inside the ±2% band, Winogrande
 favors this file by about 1.8σ (suggestive, not conclusive). PPL was reproduced
 on a second build (ours 5.4566, ISTA 5.2402) with the patch present, so the
