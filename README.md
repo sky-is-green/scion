@@ -59,6 +59,10 @@ Optional speedup: a 50 MB k=1 **MTP drafter** ships at
 [`SkyIsNotGreen/Scion-35B-A3B-mtp-drafter`](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter).
 It drafts the next token from the model's own hidden state and gives about
 1.2x generation (up to 1.37x on the bench prompt) with unchanged outputs.
+Pass it with `-md` only: the sidecar is detected from the GGUF. Do not add
+`--spec-type draft-mtp` (that selects the MTP head inside a full model and
+fails with `unknown model architecture: 'mtp'`); the sidecar's explicit type
+name is `draft-mtp-sidecar`.
 
 ## Release: Scion-FlashNext-176B-A6B
 

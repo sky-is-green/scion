@@ -22,7 +22,8 @@ Include:
 
 1. exact command line;
 2. full console output (for the MTP sidecar, the decisive line is
-   `failed to load sidecar '<path>': <reason>`);
+   `speculative decoding enabled: draft-mtp-sidecar`; a `loading draft model`
+   line for the drafter file means `--spec-type` selected the wrong path);
 3. release tag and artifact (backend, CUDA version, CPU vs GPU);
 4. GPU model and driver version;
 5. model and drafter file SHA256;
@@ -30,6 +31,31 @@ Include:
 
 For a published but unverified path, a fix needs a reproduction on that
 platform to be validated.
+
+## Triage: "unknown model architecture: 'mtp'"
+
+The follow-up log from the 2026-10-06 Windows CUDA report shows the drafter was
+requested as a regular draft model:
+
+```
+common_speculative_init_result: loading draft model '<...mtp-drafter.gguf>'
+error loading model: unknown model architecture: 'mtp'
+```
+
+The sidecar path logs `speculative decoding enabled: draft-mtp-sidecar`
+instead. This is a type selection issue, not CUDA: `--spec-type draft-mtp`
+asks for the MTP head inside a full model, while the Scion drafter is the
+target-context `draft-mtp-sidecar`, auto-detected from the GGUF when no
+`--spec-type` is given. Both Windows zips contain the sidecar code.
+
+Fork fixes on `fix/scion-mtp-sidecar`:
+
+- an explicit draft-model `--spec-type` is replaced with `draft-mtp-sidecar`
+  (with a warning) when the `-md` file is a Scion sidecar;
+- a GGUF that claims architecture `mtp` but has no head tensors no longer
+  aborts the type detector;
+- the model loader prints an actionable error for the `mtp` architecture.
+
 
 ## Known packaging note (AMD)
 
