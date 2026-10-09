@@ -49,6 +49,7 @@ here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
 - **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load, and the 28.8 GB n-gram table ships in the same file with per-row decoding. No sidecar, no adapter plumbing, no shards.
 - **The gap is stated, not hidden**: the 48-layer KLD gate gives **mean 0.5800** (support-dominated: 92.9% of that mass is the top-512 support fit); code and logic are the weak categories (1/3 each) on the 20-task capability suite; and the step-4000 extension was trained, gated (0.5880, flat/worse) and **is not shipped**.
 - **A/B against ISTA's Q2_0, one harness**: HellaSwag 400 is **82.00 vs 81.50** (a tie on the paired test) and Winogrande 400 is **77.50 vs 74.75** (a positive signal, not conclusive) at 6.2 GB smaller, while wikitext-2 PPL trails (**5.457 vs 5.240**) — the 1.75 bpw ternary experts buy size, not likelihood.
+- **First 664-task decision-arm run of this release** (2026-10-09) — **a floor, not a capability test**: the protocol's 700/2048-token caps truncate this model's long thinking (26% of think-harder records emit no answer at all), and completed answers score **91.8%** (think-harder) / **82.6%** (gen). Headline floors: gen pass@1 **69.4%** / pass@3 **80.1%**, think-harder **67.6%**, majority arm **71.7%**; judge-head test AUC **0.862** (embeddings, cap-independent). Full truncation table under Benchmarks.
 
 ## Resources
 
@@ -253,6 +254,70 @@ ISTA's published reasoning suite (AIME25 96.67, GPQA-Diamond 89.39,
 LiveCodeBench v6 81.14; task average 89.07, zero-shot average 78.00) is from
 their model card, uses a different suite, and was **not measured here** — it is
 context, not an A/B result.
+
+### Decision-arm benchmark: 664-task reasoning/code suite (2026-10-09)
+
+The project's community arms (`experiments/cascade/community_eval.py`) run on
+this release: **664 tasks** (GSM8K-300 + MATH-200 + HumanEval-164; 465 train /
+199 test), the fork/CUDA build with the embedded corrections and the Q4_0 table
+live, `-ngl 99` (whole model on the GPU), four server slots. Gen arm: 3
+samples/task, temperature 0.7, 700-token cap, thinking off. Think-harder arm:
+1 sample/task, thinking on, 2048-token cap. A 40-task prefix was run
+end-to-end first as the harness proof under the identical protocol.
+
+> **Read every number in this section as a FLOOR, not a capability
+> measurement.** This model's native thinking is long (median reasoning ~1,260
+> characters, roughly 2.3x the Scion-35B-A3B's on the same tasks), and the
+> protocol's fixed caps cut it off disproportionately: on the records that
+> actually finished, accuracy is far higher than the headline, and the headline
+> is dominated by how often the model runs out of room.
+
+**Gen (3 samples/task)**
+
+| split | bucket | n | pass@1 | pass@3 |
+| :--- | :--- | ---: | ---: | ---: |
+| test | code | 49 | 72.8% | 87.8% |
+| test | reasoning | 150 | 68.7% | 78.0% |
+| train | code | 115 | 69.9% | 82.6% |
+| train | reasoning | 350 | 69.0% | 79.1% |
+| **all** | | **664** | **69.4%** | **80.1%** |
+
+**Think-harder (thinking on, 2048 cap):** all 67.6% (floor — see the truncation
+table below; test reasoning 71.3%, test code 69.4%, train reasoning 70.3%,
+train code 53.9%).
+
+**Arms** (accuracy; test n=199 / all n=664): `A_single` 0.678 / 0.681,
+`B_think_hard` 0.709 / 0.676, `C_gated` 0.678 / 0.681, `D_best_of_n`
+0.678 / 0.681, `majority` **0.729 / 0.717**. The majority arm is the best
+selector on both splits; the think-harder arm helps on the test split (0.709)
+and not on the full set.
+
+**In-domain judge heads** (last-token states through `/embedding`, ridge + Platt
+on the 465 train tasks): answer head test AUC **0.862** / balanced accuracy
+0.788; trace head AUC **0.845** / BA 0.803.
+
+**Truncation at the protocol caps**
+
+| | gen (cap 700) | think-harder (cap 2048) |
+| :--- | ---: | ---: |
+| records that hit the cap | 324/1992 (16%) | 178/664 (27%) |
+| records that emitted **no answer at all** | 0 | **175/664 (26%)** |
+| accuracy among records that finished | 82.6% | **91.8%** |
+| accuracy overall (the floor) | 69.4% | 67.6% |
+
+The "finished" subsets skew toward shorter/easier tasks, so 82.6% / 91.8% are
+upper bounds and 69.4% / 67.6% are lower bounds; a fair capability number needs
+a larger thinking budget (the base card itself evaluates at a 256K context with
+long thinking budgets). The judge heads are unaffected (prompt embeddings, no
+generation), and the train-code think-harder drop (53.9%) is the same
+truncation effect at its worst.
+
+Two fork-side fixes were needed to run the suite end-to-end: the server's
+prompt cache disabled (`--cache-ram 0`, its eviction path faults with the
+hybrid GDN KV) and the embedding read width corrected. The measurements ran on
+two CUDA cards (A100-80GB for the first 1,128 samples, RTX A6000 for the rest)
+with identical sampling; sampling is independent per request, so the set is one
+statistical run.
 
 ### Capability (cap_eval, 20 tasks)
 
