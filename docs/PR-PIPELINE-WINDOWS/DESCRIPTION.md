@@ -123,9 +123,12 @@ an earlier assumption in this draft:
 - **#1747** results-only pipeline-windows bench PR (4x GP100, +14.6-28.8%) - the
   format works upstream; **#1477** edits the same docs section (rebase watch).
 
-## Comments (draft only, nothing posted)
+## Comments — POSTED 2026-10-14 (do not repost)
 
-Both comment files are bodies only, so `--body-file` posts exactly the text
+- #1656: https://github.com/Niko1221/Strata/pull/1656#issuecomment-6157605432
+- #2245: https://github.com/Niko1221/Strata/issues/2245#issuecomment-6157629160
+
+Both comment files are bodies only, so `--body-file` posted exactly the text
 (the wrapper instructions live here instead):
 
 - `COMMENT-1656.md` -> https://github.com/Niko1221/Strata/pull/1656
