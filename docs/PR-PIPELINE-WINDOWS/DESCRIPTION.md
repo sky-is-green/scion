@@ -96,6 +96,35 @@ STRATA_DECODE_TIMING=1 in the engine env; the log prints ms/window per request
 
 ---
 
+## Related open PRs (checked 2026-10-14; 504 open in total)
+
+Nothing duplicates this measurement - none of the open PRs documents the two-stage
+gfx11 case.  Five are worth referencing or watching:
+
+- **#2224 `pcie: the measured PCIe share default (PcieAuto) on gfx1100 too`** - the
+  closest precedent (extend a gfx12-measured HIP default to gfx1100, gate-measured).
+  **Cross-effect to flag there and in our body:** `decode_defaults_arch_ok()` also
+  feeds `mtp_first_default_on()`, and `pw_auto`'s two-stage minimum follows
+  `mtp_first`.  Widening arch-ok to gfx1100 would turn the drafter-first placement on
+  by default on RDNA3 - which our pair measures as a **12-17 tok/s regression**
+  (52-59 vs 68-71 with the drafter on the last card).  Whatever happens to our own
+  default ask, that widening wants a drafter-placement A/B on RDNA3 first.
+- **#1120 `layer split: overlap the stages' hand-off` (opt-in, 2x RX 7900 XTX)** -
+  the same overlap when the pipeline is off (serial windows, stage hand-off order).
+  Ours shows `--pipeline-windows 2` already delivers the window-level overlap on
+  gfx11 with upstream's existing flag, so the two compose rather than conflict.
+- **#1813 `exact speculative-window token parity and coverage gate`** - full token-id
+  comparison across serial / pipeline / forced-rollback windows, 48 pipeline
+  comparisons passing.  The rigorous form of our warmed-text identity check; cite it.
+  **#1419** (forced-token / verified-window replay lab tools) serves the same purpose.
+- **#1747 `bench: --pipeline-windows off vs on over four stages` (4x GP100)** -
+  results-only bench PR, +14.6-28.8%, same direction; the format works upstream.
+- **#1477 `docs: correct pipeline async compatibility`** - edits the same
+  `docs/MULTI_GPU.md` section.  Our bullet is additive and does not move its lines;
+  rebase against it if it lands first.
+
+---
+
 ## Filing steps, when approved
 
 ```sh
