@@ -133,9 +133,11 @@ Both comment files are bodies only, so `--body-file` posts exactly the text
 - `COMMENT-2245.md` -> https://github.com/Niko1221/Strata/issues/2245
   `gh issue comment 2245 --repo Niko1221/Strata --body-file work/scion/docs/PR-PIPELINE-WINDOWS/COMMENT-2245.md`
 
-`#1656`, `#1813` and `#2245` are the GitHub auto-linked issue/PR numbers; the
-handles (`@Niko1221`, `@Cass67`, `@CC-David-CC`, `@bcrawford-cpm`,
-`@metzenwest`) auto-link too.
+Every reference in the comment bodies is an explicit markdown link, not left to
+GitHub's auto-linking: the two comment permalinks in #1656 (Niko1221's result,
+Cass67's reading), `@Niko1221`, `@Cass67`, `@CC-David-CC`, `@bcrawford-cpm`,
+`@metzenwest`, `#1813` (a pull request), `#2245` (an issue), the `0.1.44`
+release tag, and `docs/MULTI_GPU.md`.
 
 ---
 
