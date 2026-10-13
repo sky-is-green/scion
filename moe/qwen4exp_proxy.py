@@ -2528,7 +2528,7 @@ def stage_qat_screen(args):
         ref = ev()
         for k, (tab, _) in enumerate(tables):
             ids_sorted, rows = base[k]
-            deq, _ = quantize_rows(rows, 2, args.ple_group)
+            deq, _ = quantize_rows(rows, args.qat_damage_bits, args.ple_group)
             tab.set_rows(ids_sorted, deq)
         cur = ev()
         per_token = torch.cat([kld_from_logprobs(ref[i], cur[i], args.chunk)
@@ -2547,7 +2547,7 @@ def stage_qat_screen(args):
         out["arms"][f"qat{bits}"] = arm
         print(f"qat-screen arm qat{bits}: lm {arm['lm_first']:.4f} -> "
               f"{arm['lm_last']:.4f} grads_finite={arm['grads_finite']} "
-              f"2bit-damage mean {arm['dmg_mean']:.4f} "
+              f"{args.qat_damage_bits}bit-damage mean {arm['dmg_mean']:.4f} "
               f"p99 {arm['dmg_p99']:.4f} max {arm['dmg_max']:.4f} "
               f"top1 {arm['dmg_top1']:.4f}", flush=True)
     if args.out:
@@ -3487,6 +3487,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="qat-screen: LM training steps per arm")
     ap.add_argument("--qat-eval-windows", type=int, default=8,
                     help="qat-screen: eval windows for the 2-bit damage read")
+    ap.add_argument("--qat-damage-bits", type=int, default=2,
+                    help="qat-screen: damage read width in bits (default 2)")
     ap.add_argument("--qat-train-windows", type=int, default=8,
                     help="qat-screen: distinct train windows (seed 1001)")
     ap.add_argument("--qat-eval-same", action="store_true",
