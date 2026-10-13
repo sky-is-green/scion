@@ -114,6 +114,34 @@ files, this release is one file with the corrections and the table inside.
 > **Q4_0**, the body in Q6_K/Q8_0, norms in F32. Use the fork; stock llama.cpp
 > does not know type 143.
 
+### Validated shrink container (Q4X160, not yet packaged)
+
+The PLE n-gram table (28.8 GB of the file) has a validated replacement
+container: **Q4X160** - one fp16 scale per 160-element row with a 16-level
+codebook, 82 B/row -> 26.24 GB, file 60.16 -> **57.62 GB** with the experts
+untouched (Q3X32, 70 B/row -> 53.76 GB, is the smaller alternative).
+
+| gate (48-layer, paired) | Q3X32 | **Q4X160 (chosen)** |
+| :--- | ---: | ---: |
+| KLD mean | +0.0108 | **-0.0001** |
+| wikitext-2 PPL | +1.30% | **+0.41%** |
+| HellaSwag 400 | -0.25 | **0.00** |
+| Winogrande 400 | -0.25 | **+0.25** |
+| file size (table-only) | 53.76 GB | **57.62 GB** |
+
+Paired code arms (164 code tasks, same pod): gen/hard deltas inside the
+McNemar noise band. Independent local cross-check in Strata (581 x 512
+wikitext slices, paired): **+0.017% PPL, not significant**. The file is not
+yet published; the body/corrections companions (~-1.6 GB) are unbuilt.
+Construction: `repack_experts_q2_0.py --preserve-experts --table-type q4x160
+--table-bytes <prebuilt stream>` (docs/PLE-TABLE-TYPES.md,
+docs/P4-STRATA-FIT.md).
+
+The gated artifact: **57,615,045,408 bytes**, sha256
+`658d56d6447cc63efdcb845ad503cd0485381f6a4aaa867973bf71753dfda0a3`
+(experts untouched; the table stream in it is the prebuilt
+`work/tmp-export/q4x160-table.bin`, sha256 `915bae37…3015`).
+
 ## Best Practices
 
 ### Generation Parameters
