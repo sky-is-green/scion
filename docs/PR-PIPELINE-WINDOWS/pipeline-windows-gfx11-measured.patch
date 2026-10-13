@@ -1,0 +1,46 @@
+From efd6b857a74a3f7d959d95f46a1914a791ed5299 Mon Sep 17 00:00:00 2001
+From: sky-is-green <320596965+sky-is-green@users.noreply.github.com>
+Date: Wed, 14 Oct 2026 00:17:49 +0100
+Subject: [PATCH] docs/MULTI_GPU: pipeline-windows on two gfx11 cards measured
+ (+65% decode, draft layer stays on the last card)
+
+Two RX 7900 XT, Scion-FlashNext 176B Q6K with the correction adapters, fixed
+4-request protocol: 41.4/41.8/41.0/41.4 -> 61.7/68.4/70.5 and ~70-71 steady;
+prompt reads to 98 tok/s; warmed verify window 32.6-34.6 ms.  Warmed greedy text
+is byte-identical to the non-pipelined engine.  STRATA_MTP_STAGE0=1 (the gfx12
+placement) loses 12-17 tok/s here, so the two-stage auto rule - which only opens
+with mtp_first - leaves a shape off that pays on this pair.
+---
+ docs/MULTI_GPU.md | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/docs/MULTI_GPU.md b/docs/MULTI_GPU.md
+index 62a8a177..4ad4f663 100644
+--- a/docs/MULTI_GPU.md
++++ b/docs/MULTI_GPU.md
+@@ -312,6 +312,22 @@ and the asynchronous tier stay two-stage. In the config:
+   (median of 3) and 51.8 -> 65.6 at 32K. A guessed window that holds costs ~15 ms against ~43 ms for a fresh one; about
+   a third of the guesses held. The greedy text was identical to the serial loop's on all four prompts (`STRATA_IQ_MT_MIN=1
+   --pcie-frac 0 --adapt-every 0`), and with every guess forced wrong (`STRATA_PIPELINE_FORCE_MISS=1`).
++- **Measured on two gfx11 cards** (Scion-FlashNext 176B-A6B Q6K with embedded correction adapters, served natively;
++  2x RX 7900 XT 20 GB, Ryzen 7 7800X3D, 30 GB RAM, ROCm 7.2, display on the second card; engine 0.1.44 plus a local
++  branch that ports the artifact support - PTQ1_0 experts, P5 table types, the correction adapters - and touches no
++  pipeline code; `--layer-split auto` = 26/22, `--expert-cache auto` resident 12007 + 10690 slots, 92% of the routed
++  pairs; `--spec 4 --spec-min-p 0.5`, `--ple-io direct`, `--mmap-experts`, `--vram-reserve-mib 3072`; greedy, a fixed
++  4-request 128-token protocol, one essay prompt, run 1 warm-up): decode **41.4 / 41.8 / 41.0 / 41.4 -> 61.7 / 68.4 /
++  70.5**, then 72.1 / 72.8 / 70.1 / 70.5 and 70.7 / 70.9 in repeated warmed rounds - steady **~70-71 tok/s**, prompt
++  reads 61.5 -> 98.4 tok/s, warmed verify window 32.6-34.6 ms at 2.2-2.4 tokens/window (GPU-reach wait ~24-26 ms).
++  The warm greedy text is the serial loop's: from the third request on, the full generated text is byte-identical to
++  the same engine without the flag, and identical across repeated runs; the first two requests differ in both
++  directions because the adaptive tier is still swapping (`2.9 swaps/window` settling to ~0.3). On this pair the
++  drafter is **better left on the last card**: `STRATA_MTP_STAGE0=1` measured 52-59 tok/s against 68-71. That is the
++  one place the two-stage auto rule and this box disagree - `pw_auto`'s min-stage count follows `mtp_first`, so gfx11
++  two-stage splits stay off although they pay here; the explicit split 28 measured 32.6 ms/window against 34.6 for
++  auto, inside the run spread. Cost: `284 MiB of CUDA0 kept out of the expert cache` (the second verifier and the
++  GDN snapshots; the log says "two verifiers per stage, 2 stages overlap across windows").
+ - **HIP**: the draft layer's per-row `gr_read` used the last stage's session scratch (`ss.block.gr`), which that stage's
+   verifier also uses; a chain launched at a verdict and the next window's last stage then ran on the card at once and
+   the window's head read a clobbered mix (wrong tokens after a guess that held). The draft layer now has its own scratch.
+-- 
+2.56.0
+
