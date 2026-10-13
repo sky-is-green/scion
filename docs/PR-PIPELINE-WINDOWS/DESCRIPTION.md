@@ -123,6 +123,20 @@ an earlier assumption in this draft:
 - **#1747** results-only pipeline-windows bench PR (4x GP100, +14.6-28.8%) - the
   format works upstream; **#1477** edits the same docs section (rebase watch).
 
+## Comments (draft only, nothing posted)
+
+Both comment files are bodies only, so `--body-file` posts exactly the text
+(the wrapper instructions live here instead):
+
+- `COMMENT-1656.md` -> https://github.com/Niko1221/Strata/pull/1656
+  `gh pr comment 1656 --repo Niko1221/Strata --body-file work/scion/docs/PR-PIPELINE-WINDOWS/COMMENT-1656.md`
+- `COMMENT-2245.md` -> https://github.com/Niko1221/Strata/issues/2245
+  `gh issue comment 2245 --repo Niko1221/Strata --body-file work/scion/docs/PR-PIPELINE-WINDOWS/COMMENT-2245.md`
+
+`#1656`, `#1813` and `#2245` are the GitHub auto-linked issue/PR numbers; the
+handles (`@Niko1221`, `@Cass67`, `@CC-David-CC`, `@bcrawford-cpm`,
+`@metzenwest`) auto-link too.
+
 ---
 
 ## Filing steps, when approved
