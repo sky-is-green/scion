@@ -360,3 +360,27 @@ again at 23:41 - a `gfx_0.0.0` ring timeout under kwin - while the freshly
 ported `ptq1_0_parity` was exercising the out-of-range Split<143> path, minutes
 after the first wedge and without a driver reset in between. No OOM; the box was
 rebooted at 23:42. GPU tests after a wedge wait for a reset now.
+
+## Rebalance under pipeline-windows (2026-10-14)
+
+Under `--pipeline-windows 2` the busy counters read card0 63.6% / card1 82.8%
+(memory 13-15%), so the auto layer split (26/22) leaves card1 the straggler and
+the scalars said to rebalance.  Two paths, both with the fixed protocol:
+
+- **`STRATA_MTP_STAGE0=1`** (the drafter on the first card, upstream's gfx12
+  default): **worse** - 52-59 tok/s against 68-71 with the drafter on the last
+  card.  The 26-layer card becomes the straggler when the draft chain moves
+  onto it; on this box the vendor's gfx12 placement does not transfer.
+- **an explicit split of 28** (card0 0-27): 69.5-72.8 tok/s warmed against
+  68.4-71.2 auto; the acceptance-independent metric (`STRATA_DECODE_TIMING`)
+  puts the warmed window at 32.6 ms against 34.6 - inside the run-to-run
+  spread.  The auto split stays.
+
+The warm-up both in speed and in the first requests' token streams is the new
+adaptive tier at work: the timing line shows `2.9 swaps/window` on the first
+requests settling to ~0.3, then the greedy stream is run-to-run deterministic
+and identical to the non-pipelined engine's.
+
+Current served shape: verify window ~32-35 ms warmed at ~2.2-2.4 tokens/window
+(GPU-reach wait ~24-26 ms dominates), 68-71 tok/s steady, prompt reads 61-87
+tok/s.
