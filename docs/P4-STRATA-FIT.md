@@ -305,3 +305,58 @@ Plan and next steps live in **`docs/NEXT-SESSION-MULTIGPU-PERF.md`**:
 (1) fold the corrections into the layer matmuls (~11 ms/token, the certain
 win), (2) merge upstream 0.1.44 and A/B, (3) scope expert-parallelism (and
 measure card-2 idle time first).
+
+## The 0.1.44 upgrade (2026-10-13 night)
+
+**The merge is a port, not a merge.** Upstream rewrote the repository history
+between 0.1.37 and 0.1.44: their v0.1.44 root is a fresh import, `git
+merge-base db4f91a1 v0.1.44` is empty and a merge refuses with "unrelated
+histories". The branch's net diff was applied with `git apply --3way` and 29
+conflicted hunks were resolved by hand (PLE format registry, gate_attn's out32
+through the new ld16 signature, the corr_apply sites around il_ready/mm and the
+remote combine, PTQ1_0 through the new Fmt/Split templates, engine/CMake
+sources). Branch `scion-0.1.44`: port `319cf7f5`, fixes `42bef63a`.
+
+**Parity on 0.1.44** (4l files): `lora_corr_parity` 8 pairs, 0 of 7680;
+`ple_q4_parity` PASS; `ptq1_0_parity` 0 failures (h 9.69e-08, out 3.70e-08).
+Two fixes were needed first: upstream routes split formats through sub-16-lane
+kernels whose activation walk is 80/20 q8_1 blocks (256-value IQ blocks), which
+PTQ1_0's four-blocks-per-call split cannot use - it read far past the row
+(NaN); `kSub16<143> = false` keeps it on the 32-lane multi kernels. The default
+path now fuses SwiGLU + q8_1 (writes `hq` only), so the parity test reads the
+f32 `h` off the v1 path and the quantized `h` off the default. `ple_x32_parity`
+needs its transcode fixture, which was never committed (the P5 lane generated
+it ad hoc); the tool is registered, the run is pending.
+
+**Served A/B, fixed protocol** (release, Q6K, reserve 3072):
+
+| engine | corrections | gen tok/s (runs 2-4) |
+| --- | --- | --- |
+| 0.1.37 tree (this session's port base) | on | 41.4 / 41.8 / 41.0 / 41.4 |
+| 0.1.44 port | on | 41.1 / 42.2 / 43.0, then 42.4 / 43.2 / 43.5 |
+| 0.1.44 + `--pipeline-windows 2` | on | 61.7 / **68.4 / 70.5** (warming through) |
+
+Two runs of the pipelined engine at the bench prompt: steady **~70-71 tok/s**,
+prompt reads 66-98 tok/s; the run-to-run spread is the first two requests after
+a start (the same warm-up the non-pipelined engine shows). **The token stream
+is exact:** the third warmed request's full reasoning text is byte-identical to
+the non-pipelined engine's, and identical across repeated warmed runs; the
+observed diffs were only the cold first/second requests, which differ the same
+way without the flag. The vendor's "-3% on code, two cards" note does not
+reproduce for this workload: this is a +62-68% decode win on the box, and
+`--pipeline-windows 2` is now in `strata-q6k-176b.json` and
+`strata-q4x160-176b.json` (284 MiB of CUDA0 moves out of the expert cache for
+the second verifier and the GDN snapshots; the auto cache sizes around it).
+
+gfx11-relevant items read out of 0.1.38-0.1.44: the gfx1100 100401 table now
+covers the small-T expert GEMM (vendor: prompt +31.9%), prompt-path copies moved
+through pinned bounce slots, the adaptive-tier and PLE reader work (upstream's
+format registry already covers Q4_0, so the P5 port only added Q3X32/Q2X32/
+Q4X160), and `--pipeline-windows`.
+
+**Incident note.** The displayed card (card1) wedged twice on 2026-10-13: once
+with the cooperative-kernel prototype (22:51, see `COOP-CORR-SAFETY.md`) and
+again at 23:41 - a `gfx_0.0.0` ring timeout under kwin - while the freshly
+ported `ptq1_0_parity` was exercising the out-of-range Split<143> path, minutes
+after the first wedge and without a driver reset in between. No OOM; the box was
+rebooted at 23:42. GPU tests after a wedge wait for a reset now.
