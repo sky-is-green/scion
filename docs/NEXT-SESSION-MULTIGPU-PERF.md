@@ -102,11 +102,17 @@ desktop (2026-10-13); the safety case it must pass is in
    (the 4l file), then re-serve and A/B with the fixed protocol. Read the
    0.1.38-0.1.44 notes for gfx11-relevant items; try `--pipeline-windows`
    only with a measured A/B (vendor says it loses ~3% on code with 2 cards).
-3. **Scope expert-parallelism across the two cards** (the real 2x path).
-   First measure how idle card 2 is (generate-mode report counters: ring
-   latency / host after ring / pool), then either draft the design in
-   `docs/` (dispatch to expert-owner cards, rebalancing, hand-off budget) or
-   file it upstream - it is the vendor's engine and they handle AMD.
+3. **Scope expert-parallelism across the two cards** (the real 2x path) -
+   **measured and scoped 2026-10-13 (night)**: during decode each card is only
+   ~50% SM-busy (card0 48.9%, card1 54.8%; memory controllers 6-11%) because
+   the verifier's stage chain is serial (26/48 and 22/48 layer shares), so the
+   two arms' convergence is the shared ceiling, not the corrections.  The
+   offline go/no-go over the 2.4M-token routing counts (`moe/ep_sim.py`) clears
+   EP: resident routed mass stays 99.7% under expert-owner splits, and the load
+   split goes 55.3/44.7 -> ~50/50.  Design and next steps:
+   `docs/EXPERT-PARALLEL-SCOPE.md`; the per-token split tail needs a routing
+   trace before the dispatcher is sized.  Or file the summary upstream - it is
+   the vendor's engine and they handle AMD.
 
 Side items if wanted: raw-prefill logits dump for an exact PPL instrument;
 body/corrections companions (unbuilt, ~-1.6 GB).
