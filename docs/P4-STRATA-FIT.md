@@ -153,8 +153,39 @@ Fix candidates, in order:
    max|err| 0). Measured, same bench, per branch, before -> after: rows=5
    ssm/attn 162 -> 36 us, ffn 86 -> 27 us (rows=1: 80 -> 24 and 32 -> 12) -
    ~12 ms -> ~3 ms/token over the 96 branches at the served window mix.
-   Engine rebuilt; the served A/B is pending (the box was running another
-   lane's bench at the time).
+   Engine rebuilt; the served A/B was pending (the box was running another
+   lane's bench at the time) - it is in item 5, which also reshaped the
+   passes and supersedes the in-place swap below.
+5. THE PASS SHAPES, THE `t` ROUND TRIP AND B'S SCALAR LOOP: **DONE
+   2026-10-13 (night)**. Item 4's in-place swap left the loop shapes and the
+   f32 `t` alone; `lora_corr_bench` then showed where the rest was (rows=5,
+   per branch, back to back: ssm A 117.6 us, B 40.9; ffn A 41.5, B 40.6 -
+   the old-order copies in the same bench read ~162 / ~86 combined, which is
+   item 4's before column). Three changes shipped:
+   - A reads uint4 rows and converts f16 pairs with `__half22float2` (one
+     hardware instruction per pair, exact widening), four accumulator chains
+     per lane over the quarter split;
+   - A writes its result as f16 (`t16`), so the B pass no longer re-rounds a
+     f32 `t`; a small `round` pass is the only f32 -> f16 RNE step on x
+     (`f16_from_f32`, the software converter, unchanged);
+   - B reads `t16` and B's rows as uint4, pairs converted the same way.
+   Same bench, rows=5: ssm/attn 162 -> 36 (item 4) -> **30.0 us**; ffn
+   86 -> 27 -> **22.6 us** (rows=1: 80 -> 24.1 and 32 -> 17.2).  The
+   reduction ORDER changed with the shape, so `lora_corr_parity`'s reference
+   was rewritten to mirror it: 8 pairs, 0 of 7680, on both 4l fixtures; the
+   difference against the pre-rewrite order (`corr_oldnew`, real factors) is
+   max|delta| 5.96e-08, relative 1.19e-07 - f32 reordering noise, four orders
+   under the PPL instrument's resolution.  `f16_hw_check` still passes.
+   SERVED, fixed protocol, same box/config (reserve 3072, prefill 8192):
+   before this session ~30.6-34.6 tok/s with corrections; after **41.4 /
+   41.8 / 41.0 / 41.4** (75/103 drafts) and the clean no-corrections arm on
+   the same engine build **46.5 / 46.3 / 46.5** - the served delta is
+   **2.6 ms/token** (was ~9-11).  `STRATA_VERIFY_PROFILE` puts the
+   correction-attributable stages at **1.94 ms/window** (out-proj 2.26,
+   copy+combine 1.57, against 1.26 / 0.63 for the no-corrections arm), from
+   7.66 ms/window before the session.  Scratch grew by `x16` + `t16` at the
+   three call sites; prefill's `bytes_needed` also gained the `corr_t` and
+   `grs` takes it had been missing.
 
 Measured with `lora_corr_parity` still bit-exact (8 pairs) after the
 `corrections.cpp` fix; the no-corrections pack above is a measurement arm only

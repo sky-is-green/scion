@@ -65,7 +65,25 @@ speed in Strata on the two 7900 XTs**.
 
 Close the local speed gap, **in this order**:
 
-1. **Fold the corrections into the layer matmuls** (certain ~35%).
+**Status 2026-10-13 (night): item 1 is DONE.**  The correction path was reshaped
+rather than folded into the GEMVs: `lora_corr.cu` now reads uint4 rows and
+converts f16 pairs with `__half22float2`, the A pass writes `t16` directly, the
+B pass was rewritten to the same shape, and a small round pass is the only
+f32 -> f16 RNE step.  Measured on the release with the fixed protocol:
+**41.4-41.8 tok/s with corrections vs 46.3-46.5 without** (delta **2.6
+ms/token**, was ~9-11); the verify stage table's correction-attributable stages
+fell **7.66 -> 1.94 ms/window**.  `lora_corr_parity` is bit-exact on its updated
+reference (8 pairs, both 4l fixtures); the change against the pre-rewrite order
+is <= 1.2e-07 relative on the real factors (`corr_oldnew`).  Full record:
+`P4-STRATA-FIT.md` item 5.  A cooperative fused A+B kernel was prototyped and is
+**shelved**: a full-grid cooperative launch wedged both GPUs and reset the
+desktop (2026-10-13); the safety case it must pass is in
+`work/scion/docs/COOP-CORR-SAFETY.md`.
+
+1. **Fold the corrections into the layer matmuls** (certain ~35%) - **DONE in
+   the reshaped form above**; the remaining fold (B into the Q6_K mmvq/combine
+   epilogues) was measured at only ~0.3-0.5 ms/window and not worth the pinned
+   kernel surface.
    Today `corr_apply` runs `t = A x; out += B t` as two kernels per branch.
    Fold it llama.cpp-style into the layer's GEMVs (the A/B factors multiply
    the activation the layer already reads), or at minimum into one fused
