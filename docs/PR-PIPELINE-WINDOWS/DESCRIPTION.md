@@ -96,32 +96,32 @@ STRATA_DECODE_TIMING=1 in the engine env; the log prints ms/window per request
 
 ---
 
-## Related open PRs (checked 2026-10-14; 504 open in total)
+## Related PRs / issues (checked 2026-10-14; 504 open PRs in total)
 
-Nothing duplicates this measurement - none of the open PRs documents the two-stage
-gfx11 case.  Five are worth referencing or watching:
+Nothing duplicates this measurement.  The relevant threads, with one correction to
+an earlier assumption in this draft:
 
-- **#2224 `pcie: the measured PCIe share default (PcieAuto) on gfx1100 too`** - the
-  closest precedent (extend a gfx12-measured HIP default to gfx1100, gate-measured).
-  **Cross-effect to flag there and in our body:** `decode_defaults_arch_ok()` also
-  feeds `mtp_first_default_on()`, and `pw_auto`'s two-stage minimum follows
-  `mtp_first`.  Widening arch-ok to gfx1100 would turn the drafter-first placement on
-  by default on RDNA3 - which our pair measures as a **12-17 tok/s regression**
-  (52-59 vs 68-71 with the drafter on the last card).  Whatever happens to our own
-  default ask, that widening wants a drafter-placement A/B on RDNA3 first.
+- **#1656 (closed, ported into v0.1.42)** - the feature's home thread.  Niko1221's
+  test there is where the "2 cards lose ~3%" comes from: **2x R9700, code -3.3%
+  (0 of 4 pairs faster)**, which is why the flag stays opt-in; Cass67 replied that
+  the flag's VRAM reserve can push a few experts to the CPU on a tight pair and
+  "that alone could be the 2-card -3%".  Our +65% on a pair where nothing spills
+  (92% resident, `--pcie-frac 0`) is evidence for that sizing reading.  **The speed
+  result belongs in this thread - comment drafted in `COMMENT-1656.md`.**
+- **#2245 (open)** - `--pipeline-windows 2` + MTP cross-queue stall (gfx1030; the
+  same on Windows/gfx1100 per bcrawford-cpm), avoided on gfx1030 by
+  `GPU_MAX_HW_QUEUES=2`.  Any proposal to default the flag on for gfx11 must
+  reference this; it argues for an OS/driver-gated default, not a blanket one.
+- **#2224 `pcie: PcieAuto default on gfx1100 too`** - **correction:** its diff adds
+  a *separate* `pcie_auto_fork_arch_ok()` (gfx1100) consumed only by
+  `pcie_frac_auto`; it does **not** touch `decode_defaults_arch_ok()`, so it has no
+  drafter-first side effect.  No overlap with our ask.
 - **#1120 `layer split: overlap the stages' hand-off` (opt-in, 2x RX 7900 XTX)** -
-  the same overlap when the pipeline is off (serial windows, stage hand-off order).
-  Ours shows `--pipeline-windows 2` already delivers the window-level overlap on
-  gfx11 with upstream's existing flag, so the two compose rather than conflict.
-- **#1813 `exact speculative-window token parity and coverage gate`** - full token-id
-  comparison across serial / pipeline / forced-rollback windows, 48 pipeline
-  comparisons passing.  The rigorous form of our warmed-text identity check; cite it.
-  **#1419** (forced-token / verified-window replay lab tools) serves the same purpose.
-- **#1747 `bench: --pipeline-windows off vs on over four stages` (4x GP100)** -
-  results-only bench PR, +14.6-28.8%, same direction; the format works upstream.
-- **#1477 `docs: correct pipeline async compatibility`** - edits the same
-  `docs/MULTI_GPU.md` section.  Our bullet is additive and does not move its lines;
-  rebase against it if it lands first.
+  the serial-window version of the same overlap; composes with ours.
+- **#1813** exact speculative-window token parity gate (and **#1419** replay tools) -
+  the rigorous form of our warmed-text identity check.
+- **#1747** results-only pipeline-windows bench PR (4x GP100, +14.6-28.8%) - the
+  format works upstream; **#1477** edits the same docs section (rebase watch).
 
 ---
 
