@@ -104,13 +104,6 @@ desktop (2026-10-13); the safety case it must pass is in
    `--pipeline-windows 2` (now in both serve configs) **70-71 tok/s steady**, warmed
    output byte-identical to the non-pipelined engine.  Details in `P4-STRATA-FIT.md`.
 
-2. **Upgrade the engine to upstream 0.1.44** (we are 7 releases behind) - original text:
-   Upstream remote `Niko1221/Strata`; our branch carries `4f7fb6b5` plus the
-   working changes. Merge/rebase, rebuild `build-hip`, run
-   `ple_q4_parity`, `ple_x32_parity`, `ptq1_0_parity`, `lora_corr_parity`
-   (the 4l file), then re-serve and A/B with the fixed protocol. Read the
-   0.1.38-0.1.44 notes for gfx11-relevant items; try `--pipeline-windows`
-   only with a measured A/B (vendor says it loses ~3% on code with 2 cards).
 3. **Scope expert-parallelism across the two cards** (the real 2x path) -
    **measured and scoped 2026-10-13 (night)**: during decode each card is only
    ~50% SM-busy (card0 48.9%, card1 54.8%; memory controllers 6-11%) because
