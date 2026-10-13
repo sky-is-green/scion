@@ -242,3 +242,13 @@ bands.
 5. Re-benchmark on the pod with the fixed recipe
    (`hivebench/.../pod/remote-w1w2/recipe/pod-community-book.sh`) and update
    the model card with measured numbers.
+
+## New seed: exact-budget allocation (RCO)
+
+`docs/RCO-PLAN.md` (2026-10-13): the assignment problem under an exact size
+budget, solved end-to-end by Riemannian constrained optimization (Helcig &
+Alistarh, arXiv:2605.00649; code cloned at `work/rco`). Their measured headline:
+non-uniform expert pruning beats uniform by 31 HumanEval points at 50% sparsity
+(Qwen3-Coder-Next) - allocation, not the pruning criterion, is the lever. Plan:
+local small repro first (queued, no pods), then Scion-35B-A3B pruning on a pod
+(ask before booking); the gates above stay the acceptance test.

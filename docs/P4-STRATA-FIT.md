@@ -135,6 +135,26 @@ Fix candidates, in order:
    kernels. Grid-wide fusion would need cooperative launch and therefore
    `-fgpu-rdc`, which this build does not use - a global build change for a
    bounded win.
+4. THE f16 ROUND TRIPS WERE THE KERNEL COST: **DONE 2026-10-13 (late)**. The
+   served path runs the branches at verify-window shapes (rows up to `--spec`
+   + 1 = 5), so a new bench (`src/kernels/lora_corr_bench.cu`, one branch per
+   call, back to back, gfx1100) walked rows 1..8 for the two real shapes:
+   cost grows ~linearly with rows, and diagnostic copies of the A pass (each
+   conversion switched off) put ~75-80% of the time in `f16_bits.hpp`'s
+   software converters - at rows=5 the ssm/attn A pass ran 117 us of which
+   ~58 was the x round trip and ~35 the a widening, because every x element
+   was round-tripped once PER RANK ROW. The round trips in `lora_corr.cu` are
+   now the hardware conversions (`__float2half_rn` / `__half2float`), which
+   `src/kernels/f16_hw_check.cu` shows bit-identical to the software ones:
+   all 65,536 fp16 codes widening, 16,777,216 sweep values over 2^-44..2^44
+   narrowing, every boundary value; the only differences are NaN payload
+   bits, and no correction tensor holds a NaN. The accumulation order is
+   untouched, so `lora_corr_parity` stays bit-exact (8 pairs, 0 of 7680,
+   max|err| 0). Measured, same bench, per branch, before -> after: rows=5
+   ssm/attn 162 -> 36 us, ffn 86 -> 27 us (rows=1: 80 -> 24 and 32 -> 12) -
+   ~12 ms -> ~3 ms/token over the 96 branches at the served window mix.
+   Engine rebuilt; the served A/B is pending (the box was running another
+   lane's bench at the time).
 
 Measured with `lora_corr_parity` still bit-exact (8 pairs) after the
 `corrections.cpp` fix; the no-corrections pack above is a measurement arm only
