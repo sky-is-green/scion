@@ -53,11 +53,11 @@ attached at load, on **one RX 7900 XT** (20 GB, gfx1100):
 
 | | tok/s |
 | :--- | ---: |
-| Generation (warmed, greedy, 128 tokens per request) | **117.4-117.5** |
-| Prompt read (38-token prompt) | **479-482** |
+| Generation (warmed, greedy, 128 tokens per request) | **118.0-118.2** |
+| Prompt read (38-token prompt) | **480-482** |
 
 - **~8.5 ms per generated token** at context 4096, one card, the whole 11.3 GB file resident
-  (a 200-token run measures 8.54 ms/token).
+  (a 400-token run measures 8.51 ms/token).
 - **Deterministic**: eight consecutive requests of the fixed prompt reproduce the full generated text
   (reasoning plus answer) byte-for-byte, and a cold restart reproduces it again.
 - Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,

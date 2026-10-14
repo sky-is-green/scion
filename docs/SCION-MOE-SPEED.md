@@ -528,12 +528,26 @@ fused-ungated vs 59.0-59.7 separate).  8.64 -> **8.54 ms**; served 117.1-117.2 -
 (prompt 479-482).  The 35B's greedy stream and warmed bodies are byte-identical and the 176B's pin arm
 re-verified (state E, md5 `c1aa2407cb`) - its down kernel took the same change.
 
+## Steps 23-24 - the attention output stages itself; the shared SwiGLU rides in its down (engines `37418f08`, `b4d04cb1`, 2026-10-15)
+
+**Step 23** (`37418f08`): `k_attn_merge` writes each attention output row one value a lane, so it stages the
+row's q8_1 image itself (the step-21 trick on the attention path) and the out projection's prep is skipped.
+Same-build A/B (alternating 400-step runs): 117.3/117.0 vs 116.7/116.8 -> ~+0.35%.
+
+**Step 24** (`b4d04cb1`): the shared expert ran three nodes at one row (the gate/up pair,
+`native_swiglu_quantize_q8_1`, the down MMVQ); the down's small-K kernel now stages the SwiGLU and its q8_1
+image in shared itself (`__fmul_rn(__fdividef(...))` and the warp trees, the standalone kernel's own bits),
+so the middle node is gone.  `native_mmvq_swiglu_q8_0` covers type 8, one column, the small-K shape and
+refuses the packed layout (the caller runs the two calls).  Same-build A/B: 117.5/117.7 vs 117.2/117.3 ->
+~+0.3%.  Served 117.4-117.5 -> **118.0-118.2 tok/s** (prompt 480.4-482.8); the 176B's pin arm re-verified
+after both (state E, md5 `c1aa2407cb`).
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
 
-- `SkyIsNotGreen/Scion-35B-A3B`, revision `858a65d6`: generation **117.4-117.5 tok/s** on one RX 7900 XT
-  (warmed, greedy, 128 tokens per request), prompt read **479-482**, ~8.5 ms/token at ctx 4096, the
+- `SkyIsNotGreen/Scion-35B-A3B`, revision `e5d120bb`: generation **118.0-118.2 tok/s** on one RX 7900 XT
+  (warmed, greedy, 128 tokens per request), prompt read **480-482**, ~8.5 ms/token at ctx 4096, the
   determinism note (eight warmed requests byte-identical, cold restart the same).
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
@@ -583,7 +597,7 @@ arm above.
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
 part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 14) are done.  The 35B is
-**8.54 ms/step (117.4 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
+**8.51 ms/step (118.1 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
 
 1. ~~**35B corrections**~~ `dd673041`; ~~**35B serve lane**~~ Step 5; ~~**35B decode budget + first lens**~~
    `e582e92f`; ~~**experts + MoE-quantize**~~ `5ea747fe`; ~~**A+q fusion**~~ `bc4c7002`; ~~**setup + mixer
@@ -596,11 +610,9 @@ part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 
 3. ~~**35B, remaining**~~ `0fa55459`, `25d621b1` (steps 19-20: alpha/beta + conv at one row; the
    router tail - the deltas, top-k and the tables in one launch, 8.84 -> 8.69 ms, served 116.0 tok/s).
    What remains: the **out-corr B** (break-even fused into add+rms; wants a cooperative launch or an
-   order-free formulation), the **shared expert's swiglu+quantize** (the same recompute-in-down trick as step
-   22, but its down is Q8_0 in native_mmvq.cu - the shared small_mmvq kernel needs a variant), the attention
-   layers' `wq` + `wk/wv` pair (one node a layer, few layers) and `k_attn_merge`'s output staging (the step-21
-   trick for the attention path), `k_moe_out`'s staging vs the next layer's first pair (grid-wide dependency),
-   and the ISA lens on the core splits.
+   order-free formulation), the attention layers' `wq` + `wk/wv` pair (a triple launch, one node a layer),
+   `k_moe_out`'s staging vs the next layer's first pair (grid-wide dependency), and the ISA lens on the core
+   splits (ab/conv/rec ~0.5 ms each eager, no dominant kernel).
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
