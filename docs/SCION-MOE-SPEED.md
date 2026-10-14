@@ -449,12 +449,52 @@ G=64 T=8; outputs bitwise equal everywhere.  Served:
 Identity 8/8 (md5 `9cce9e259b`); the 176B's gu branch is inert and its fixed protocol stays in band
 (77-81 tok/s across the restart warm-up).  The 35B card was refreshed to these numbers.
 
+## Steps 16-17 - the node-latency ablations and two launches fused (engines `5d76fd7f`, `0ecfc0ca`, 2026-10-15)
+
+The 14-class eager split named the corrections and the router cluster, but the eager spans carry launch
+gaps.  The engine gained measurement-only ablation flags (`STRATA_Q36_SKIP_XA / XB / MA / MB / TK / RT`)
+that drop one node each - or swap top-k for a trivial ids fill - so the graph replay's difference to the
+full arm is that node's own cost.  On the 35B (`--tokens`, 192 greedy steps):
+
+| node dropped | step (ms) | its cost (ms) |
+| --- | ---: | ---: |
+| - (full) | 9.19 | - |
+| out-corr A | 8.94 | 0.25 |
+| out-corr B | 8.86 | 0.33 |
+| mixed pair A | 8.90 | 0.29 |
+| mixed pair B | 8.87 | 0.32 |
+| top-k (vs trivial fill) | 8.95 | 0.24 |
+| router f32 product | 8.89 | 0.30 |
+
+Every node costs 6-8 us: the tiny kernels are node-latency bound, not compute bound, so the lever is
+*fusion* - two independent kernels in one launch with their own grid regions (the pair idiom at the node
+level).  Two landed:
+
+- **`native_mmvq_corr_aq`** (step 16): the out projection's MMVQ rows and the correction's A pass in one
+  launch.  Both read the same staged q8_1 image; the MMVQ part is one warp per row (lane 0 stores), the A
+  part is `corr_g128_aq`'s body unchanged.  Step **9.19 -> 9.02 ms**; served 109.7-109.8 -> **110.9-111.4 tok/s**.
+- **`native_gemv_corr_mixed_a`** (step 17): the router's f32 GEMV rows and the mixed A pass in one launch.
+  Step **9.02 -> 8.87 ms**; served 110.9-111.4 -> **113.6-113.7 tok/s** (prompt 480.4-483.5).
+
+Identity held through both (the five warmed 128-token bodies of `moe-exact.sh` byte-identical; step 17
+re-verified after the revert below).
+
+### Tried and reverted: the out-corr B inside the residual add + norm (step 18, negative)
+
+The B pass's per-row value is `fadd(fadd(p0, p2), fadd(p1, p3))` (its `warp_sum` tree over four live
+lanes), which one block can reproduce exactly, so `corr_b_add_rms` folded B into k_add_rms' add/norm/
+staging node.  First mapping (eight rows per warp, four lanes a row): exactly break-even, 8.86 vs 8.87 -
+the node saved (~6 us) equals the single-block work added, because the standalone B kernel's work is
+spread over 512 blocks.  A rewrite to one lane per row (two rounds, no shuffles) regressed badly (23.78
+ms/step, the eager class +0.75 ms): a single block on strided 34-byte weight loads is latency bound.
+Reverted; the knot wants a cooperative launch or an order-free formulation.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
 
-- `SkyIsNotGreen/Scion-35B-A3B`, revision `4b2d644c`: generation **109.7-109.8 tok/s** on one RX 7900 XT
-  (warmed, greedy, 128 tokens per request), prompt read **480-484**, ~9.1 ms/token at ctx 4096, the
+- `SkyIsNotGreen/Scion-35B-A3B`, revision `d12e3002`: generation **113.5-113.6 tok/s** on one RX 7900 XT
+  (warmed, greedy, 128 tokens per request), prompt read **477-480**, ~8.8 ms/token at ctx 4096, the
   determinism note (eight warmed requests byte-identical, cold restart the same).
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
@@ -504,20 +544,22 @@ arm above.
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
 part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 14) are done.  The 35B is
-**9.29 ms/step (108.5 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
+**8.87 ms/step (113.6 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
 
 1. ~~**35B corrections**~~ `dd673041`; ~~**35B serve lane**~~ Step 5; ~~**35B decode budget + first lens**~~
    `e582e92f`; ~~**experts + MoE-quantize**~~ `5ea747fe`; ~~**A+q fusion**~~ `bc4c7002`; ~~**setup + mixer
    staging**~~ `beec6f23`; ~~**q8_1 reuses**~~ `0e253d11`; ~~**mixed router+MoE pair**~~ `9244bf4a`;
    ~~**mixer pairs**~~ `92e41681`; ~~**shared pair + 12-class split**~~ `34ce314c`;
    ~~**grouped expert micro-bench + down-phase rows kernel**~~ `e348c540`.
-2. **The gate/up phase next** (both models): after step 14, gate/up is the larger half of the expert
-   time (gu 74-98 us vs down 22-30 at T=2-4).  Its nb is 16-20, so rows-per-warp gives Q = 1-2; the
-   lever there is a different split of the row across the warp (the S26-style "spread the k items over
-   the lanes while keeping the XOR-tree order" pattern) - measure first with the bench.
-3. **35B, remaining**: the corrections' `out-corr` 0.75 ms eager (A+q + B passes of 40 branches; node
-   merges exhausted); the core splits (ab/conv/rec ~0.5 each, shared 0.46 + sh-down 0.56) name no
-   dominant kernel (ISA micro-bench optional).
+2. ~~**The gate/up phase**~~ `1e2b47f2` (step 15: gu 30.9 -> 15.7 us at the 35B shapes, G=64/T=8
+   492.7 -> 157.1; the 176B's nb = 20 keeps Q = 1 and its old path); ~~**the correction nodes' costs +
+   the mmvq/A and router/mixed-A fusions**~~ `5d76fd7f`, `0ecfc0ca` (steps 16-17, 9.19 -> 8.87 ms).
+3. **35B, remaining**: with steps 16-17 the corrections' four nodes are down to three (out-corr B is the
+   one left alone; the B+add_rms fusion is break-even - see step 18 - and wants a cooperative launch or
+   an order-free formulation).  Next merges in the queue: **top-k + the expert group setup** (two
+   single-block nodes in sequence; the ablations price top-k alone at 0.24 ms) and the **mixed B pass**
+   (the MoE delta could ride inside `k_moe_out`, the router delta inside top-k, dissolving its node).
+   Then the core splits (ab/conv/rec ~0.5 each) and the shared pair.
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.

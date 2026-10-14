@@ -24,8 +24,8 @@ tags:
 
 > **Snapshot note.** This is the model card as published on
 > [Hugging Face](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B), kept here
-> for provenance. The harness it references lives in this repository (`moe/`);
-> the dense forensics stayed in
+> for provenance. The harness it references lives in this repository (`moe/`); the
+> dense forensics stayed in
 > [`bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics).
 
 <p align="center">
@@ -53,11 +53,11 @@ attached at load, on **one RX 7900 XT** (20 GB, gfx1100):
 
 | | tok/s |
 | :--- | ---: |
-| Generation (warmed, greedy, 128 tokens per request) | **109.7-109.8** |
-| Prompt read (38-token prompt) | **480-484** |
+| Generation (warmed, greedy, 128 tokens per request) | **113.5-113.6** |
+| Prompt read (38-token prompt) | **477-480** |
 
-- **~9.1 ms per generated token** at context 4096, one card, the whole 11.3 GB file resident
-  (a 200-token run measures 9.17 ms/token).
+- **~8.8 ms per generated token** at context 4096, one card, the whole 11.3 GB file resident
+  (a 200-token run measures 8.85 ms/token).
 - **Deterministic**: eight consecutive requests of the fixed prompt reproduce the full generated text
   (reasoning plus answer) byte-for-byte, and a cold restart reproduces it again.
 - Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,
