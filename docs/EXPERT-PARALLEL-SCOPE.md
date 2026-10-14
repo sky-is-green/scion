@@ -108,3 +108,19 @@ tail, and that is the one open question the corpus cannot answer offline
    tail needs a routing trace before the dispatcher's buffering is sized.
 3. File the summary upstream either way - it is the vendor's engine and they
    handle AMD; the numbers above are the case.
+
+## Update 2026-10-14 (later the same day)
+
+- **Upstream has EP - for Intel.** `--expert-parallel-device N` in open SYCL PRs
+  #1798/#2205 (card 0 every layer, card N holds its experts, both compute each
+  window; +14.4% decode on 2x Arc B70). No HIP/CUDA version exists, so this became
+  a port.
+- **Our tree already has a host-synchronized second-card expert tier**
+  (`--expert-cache-device1..3` + `--remote-expert-opt`, `stripe` placement): the
+  cache, the placement and the row return exist. The port replaces `finish()`'s
+  `cudaStreamSynchronize` with the engine's capture-safe mapped-flag protocol
+  (`m_flag_`/`wait_flag_ge`/`copy_rows_from_mapped_after`), because HIP IPC fails
+  between the two 7900 XT (measured: "invalid device context") while mapped memory
+  works.
+- Worktree `work/strata-ep` (branch `ep-hip`, built); continuation prompt:
+  `docs/NEXT-SESSION-EP-HIP.md`.

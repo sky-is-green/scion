@@ -6,6 +6,9 @@ the validation instrument and the Q4X160 local A/B - all measured), then this
 doc. The shrink lane is decided (Q4X160); the active lane is **local serving
 speed in Strata on the two 7900 XTs**.
 
+**This lane is banked (2026-10-14: ~74-78 tok/s warm). The follow-on is the HIP
+expert-parallelism port: `NEXT-SESSION-EP-HIP.md`.**
+
 ## State (2026-10-13)
 
 - **The release serves locally in Strata at ~30.6 tok/s with corrections**
