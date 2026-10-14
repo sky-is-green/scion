@@ -164,6 +164,9 @@ this model.
 
 ## Next steps (session queue)
 
+The continuation for these is `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt): fill the 35B
+gaps first (corrections, serve lane), then resume this queue.
+
 1. **35B corrections**: apply type 43 + the F16 router pairs in the q36 engine (decode + prompt), with the
    fork's `g128` branch semantics as the reference; then measure the corrected 35B against the release.
 2. **35B serve lane**: a config + service beside `scion-flashnext`, the fixed protocol, then the one-card and
