@@ -2,11 +2,15 @@
 # ref (split config + SPLIT_OFF) vs peer (split config) with a position debug range, diffing every "dbg " line.
 # Usage: bonsai-dbg.sh <A:B pos range> [extra-json-for-both]
 set -u
-W=/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/strata-bonsai2
-VENV=/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/strata/.venv/bin/python
+# Working-tree locations come from the environment; the defaults are the lane's layout, where the engine
+# worktrees are siblings of this repository's parent (../strata-bonsai2, ../strata).
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+OCTMP=${STRATA_TMP:-$OCTMP}
+W=${STRATA_BONSAI2_WORKTREE:-$ROOT/strata-bonsai2}
+VENV=${STRATA_VENV_PY:-$ROOT/strata/.venv/bin/python}
 UNIT=strata-dense-bonsai
-ENGLOG=/tmp/opencode/strata-dense-bonsai.log
-LOG=/tmp/opencode/dbg
+ENGLOG=$OCTMP/strata-dense-bonsai.log
+LOG=$OCTMP/dbg
 mkdir -p "$LOG"
 RANGE=$1
 EXTRA=${2:-{}}
