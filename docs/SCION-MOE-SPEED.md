@@ -510,12 +510,30 @@ table kernel moved from q36 to `iq_kernels.cu` (`native_group_quant_kernel`, its
 The eager split shows the moves: corr-mix 0.47 -> 0.16, topk 0.52 -> 1.34 (the tail carries the deltas, the
 picks and the tables), exp-setup 0.72 -> 0.16.
 
+## Steps 21-22 - the delta rule stages its output; the down recomputes the SwiGLU (engines `73285ebd`, `3bd41a9a`, 2026-10-15)
+
+**Step 21, `k_gdn_seq` stages its own q8_1 image** (`73285ebd`): the delta rule's output row (ZV = h_v * 128)
+is written by its rg == 0 threads, one column a lane, so the q8_1 image the out projection's MMVQ and the
+correction's A pass read is the same warps' reduction - the staging runs at the end of the kernel (the
+standalone quantizer's bits) and `mm()`'s prep is skipped for that projection (`mm_fused_corr_a`'s `staged`).
+8.69 -> 8.62-8.64 ms; served 116.0 -> **117.1-117.2 tok/s**.
+
+**Step 22, the down kernel recomputes the entry's SwiGLU** (`3bd41a9a`): the expert chain's middle node
+(`swiglu_q8_1_entries_kernel`) only fed the down kernel's rows, so the qk-128 rows kernel now computes the
+entry's SwiGLU and its q8_1 image in shared itself - the product rounded on its own and `q8_1_store`'s warp
+trees and finite rule, the same bits - and the separate pass is skipped.  The predicate is gated to
+decode-shaped calls (<= 16 entries): a prompt's groups hold many entries and the recompute is per row-block,
+where the separate pass is the cheaper shape (measured at T=29: prompt 59.2-59.7 ms fused-gated vs 60.7-61.1
+fused-ungated vs 59.0-59.7 separate).  8.64 -> **8.54 ms**; served 117.1-117.2 -> **117.4-117.5 tok/s**
+(prompt 479-482).  The 35B's greedy stream and warmed bodies are byte-identical and the 176B's pin arm
+re-verified (state E, md5 `c1aa2407cb`) - its down kernel took the same change.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
 
-- `SkyIsNotGreen/Scion-35B-A3B`, revision `e91426e9`: generation **116.0 tok/s** on one RX 7900 XT
-  (warmed, greedy, 128 tokens per request), prompt read **481-482**, ~8.6 ms/token at ctx 4096, the
+- `SkyIsNotGreen/Scion-35B-A3B`, revision `858a65d6`: generation **117.4-117.5 tok/s** on one RX 7900 XT
+  (warmed, greedy, 128 tokens per request), prompt read **479-482**, ~8.5 ms/token at ctx 4096, the
   determinism note (eight warmed requests byte-identical, cold restart the same).
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
@@ -565,7 +583,7 @@ arm above.
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
 part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 14) are done.  The 35B is
-**8.69 ms/step (116.0 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
+**8.54 ms/step (117.4 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
 
 1. ~~**35B corrections**~~ `dd673041`; ~~**35B serve lane**~~ Step 5; ~~**35B decode budget + first lens**~~
    `e582e92f`; ~~**experts + MoE-quantize**~~ `5ea747fe`; ~~**A+q fusion**~~ `bc4c7002`; ~~**setup + mixer
@@ -578,9 +596,11 @@ part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 
 3. ~~**35B, remaining**~~ `0fa55459`, `25d621b1` (steps 19-20: alpha/beta + conv at one row; the
    router tail - the deltas, top-k and the tables in one launch, 8.84 -> 8.69 ms, served 116.0 tok/s).
    What remains: the **out-corr B** (break-even fused into add+rms; wants a cooperative launch or an
-   order-free formulation), the **shared expert's chain** (gate/up pair -> swiglu+quantize -> down, three
-   nodes), the attention layers' `wq` + `wk/wv` pair (one node a layer, few layers), `k_moe_out`'s
-   staging vs the next layer's first pair (grid-wide dependency), and the ISA lens on the core splits.
+   order-free formulation), the **shared expert's swiglu+quantize** (the same recompute-in-down trick as step
+   22, but its down is Q8_0 in native_mmvq.cu - the shared small_mmvq kernel needs a variant), the attention
+   layers' `wq` + `wk/wv` pair (one node a layer, few layers) and `k_attn_merge`'s output staging (the step-21
+   trick for the attention path), `k_moe_out`'s staging vs the next layer's first pair (grid-wide dependency),
+   and the ISA lens on the core splits.
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
