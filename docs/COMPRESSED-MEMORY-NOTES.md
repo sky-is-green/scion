@@ -60,3 +60,25 @@ does today.
   is (non-model pages).
 - memchr: technique pointer for future Rust tooling (corpus/table building), not a
   current lever.
+
+## Follow-up: "couldn't both combined drastically speed up CPU-based LLM hosting?"
+
+Batch-1 CPU decode is memory-bandwidth-bound: one token streams the active weights
+once, so throughput scales as 1/(bytes read). A memory tier that decompresses for free
+raises the *effective* bandwidth by the compression ratio, and never by more. Our
+measured ratios bound the win: Q2_0 1.03x, Q6K 1.06x, Q4X160 1.04x, bf16 bridge
+1.28x. Ceiling on these artifacts: **+3-6%**; on a bf16 host (1.2-1.5x class) maybe
+**+20-40%** if decompression is truly free. What *does* move CPU hosting by multiples
+is lossy compression: our 2.6 bpw containers are ~6x fewer bytes than bf16, and MoE
+sparsity (A6B: ~6B of 176B active per token) is the other large factor - both already
+in the shipped configuration. memchr does not enter the ceiling at all: the hot path
+streams weights through GEMVs, and tokenizer/sampling/stop-string/grammar work is not
+byte-scan-bound at any realistic tok/s.
+
+Where the idea stays real, for the record: (a) CPU hosts that must keep bf16/fp32
+weights - compression-capable RAM buys capacity plus a tens-of-percent bandwidth win;
+(b) the software variant with decompression fused into kernels or storage (`ZipServ`,
+arXiv:2603.17435, and the Cloudflare "Unweight" class - tens of percent, ratios
+1.2-1.5x, GPU-side); (c) compressed expert/table storage on NVMe for CPU-pool streaming
+(same ratio ceiling). None changes this box: the weights are already quantization-
+compressed, and the data left is incompressible.
