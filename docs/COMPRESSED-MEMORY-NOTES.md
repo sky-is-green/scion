@@ -53,6 +53,43 @@ multi-pattern scanning plus aho-corasick/FST dictionaries — is the right tool 
 corpus/table scan or a grammar/stop-string matcher ever becomes a bottleneck; none
 does today.
 
+## Prior art (2026-10-14, operator-requested sweep)
+
+The idea has been tested, in four distinct forms:
+
+- **Lossy low-bit, CPU-first** (the mainstream): Prism ML's Ternary Bonsai 2 27B
+  (~2 bpw, blockwise rotation + ternary QAT; our forensics: `bonsai2-ternary-forensics`,
+  released artifact PPL 18.5851) at 5.9 GB, "running on a laptop or a single GPU", CPU
+  supported through Prism's llama.cpp fork; BitNet b1.58 / bitnet.cpp (lookup-table CPU
+  kernels). Mechanism: cheap fused expansion, not memory decompression.
+- **Lossless after quantization** ("double compression"): arXiv:2502.15443 (Wang et al.,
+  2025) compresses the quantized weights further (2.2x, 40% memory) and *names the
+  decompression bottleneck*, adding a speed-adaptive fallback — the same `min(r, D/B)`
+  arithmetic measured here.
+- **Decompression accelerators in CPU silicon**: LiLo (HPCA 2026) uses Intel's on-chip
+  IAA to decompress LLM weights — the CRAM-class route that exists today; Meta's CRAM is
+  the same idea generalized as a kernel memory service.
+- **GPU-side fused lossless**: ZipServ/ZipGEMM, Cloudflare "Unweight" (~22% at speed,
+  decompression in on-chip memory feeding tensor cores), IBP (on-the-fly decompression
+  during storage->GPU transfers).
+
+**Strata's own answer is residency, not compression.** Searched open PRs and issues by
+title and body: no lossless-compression work; the memory PRs are tiers and pins —
+resident RAM mode (#1838 `STRATA_RAM_ADAPT`, #2177 "resident-experts costs nothing on
+128 GB"), pinned chunks (#2485), KV streaming page-pool policy (#2434), CPU prefill
+share (#2478, 1.8-2.2x on a 32 GB machine), CPU-only builds and AVX row kernels
+(#1824, #1544), CPU-only community benches (#2387). Our fork's `engine/ember` slot
+cache (`prism-ml-llama.cpp`, expert residency, inspired by FlashML FreeToken) is the
+same shape. The one codec-like PR is #2247 `--session-state-codec bf16` (halves saved
+conversation state).
+
+**Community verdict on compressed swap for hosting** is negative (CachyOS and HF
+threads: "zram ... bad for this use case"; llama.cpp's answer to memory is mmap
+demand-paging, discussion #638, not compression).
+
+**memchr appears in none of it** — the hot path is weight streaming everywhere;
+scanning is not the bottleneck in any published design found.
+
 ## Verdict
 
 - CRAM: hardware watch item; the attached number is *our weights are incompressible*,
