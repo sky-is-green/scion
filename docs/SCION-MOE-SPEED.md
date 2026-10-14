@@ -482,22 +482,23 @@ arm above.
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
-part-2 gaps and the 35B speed lens through step 13 are done above.  The 35B decode is **9.96 ms/step
-(101.2 tok/s)** from 12.2 (82) at step 6; the uncorrected floor is 8.73 (~114).
+part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 14) are done.  The 35B is
+**9.29 ms/step (108.5 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
 
 1. ~~**35B corrections**~~ `dd673041`; ~~**35B serve lane**~~ Step 5; ~~**35B decode budget + first lens**~~
    `e582e92f`; ~~**experts + MoE-quantize**~~ `5ea747fe`; ~~**A+q fusion**~~ `bc4c7002`; ~~**setup + mixer
    staging**~~ `beec6f23`; ~~**q8_1 reuses**~~ `0e253d11`; ~~**mixed router+MoE pair**~~ `9244bf4a`;
-   ~~**mixer pairs**~~ `92e41681`; ~~**shared pair + 12-class split**~~ `34ce314c`.
-2. **35B, remaining**: the corrections' `out-corr` 0.75 ms eager is the largest single correction item
-   (the A+q + B passes of 40 branches; further node merges within this kernel set are exhausted).  The
-   core splits (ab/conv/rec ~0.5 each, shared 0.46 + sh-down 0.56) name no dominant kernel, so the next
-   step there needs a per-kernel micro-bench (ISA-level, optional) rather than a node merge.
-3. The two-card arm for q36: scope it now that corrections + serve exist (the q36 engine is
-   single-device; it is engine work, not a config).
-4. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
-   ~190 GB/s implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
-5. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
+   ~~**mixer pairs**~~ `92e41681`; ~~**shared pair + 12-class split**~~ `34ce314c`;
+   ~~**grouped expert micro-bench + down-phase rows kernel**~~ `e348c540`.
+2. **The gate/up phase next** (both models): after step 14, gate/up is the larger half of the expert
+   time (gu 74-98 us vs down 22-30 at T=2-4).  Its nb is 16-20, so rows-per-warp gives Q = 1-2; the
+   lever there is a different split of the row across the warp (the S26-style "spread the k items over
+   the lanes while keeping the XOR-tree order" pattern) - measure first with the bench.
+3. **35B, remaining**: the corrections' `out-corr` 0.75 ms eager (A+q + B passes of 40 branches; node
+   merges exhausted); the core splits (ab/conv/rec ~0.5 each, shared 0.46 + sh-down 0.56) name no
+   dominant kernel (ISA micro-bench optional).
+4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
+5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
 6. A per-window timeline split (launch -> first ring vs last ring -> finish) to bound the ~6 ms hand-off
    exposure without adding kernel time.
