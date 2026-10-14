@@ -136,4 +136,7 @@ is out is refused by `capture()` (loudly), never computed wrong.
   (the parity test covers the kernel contract; a same-residency single-card oracle would be the A/B for the
   rounding-exact claim).
 - The A/B window must run when the box is free (the 35B lane shares it).
-- File the summary upstream either way (the vendor's engine; the SYCL PRs are the precedent).
+- **Filed 2026-10-15:** the port summary is posted on upstream PR #1798 ("A HIP port of this design, measured on 2x
+  7900 XT", by sky-is-green), offering a standalone PR if the author wants the port.  Next step only on their
+  reply: rebase the three `ep-hip` commits onto upstream main in a fresh worktree, build, and open the PR (the
+  branch push needs the operator's go-ahead).
