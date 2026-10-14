@@ -103,6 +103,11 @@ desktop (2026-10-13); the safety case it must pass is in
    fixture (not in the repo).  Served: 0.1.44 alone 41-43.5 tok/s; with
    `--pipeline-windows 2` (now in both serve configs) **70-71 tok/s steady**, warmed
    output byte-identical to the non-pipelined engine.  Details in `P4-STRATA-FIT.md`.
+   The two-card note itself - on gfx11 the split must be asked for (the auto rule
+   follows `mtp_first`), the draft layer is better left on the **last** card
+   (`STRATA_MTP_STAGE0=1` measured 52-59 against 68-71), cost 284 MiB of CUDA0 out of
+   the expert cache - lives in `work/strata-pr-pw/docs/MULTI_GPU.md` (worktree branch
+   `pipeline-windows-gfx11-measured`, commit `efd6b857`); no upstream PR filed yet.
 
 3. **Scope expert-parallelism across the two cards** (the real 2x path) -
    **measured and scoped 2026-10-13 (night)**: during decode each card is only
