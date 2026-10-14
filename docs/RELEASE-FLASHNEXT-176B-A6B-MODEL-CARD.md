@@ -30,13 +30,15 @@ tags:
 
 # Scion-FlashNext-176B-A6B: ternary MoE experts + trained corrections + 4-bit PLE
 
-A full Qwen3.8-Flash-Next in one 60.17 GB GGUF for llama.cpp — **176B
+A full Qwen3.8-Flash-Next in one 57.62 GB GGUF for llama.cpp — **176B
 parameters in the file**: the 125B language model (6B activated) plus the
 51.2B-parameter n-gram table (the base's 4B MTP head is not included). Ternary
-expert banks plus small trained corrections, and the n-gram table (PLE) at
-Q4_0 with per-row decoding — no full-precision masters, no full-model QAT.
+expert banks plus small trained corrections, and the n-gram table (PLE) in the
+per-row **Q4X160** container (26.24 GB) — no full-precision masters, no
+full-model QAT. Two larger containers ship in the same repo: the Q4_0-table
+file at 60.17 GB and the F16-body file at 65.80 GB.
 
-> **2.72 bpw** | **60.17 GB** (3.1x smaller than the FP8 release) | **smallest unpruned Flash-Next quant published that we know of** | **cap_eval 15/20, 0 harness errors** | **HellaSwag 400 82.00%, Winogrande 400 77.50%**
+> **2.60 bpw** | **57.62 GB** (3.2x smaller than the FP8 release) | **smallest build of this model published on the Hub that we can see, pruned or not** | **cap_eval 15/20, 0 harness errors** | **HellaSwag 400 82.00%, Winogrande 400 77.50%**
 
 The name comes from grafting. A scion is the shoot grafted onto a rootstock, and
 here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
@@ -44,9 +46,9 @@ here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
 ## Performance
 
 Measured with **Strata**, this project's own inference engine (a separate runtime from the
-llama.cpp fork the rest of this card documents), serving this exact file with the corrections
-attached at load — the local two-card box (2x RX 7900 XT, 20 GB each; layers split 26/22), the
-expert caches across both cards:
+llama.cpp fork the rest of this card documents), serving the 60.17 GB Q4_0-table file with the
+corrections attached at load — the local two-card box (2x RX 7900 XT, 20 GB each; layers split 26/22),
+the expert caches across both cards:
 
 | | tok/s |
 | :--- | ---: |
@@ -59,18 +61,18 @@ expert caches across both cards:
 
 ## Highlights
 
-- **One 60.17 GB file at 2.72 bpw.** The official FP8 release of the same model is 185.6 GB; the published community quants are 102 GB (ggml-org IQ4_NL), 92 GB (the only other ternary build, Mooney PQ2_0), 83.6 GB (GSQ-RCO IQ3_S), 75.8 GB (IQ3_XXS), 68.0 GB (IQ2_XS) and 66.4 GB (GSQ-RCO Q2_0). This is the smallest unpruned build of this model we can see; the only smaller file on the Hub is ISTA's **expert-pruned** coder IQ1_M at 58.4 GB.
+- **One 57.62 GB file at 2.60 bpw, the smallest of three shipped containers.** The official FP8 release of the same model is 185.6 GB; the published community quants are 102 GB (ggml-org IQ4_NL), 92 GB (the only other ternary build, Mooney PQ2_0), 83.6 GB (GSQ-RCO IQ3_S), 75.8 GB (IQ3_XXS), 68.0 GB (IQ2_XS) and 66.4 GB (GSQ-RCO Q2_0). This is the smallest build of this model on the Hub we can see, **pruned or not**: the next smallest file is ISTA's **expert-pruned** coder IQ1_M at 58.4 GB, and the other two Scion files are 60.17 GB (Q4_0 table) and 65.80 GB (F16 body).
 - **Expert banks at 1.75 bpw** in the base-3 **PTQ1_0** container: 5 trits per byte plus a 2-trit field and one fp16 group scale per 128 weights (28 bytes per 128). The value entropy of {-1, 0, +1} is 1.585 bpw, so the container overhead is about 10%. The body is Q6_K+Q8_0 (default variant) or F16 (fidelity variant).
 - **Trained, not calibrated**: rank-512 correction branches on the attention outputs and the MoE block output, plus router deltas, trained by output-KD against the teacher with the **deployed quantizer in the loop** (ternary Lloyd g128). **No imatrix and no calibration corpus**, which is what separates this build from the imatrix-calibrated quants above.
-- **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load, and the 28.8 GB n-gram table ships in the same file with per-row decoding. No sidecar, no adapter plumbing, no shards.
+- **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load, and the n-gram table ships in the same file with per-row decoding (26.24 GB as Q4X160, 28.8 GB as Q4_0). No sidecar, no adapter plumbing, no shards.
 - **The gap is stated, not hidden**: the 48-layer KLD gate gives **mean 0.5800** (support-dominated: 92.9% of that mass is the top-512 support fit); code and logic are the weak categories (1/3 each) on the 20-task capability suite; and the step-4000 extension was trained, gated (0.5880, flat/worse) and **is not shipped**.
-- **A/B against ISTA's Q2_0, one harness**: HellaSwag 400 is **82.00 vs 81.50** (a tie on the paired test) and Winogrande 400 is **77.50 vs 74.75** (a positive signal, not conclusive) at 6.2 GB smaller, while wikitext-2 PPL trails (**5.457 vs 5.240**) — the 1.75 bpw ternary experts buy size, not likelihood.
+- **A/B against ISTA's Q2_0, one harness**: HellaSwag 400 is **82.00 vs 81.50** (a tie on the paired test) and Winogrande 400 is **77.50 vs 74.75** (a positive signal, not conclusive) at 6.2 GB smaller (8.8 GB with the Q4X160 table), while wikitext-2 PPL trails (**5.457 vs 5.240**) — the 1.75 bpw ternary experts buy size, not likelihood.
 - **First 664-task decision-arm run of this release** (2026-10-09) — **a floor, not a capability test**: the protocol's 700/2048-token caps truncate this model's long thinking (26% of think-harder records emit no answer at all), and completed answers score **91.8%** (think-harder) / **82.6%** (gen). Headline floors: gen pass@1 **69.4%** / pass@3 **80.1%**, think-harder **67.6%**, majority arm **71.7%**; judge-head test AUC **0.862** (embeddings, cap-independent). Full truncation table under Benchmarks.
 
 ## Resources
 
 - **[GitHub `sky-is-green/scion`](https://github.com/sky-is-green/scion)**: the source of truth for this work — the harness that produced the file, the port decisions, the measured traps and the negative register.
-- **Runtime**: [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp/tree/qwen4exp-proto), branch `qwen4exp-proto`, a fork of Prism ML's llama.cpp with the PQ2_0/PTQ1_0 containers, the qwen4exp architecture, the `ffn_moe_out` virtual target, embedded-adapter support and PLE table handling.
+- **Runtime**: [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp/tree/qwen4exp-proto), branch `qwen4exp-proto`, a fork of Prism ML's llama.cpp with the PQ2_0/PTQ1_0 expert containers and the Q4X160/Q4_0 PLE tables, the qwen4exp architecture, the `ffn_moe_out` virtual target, embedded-adapter support and PLE table handling.
 - **[Discussions](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B/discussions)**: questions, test reports and failures are all welcome.
 
 ## Model Overview
@@ -81,22 +83,24 @@ expert caches across both cards:
 | Parameters | 125B total, 6B activated per token (512 experts, top-10 routed + 1 shared), **plus** the 51.2B-parameter n-gram table (320,001,536 rows x 160); 177.3B parameters in the file (the 4B MTP head is not included) |
 | Architecture | `qwen4exp` in llama.cpp: 48 layers, 3:1 hybrid GatedDeltaNet linear attention / indexed full attention (indexer budget 2048, compress 4), hyper-connections (4, lowrank 320), MoE feed-forward, sigmoid output gate |
 | Context length | 262,144 tokens (inherited from the base model) |
-| Weight format | Ternary **PTQ1_0** g128 expert banks (base-3 trits plus one fp16 group scale per 128 weights), **Q4_0** n-gram table (group-32 rows), **Q6_K+Q8_0** body (default) or F16 body, embedded F16 corrections |
-| Low-bit coverage | Expert banks at 1.75 bpw and the table at 4.25 bpw; the body is where the remaining precision lives (Q6_K/Q8_0, or F16 in the fidelity variant); norms stay F32 |
-| Deployed size | **60.17 GB / 56.04 GiB** (Q6_K body) and **65.80 GB / 61.30 GiB** (F16 body), single file, text only |
+| Weight format | Ternary **PTQ1_0** g128 expert banks (base-3 trits plus one fp16 group scale per 128 weights), n-gram table in per-row **Q4X160** or **Q4_0**, **Q6_K+Q8_0** body (default) or F16 body, embedded F16 corrections |
+| Low-bit coverage | Expert banks at 1.75 bpw and the table at 4.1 bpw (Q4X160) or 4.25 bpw (Q4_0); the body is where the remaining precision lives (Q6_K/Q8_0, or F16 in the fidelity variant); norms stay F32 |
+| Deployed size | **57.62 GB / 53.66 GiB** (Q6_K body + Q4X160 table), **60.17 GB / 56.04 GiB** (Q6_K body + Q4_0 table) and **65.80 GB / 61.30 GiB** (F16 body), single files, text only |
 | Backends | llama.cpp fork; verified on CPU (pod, 16 threads), ROCm/gfx1100, and CUDA (sm_80 on A100-SXM4-80GB and sm_120 on RTX PRO 6000 Blackwell — full-GPU load, generation and the community benchmarks) |
 | License | Apache-2.0 for this derivative (the base weights are Qwen `license:other`; published under Apache-2.0 following the community quant releases) |
 
-## Weight Representation: ternary PTQ1_0 + trained corrections + Q4_0 PLE
+## Weight Representation: ternary PTQ1_0 + trained corrections + compact PLE
 
 Each expert weight takes a value from {-1, 0, +1} with one shared FP16 scale per
 group of 128 weights, packed base-3 in the fork's **PTQ1_0** block layout
 (24 bytes of 5-trit data, 2 bytes holding the remaining trits, and the 2-byte
 group scale = 28 bytes per 128 weights = 1.75 bpw). The 51.2B-parameter n-gram
-table is stored as one streamed **Q4_0** tensor and decoded per row (28.8 GB);
-the correction branches and router deltas are rank-512 F16 low-rank factors
-merged into the file; the body carries Q6_K and Q8_0 (the F16-body variant
-leaves it at F16). Effective overall: **2.72 bpw** (Q6_K variant).
+table is one streamed per-row tensor decoded on the fly — **Q4X160** on the
+smallest file (26.24 GB) or **Q4_0** on the other two (28.8 GB); the correction
+branches and router deltas are rank-512 F16 low-rank factors merged into the
+file; the body carries Q6_K and Q8_0 (the F16-body variant leaves it at F16).
+Effective overall: **2.60 bpw** (Q6_K body + Q4X160 table) and **2.72 bpw**
+(Q6_K body + Q4_0 table).
 
 ### Memory Requirement
 
@@ -110,34 +114,44 @@ leaves it at F16). Effective overall: **2.72 bpw** (Q6_K variant).
 | GSQ-RCO IQ2_XS | 2.3 | 68.0 GB | 2.7x |
 | GSQ-RCO Q2_0 | 2.25 | 66.4 GB | 2.8x |
 | **Scion F16 body** | **2.97** | **65.8 GB** | **2.8x** |
-| **Scion Q6_K body** | **2.72** | **60.2 GB** | **3.1x** |
+| **Scion Q6_K + Q4_0 table** | **2.72** | **60.2 GB** | **3.1x** |
+| **Scion Q6_K + Q4X160 table** | **2.60** | **57.6 GB** | **3.2x** |
 | GSQ-RCO Coder IQ1_M (**pruned**) | 1.56 | 58.4 GB | 3.2x |
 
-Sizes as published on the Hub (checked 2026-10-05). Unlike the sharded community
+Sizes as published on the Hub (checked 2026-10-14). Unlike the sharded community
 files, this release is one file with the corrections and the table inside.
 
 ### Shipped Components
 
 | Component | Pack | Size |
 | :--- | :--- | ---: |
-| Default file (this repo) | PTQ1_0 experts, Q4_0 PLE table, Q6_K+Q8_0 body, embedded F16 corrections | 60.17 GB |
+| Default file (this repo) | PTQ1_0 experts, **Q4X160** PLE table, Q6_K+Q8_0 body, embedded F16 corrections | 57.62 GB |
+| Q4_0-table file (this repo) | PTQ1_0 experts, Q4_0 PLE table, Q6_K+Q8_0 body, embedded F16 corrections | 60.17 GB |
 | Fidelity file (this repo) | same containers, F16 body | 65.80 GB |
 | MTP head (not shipped) | the base's 4B multi-token-prediction draft | — |
 
-> **About the Hub's quant chip.** The Hub parses file names; a GGUF like this is
-> labelled from them and no single quant name fits: expert banks in **PTQ1_0**
+> **About the Hub's quant chip.** The Hub labels a GGUF by regex-matching a
+> known quant token in the **file name** (`parseGGUFQuantLabel` from
+> `@huggingface/tasks`), not from `general.file_type`. The files are named
+> after tokens the widget knows: `-F16` and `-Q6_K` show immediately, and the
+> shrink file is `-Q6_K-Q4X160` so it labels as `Q6_K` today and upgrades to
+> `Q4X160` once the Hub recognizes that name (the regex keeps the **last**
+> match). A PR adding `Q4X160`, `PTQ1_0` and `PQ2_0` to that list is
+> [filed](https://github.com/huggingface/huggingface.js/pull/2665). The
+> containers themselves have no standard name: expert banks in **PTQ1_0**
 > (Prism's private ternary container, type id 143), the n-gram table in
-> **Q4_0**, the body in Q6_K/Q8_0, norms in F32. Use the fork; stock llama.cpp
-> does not know type 143.
+> **Q4X160** (146) or **Q4_0**, the body in Q6_K/Q8_0, norms in F32. Use the
+> fork; stock llama.cpp knows none of these.
 
-### Validated shrink container (Q4X160, not yet packaged)
+### Shipped shrink container (Q4X160)
 
-The PLE n-gram table (28.8 GB of the file) has a validated replacement
-container: **Q4X160** - one fp16 scale per 160-element row with a 16-level
-codebook, 82 B/row -> 26.24 GB, file 60.16 -> **57.62 GB** with the experts
-untouched (Q3X32, 70 B/row -> 53.76 GB, is the smaller alternative).
+The PLE n-gram table (28.8 GB of the Q4_0 file) ships in a smaller container on
+the default file: **Q4X160** - one fp16 scale per 160-element row with a
+16-level codebook, 82 B/row -> 26.24 GB, file 60.16 -> **57.62 GB** with the
+experts untouched (Q3X32, 70 B/row -> 53.76 GB, stays as the small-size
+fallback).
 
-| gate (48-layer, paired) | Q3X32 | **Q4X160 (chosen)** |
+| gate (48-layer, paired) | Q3X32 | **Q4X160 (shipped)** |
 | :--- | ---: | ---: |
 | KLD mean | +0.0108 | **-0.0001** |
 | wikitext-2 PPL | +1.30% | **+0.41%** |
@@ -147,13 +161,14 @@ untouched (Q3X32, 70 B/row -> 53.76 GB, is the smaller alternative).
 
 Paired code arms (164 code tasks, same pod): gen/hard deltas inside the
 McNemar noise band. Independent local cross-check in Strata (581 x 512
-wikitext slices, paired): **+0.017% PPL, not significant**. The file is not
-yet published; the body/corrections companions (~-1.6 GB) are unbuilt.
-Construction: `repack_experts_q2_0.py --preserve-experts --table-type q4x160
+wikitext slices, paired): **+0.017% PPL, not significant**. The body/corrections
+companions (~-1.6 GB) are unbuilt. Construction:
+`repack_experts_q2_0.py --preserve-experts --table-type q4x160
 --table-bytes <prebuilt stream>` (docs/PLE-TABLE-TYPES.md,
 docs/P4-STRATA-FIT.md).
 
-The gated artifact: **57,615,045,408 bytes**, sha256
+The published artifact: `Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf`,
+**57,615,045,408 bytes**, sha256
 `658d56d6447cc63efdcb845ad503cd0485381f6a4aaa867973bf71753dfda0a3`
 (experts untouched; the table stream in it is the prebuilt
 `work/tmp-export/q4x160-table.bin`, sha256 `915bae37…3015`).
@@ -172,7 +187,7 @@ Thinking mode emits a long `<think>` trace before the answer; budget
 
 ### Choosing Context and Offload
 
-- **Host RAM is the binding constraint, not VRAM**: the 60 GB file is
+- **Host RAM is the binding constraint, not VRAM**: the 57.6 GB file is
   disk-backed and the experts run on CPU in the proven configuration
   (`--cpu-moe`), so plan for a host with >= 64 GB RAM. A 30 GB host thrashes
   the 36 GB body mapping (measured: 176 GB of reads for a 24-token completion
@@ -195,9 +210,9 @@ Thinking mode emits a long `<think>` trace before the answer; budget
 ### These files need the fork build
 
 PTQ1_0 (expert banks), the qwen4exp architecture, the `ffn_moe_out` correction
-hook, embedded adapters and the PLE table handling all live in the fork.
-**Stock llama.cpp will not run this file** — it treats PTQ1_0 as an unknown
-tensor type (id 143).
+hook, embedded adapters and the PLE table handling (including Q4X160) all live
+in the fork. **Stock llama.cpp will not run these files** — it treats PTQ1_0 as
+an unknown tensor type (id 143) and Q4X160 as id 146.
 
 ```bash
 # build the runtime
@@ -211,29 +226,31 @@ cmake --build build -j --target llama-cli llama-server
 ```
 
 > **If the model will not load:** `tensor '...' has invalid ggml type 143`
-> means the binary is a build of upstream llama.cpp, which knows neither
-> `PTQ1_0` (143) nor the qwen4exp architecture. The same error can come from a
-> stale `build/` or an older binary earlier on `PATH`; the reliable fix is a
-> clean clone and build of the branch above.
+> (or 146) means the binary is a build of upstream llama.cpp, which knows
+> neither `PTQ1_0` (143) / `Q4X160` (146) nor the qwen4exp architecture. The
+> same error can come from a stale `build/` or an older binary earlier on
+> `PATH`; the reliable fix is a clean clone and build of the branch above.
 
 ```bash
-# fetch the default weights (~60 GB)
-hf download SkyIsNotGreen/Scion-FlashNext-176B-A6B Scion-FlashNext-176B-A6B-Q6K.gguf --local-dir .
+# fetch the default (smallest) weights (~58 GB)
+hf download SkyIsNotGreen/Scion-FlashNext-176B-A6B Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf --local-dir .
+# or the Q4_0-table file:
+# hf download SkyIsNotGreen/Scion-FlashNext-176B-A6B Scion-FlashNext-176B-A6B-Q6_K.gguf --local-dir .
 ```
 
 ```bash
 # CPU-only serving (the measured path; >= 64 GB host RAM)
-./build/bin/llama-server -m Scion-FlashNext-176B-A6B-Q6K.gguf -c 512 -t 16 --port 8080
+./build/bin/llama-server -m Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf -c 512 -t 16 --port 8080
 
 # GPU-assist serving on a 48 GB card (experts + table stay host-side)
-./build/bin/llama-server -m Scion-FlashNext-176B-A6B-Q6K.gguf -ngl 99 \
+./build/bin/llama-server -m Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf -ngl 99 \
     --cpu-moe -ot per_layer_token_embd.weight=CPU -fa on --numa distribute \
     -c 512 --port 8080
 ```
 
 ```bash
 # chat, thinking on (base defaults)
-./build/bin/llama-cli -m Scion-FlashNext-176B-A6B-Q6K.gguf -ngl 99 \
+./build/bin/llama-cli -m Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf -ngl 99 \
     --cpu-moe -ot per_layer_token_embd.weight=CPU -fa on --numa distribute \
     -c 4096 --temp 1.0 --top-p 0.95 --top-k 20 \
     -p "Explain quantum computing in simple terms." -n 1024
@@ -385,7 +402,7 @@ scores are within the suite's noise band.
 
 ## Use Cases
 
-- **A 125B-A6B-class model on a 48 GB card + a big host**: 60 GB of weights in
+- **A 125B-A6B-class model on a 48 GB card + a big host**: 57.6 GB of weights in
   one file, experts and the PLE table host-side, attention-side layers on the
   GPU.
 - **Low-bit research and testing**: a reference point for "ternary experts +
@@ -444,4 +461,4 @@ Container and kernels: [Prism ML](https://github.com/PrismML-Eng/llama.cpp)
 (MIT). Engine: [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT).
 Comparison sizes in this card are the published files of the respective
 community quants (ISTA-DASLab GSQ-RCO family, ggml-org, Mooney), read from the
-Hub on 2026-10-05.
+Hub on 2026-10-14.

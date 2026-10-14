@@ -272,14 +272,18 @@ The language model is the single released body file; the drafter is a separate
 The two-file variant (body plus separate adapter) exists for reproducing the
 merge and swapping corrections at runtime. Ask in Discussions if you want it.
 
-> **About the Hub's quant chip.** The Hub parses file names and labels this file
-> `Q2_0`; the same happens on Prism ML's own `PQ2_0` releases. The container is
-> Prism's **`PQ2_0`** (legacy name `Q1_0_g128`, type 142/43, identical byte
-> layout): 2-bit codes with one fp16 group scale per 128 weights. It is not
-> upstream llama.cpp's g64 `Q2_0` (type 42). No single quant name fits the file
-> anyway, because it is a mix: `PQ2_0` expert banks, the embedded corrections in
-> the legacy `q1_0_g128` container, and `Q8_0` for the rest (norms and routers
-> in F32).
+> **About the Hub's quant chip.** The Hub parses file names, and until it knows
+> Prism's container names it labels this file `Q2_0` - the `Q2_0` substring
+> inside `PQ2_0`; the same happens on Prism ML's own `PQ2_0` releases. The
+> container is Prism's **`PQ2_0`** (legacy name `Q1_0_g128`, type 142/43,
+> identical byte layout): 2-bit codes with one fp16 group scale per 128
+> weights. It is not upstream llama.cpp's g64 `Q2_0` (type 42). A PR adding
+> `PQ2_0` (plus `PTQ1_0`/`Q4X160`) to the Hub's label list is
+> [filed](https://github.com/huggingface/huggingface.js/pull/2665); once it
+> ships, this chip reads `PQ2_0`. No single quant name fits the file anyway,
+> because it is a mix: `PQ2_0` expert banks, the embedded corrections in the
+> legacy `q1_0_g128` container, and `Q8_0` for the rest (norms and routers in
+> F32).
 
 ## Best Practices
 
