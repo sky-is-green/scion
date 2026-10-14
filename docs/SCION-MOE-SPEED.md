@@ -279,18 +279,59 @@ launches stay.
 `pin2`; fresh reruns of *both* the new binary and the pre-change ref binary are byte-identical to state E
 (558, md5 `c1aa2407cb`).  The pinned arm has a rare second attractor; a single draw is not evidence.
 
+## Step 7 — single-entry expert groups + the MoE branch's staged quantize (engine `5ea747fe`, 2026-10-14)
+
+**Finer budget** (class split now 9 wide; eager, 192 steps, corrected / uncorrected, ms/step):
+
+| item | corrected | uncorrected |
+| --- | ---: | ---: |
+| mix-qkv | 1.89 | 1.88 |
+| mix-core | 1.14 | 1.13 |
+| mix-out | 0.92 | 0.91 |
+| out-corr | 0.96 | 0.16 |
+| router+topk | 1.72 | 1.18 |
+| exp-setup | 0.87 | 0.86 |
+| experts (before the fix: 3.20) | 2.32 | 3.12 |
+| shared | 0.98 | 0.98 |
+| moe+combine | 1.77 | 1.08 |
+
+The routed experts dominated the untouched work: 80 us/layer, ~82 GB/s on the ~6.6 MB/layer the 35B
+reads - and `exp-setup` (two tiny nodes) another 22 us/layer.
+
+**Win 1 — single-entry groups.**  The grouped kernels' multi path decodes each 128-value block into
+registers once per row and reuses it across entries; a single token's top-8 of 256 are all distinct, so
+every group has one entry and the decode is pure overhead.  `native_expert_grouped` gained
+`single_entry` (default false, other callers untouched) and q36 passes `T == 1`, selecting the
+per-entry kernels (bitwise the same values, `iq_multi_parity`'s contract).  Replay **11.91 -> 10.95**;
+eager experts **3.20 -> 2.32**; fixed protocol **84.3-84.4 -> 91.9 tok/s**.
+
+**Win 2 — the MoE branch re-quantized h.**  The native expert path had just staged `q8_1(h)` in `xq`
+for the shared expert; the MoE correction branch read the same h and quantized it again.  It now reuses
+those blocks (`corr_branch_staged`): replay **-> 10.83-10.90**, eager moe+combine **1.92 -> 1.77**,
+fixed protocol **-> 92.9-93.0 tok/s**.
+
+Identity after both: 8/8 warmed bodies byte-identical (md5 `9cce9e259b`); prompt tps unchanged (329).
+176B: the pin arm drew the 550-char state once and state E the next run - both predate this session's
+q36 changes (part 1's `pin2` drew 550; the pre-change ref binary draws E).  It is the arm's startup
+cache lottery; two fresh runs on the new binary drew E.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
-part-2 gaps are done above; the queue resumes the part-1 items on the 35B where they apply.
+part-2 gaps plus two speed steps are done above; the queue resumes the part-1 items on the 35B where they apply.
 
 1. ~~**35B corrections**~~ done (Step 4, engine `dd673041`); ~~**35B serve lane**~~ done (Step 5);
-   ~~**35B decode budget + first lens**~~ done (Step 6, engine `e582e92f`).  Corrections still ~2.25 ms/token
-   eager / ~2.1 graph; the remaining lever is merging the three branches' passes per layer (one A node and
-   one B node instead of 3+3) - test bitwise before keeping.
-2. **35B speed lens, next items**: mixer 3.62 ms (GDN chain + attention split-K at T=1) and experts 3.71 ms
-   (the grouped PQ2_0 kernel's effective rate vs its ~13 MB/layer footprint - the part-1 micro-bench shape,
-   now on the 35B's numbers); then the shared-expert pair (gate/up/down at T=1) inside shared+combine 2.73.
+   ~~**35B decode budget + first lens**~~ done (Step 6, engine `e582e92f`); ~~**experts + MoE-quantize**~~
+   done (Step 7, engine `5ea747fe`).  35B decode now 10.85 ms/step (93.0 tok/s) from 12.2 (82) at step 6.
+2. **35B speed lens, next items**:
+   - the corrections' `out-corr` (0.96) + `router+topk` (0.55 over the uncorrected arm) still ~1.5 ms
+     eager: merge the router pair with the MoE pair per layer (one mixed-type A node + one mixed B node;
+     needs a shared f16/g128 kernel home) - ~0.4 ms expected, bitwise-checkable;
+   - `exp-setup` 0.87 (k_group single-block + the quantize): fold the group table build into the
+     expert kernel or the quantize;
+   - the mixer: mix-qkv 1.89 (prep + 2-3 MMVQ applies per layer), mix-core 1.14 (the serial GDN core at
+     T=1: `k_conv_seq` + `k_gdn_seq`), mix-out 0.92 - the serialized-load lens applies here (part 1
+     found the pattern on the 176B).
 3. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
    ~190 GB/s implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
 4. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
