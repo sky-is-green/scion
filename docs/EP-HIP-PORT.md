@@ -89,6 +89,38 @@ protocol. Card 0: 10437 slots; CUDA1: 14139 additional experts (14.16 GiB).
   A/B samples `power1_average` beside it as the independent busy signal (idle 38/70 W; decode expected
   200-300 W).
 
+**The served A/B, clean window (2026-10-15 00:09-00:20, both arms from the same strata-ep build).**
+
+| arm (fixed protocol, 4 requests) | run 1 | run 2 | run 3 | run 4 | 400-token decode |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| pipe (layer split + `--pipeline-windows 2`) | 44.8 | 60.0 | 74.5 | 85.1 (still climbing) | 59.8 |
+| EP (`--expert-parallel-device 1`) | 84.8 | **90.3** | **90.3** | **90.4** | **80.4** |
+
+- EP is stable from run 2 and faster than the pipeline's best warm run (**+6%** over 85.1; +21% over the pipelined
+  config's banked 74-78).  The pipeline arm was still climbing at run 4 (page cache), so the banked 74-78 is the
+  conservative comparison; the EP arm settled immediately.
+- Card busy / power during the 400-token decodes (12 s samples that start 4 s in and therefore include idle time;
+  lower bounds): EP primary 31.9% avg / 59 W avg / 160 W max, EP peer 20.0% avg / 24 W avg / 63 W max; pipe
+  primary 38.4% / 59 W / 152 W, pipe second card 24.0% / 51 W / 178 W.
+  **The ">80% busy" hope of the scope doc was not reached**: the expert work is a small slice of a window (the
+  peer computes ~half of ~40 routed rows per layer per window), so the gain is overlap of two cards that were
+  serialized before, not saturation - the same shape upstream measured (their expert kernels were 160-170 ms of a
+  1.1 s trace, and the decode gain was +14.4%).
+- Output identity: the 128-token greedy texts differ (`/tmp/opencode/ab-{pipe,ep}-128.txt`, first difference in
+  the reasoning wording).  Expected: the arms' expert residency differs (EP has all 512 experts/layer on the two
+  cards; the pipeline holds ~92% and computes the rest on the CPU with different float rounding), so a near-tie
+  in the draft chain can flip.  The port's own parity is the kernel-contract evidence; a same-residency
+  single-card oracle for a byte-exact claim is listed under "not done".  The EP arm's draft counts were identical
+  across runs 2-4 (74/98), i.e. deterministic on a fixed prompt.
+
+**Attempted full A/B window (2026-10-15 00:00-00:04) - CONTAMINATED, not a result.**  The window ran
+`ep-ab-window.sh` (both arms from the same build).  Mid-run `scion-flashnext` was started again by the box's
+operator (00:03:27, 22 GB RSS loading): the pipeline arm's 400-token run fell to 11.0 tok/s on the RAM/disk
+thrash, and the EP arm's engine was OOM-killed during its capture; the server restarted it and that start hit
+"native head upload: out of memory (188 MiB free)".  Partial traces only: pipe warm 35.4/53.8/76.2/81.4, EP warm
+36.4/67.7/79.2/80.5 (both climbing = still warming, not clean), EP long-run 53.8 tok/s with card power avg
+55/63 W, max 155/150 W (a load was competing).  A clean window is still owed.
+
 **Sizing note (why loans stay on).** With `--prefill 8192`, `no_prefill_borrow` reserves ~5.6 GiB on card 0
 for the prompt path's own buffers, card 0's cache drops to ~103 slots/layer and the pair can no longer hold
 every expert (the peer needs 19.66 GiB, 17.3 available).  Loans (the default with a profile) leave card 0
