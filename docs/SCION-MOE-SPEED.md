@@ -332,16 +332,6 @@ The 35B decode has gone 12.22 ms/step (81.8 tok/s) to **10.72** (94.1) across st
 2.39 -> ~1.7 (their nodes: out 4->3, router 3->2, MoE 4->3 at one row), experts 3.2 -> 2.3, and the
 setup/quantize nodes the wins left behind.
 
-## Publication gate (2026-10-14)
-
-The speed results in this record are **provisional and not for the model cards yet**.  The 35B card
-(`docs/archive/RELEASE-35B-MODEL-CARD-draft.md`) and the 176B card stay unchanged until the lane's
-gains are mild: the hard ceiling is the *uncorrected* compute (measured on the same build:
-**8.93 ms/step / ~112 tok/s** vs the corrected 10.72), the corrections still cost ~1.8 ms, and the
-queue's named levers (exp-setup fold, router+MoE merge, mixer pairs, GDN serial kernels) total roughly
-0.5-1.0 ms.  Publish when the landed steps are a few tenths of a millisecond each and no named lever
-promises more - then the numbers can only firm up.
-
 ## Step 9 — the expert setup in one node + the mixer staged by k_moe_out (engine `beec6f23`, 2026-10-14)
 
 Two node-bound fusions, both bitwise:
@@ -366,12 +356,7 @@ again: eager out-corr 0.89 -> 0.74, replay 10.58-10.65 -> 10.50-10.52, fixed pro
 
 ## Step 11 — the router and MoE corrections in one launch each (engine `9244bf4a`, 2026-10-14)
 
-**Step 10.**  `mm(L.ssm_out/wo, x, y, T)` preps `q8_1(x)` into `q8` for its own MMVQ, and the out-projection
-correction reads that same `x`.  At T <= 8 the correction now takes the staged image
-(`corr_branch_staged`, as the MoE branch does with the expert path's `xq`): eager out-corr 0.89 -> 0.74,
-replay 10.58-10.65 -> 10.50-10.52, fixed protocol 95.2 -> **96.0 tok/s**.
-
-**Step 11.**  The router delta (f16) and the MoE delta (g128) are independent at one row, so each phase is
+The router delta (f16) and the MoE delta (g128) are independent at one row, so each phase is
 now a single launch:
 
 - the h quantize moved into `k_add_rms` (which writes that h; same warp-per-32-block mapping as
@@ -385,6 +370,46 @@ now a single launch:
 Replay **10.50-10.52 -> 10.17-10.24 ms/step**; eager moe+combine 1.77 -> 1.27, total 14.25 -> 13.91;
 fixed protocol **96.0 -> 98.7 tok/s**; identity 8/8 (md5 `9cce9e259b`).  The 35B decode is 81.8 -> 98.7
 tok/s across steps 6-11.
+
+## Step 12 — the mixer pairs (engine `92e41681`, 2026-10-14)
+
+The decode applies two Q8_0 matrices to the same staged activation per mixer: `qkv`+`zg` on the 30 GDN
+layers, `wk`+`wv` on the 10 attention layers.  `native_mmvq_pair1` runs each pair in one launch - the
+packed persistent kernel when both matrices are registered, the small one-per-row kernel otherwise
+(mixed paths return false and the caller falls back) - each row the single call's own body, so the pair
+is bitwise.  Eager mix-qkv 1.74 -> 1.61; replay 10.17-10.24 -> 10.08-10.12; fixed protocol
+98.7 -> 99.7 tok/s.
+
+## Step 13 — the shared expert's pair + the 12-class split (engine `34ce314c`, 2026-10-14)
+
+`mm_pair` also covers the shared expert's gate/up.  The class split now separates the GDN core and the
+shared tail (12 classes), and the verdict is that **no core kernel dominates**:
+
+| item | ms/step (eager, 192 steps) |
+| --- | ---: |
+| mix-qkv | 1.60 |
+| mix-ab / mix-conv / mix-rec (GDN core) | 0.50 / 0.51 / 0.48 |
+| mix-out | 0.93 |
+| out-corr / router+topk / moe+combine (corrections, with topk/combine) | 0.75 / 1.94 / 1.27 |
+| exp-setup / experts | 0.71 / 2.32 |
+| shared / sh-down | 0.46 / 0.56 |
+
+Each core item is a couple of launches of a few microseconds: the part-1 serialized-load lens has no
+target here worth its risk, and that is recorded rather than chased.
+
+Replay **9.95-9.97 ms/step**; fixed protocol **101.1-101.2 tok/s**.  The uncorrected floor on this build
+is **8.73 ms/step (~114 tok/s)**, so ~1.2 ms of correction cost remains (out-corr 0.75 the largest single
+item).  Identity 8/8 (md5 `9cce9e259b`).  The 35B decode is 81.8 -> 101.2 tok/s across steps 6-13.
+
+## Publication gate (updated 2026-10-14, after step 13)
+
+The speed results in this record are **provisional and not for the model cards yet**.  The 35B card
+(`docs/archive/RELEASE-35B-MODEL-CARD-draft.md`) and the 176B card stay unchanged until the lane's gains
+are mild.  Current headroom: corrected **9.96 ms/step / 101.2 tok/s** against the uncorrected floor
+**8.73 ms/step (~114 tok/s)** - ~1.2 ms of correction cost remains (out-corr 0.75 the largest single
+item) and the 12-class split found no core kernel worth an ISA rewrite.  The last four landed steps were
++0.8, +1.0, +2.7 and +0.7-1.5 tok/s; when they settle to a few tenths of a millisecond each and nothing
+named promises more, the published numbers can only firm up.  Publish then.
 
 ## Next steps (session queue)
 
