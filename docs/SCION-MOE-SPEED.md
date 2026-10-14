@@ -103,9 +103,64 @@ shipped config is used for speed arms and reports its own (lottery-selected) war
 - `serving/moe-pin-cycle.sh <tag>` — the identity arm in a serve-down window (pinned config on 8081; restores the
   service afterwards).
 
-## Step 2 (next)
+## Step 2 — the GPU-reach wait, first pass (2026-10-14; probes only, no engine change)
 
-Attack the ~22.4 ms GPU-reach wait with the ISA-guided serialized-load lens: candidates by size are the expert
-GEMM (4.06), the hyper-connection chain (~3.0), out-proj/corrections (1.6), and the hand-off structure itself
-(the ~6 ms excess plus the per-layer `wait_flag_ge` doorbells).  Confirm each candidate with a GRAPH_TIME replay
-delta on a real run; the micro-benchmark is a filter, never the result.  Then Scion-35B-A3B (step 3).
+The wait (22.1-22.7 ms/window) minus stage 0's replay span (16.0-17.0) leaves ~6 ms/window of
+hand-off/doorbell exposure inside the serial stage chain.  The pipeline classes line shows where the time
+sits: fresh windows ~39.5 ms, speculative ~20.6 ms, and 43-48 of 55 windows run speculatively with 22-33
+rolled back.
+
+- **Gate probe, dead end.** `STRATA_PIPELINE_THETA=0.1` (needs `STRATA_PIPELINE_DEBUG=1`; 0.2 is the
+  default) moves ~4 more windows to speculative and ~4 more to rollback; the warmed wall is flat (medians
+  30.8 vs 31.0 ms/window over 5-6 warmed requests each).  The config stays at 0.2.
+- **ISA lens on the biggest in-graph item** — the expert GEMM, 4.06 ms/window by the profile stamps.  The
+  `native_down_multi_kernel<143>` inner loop issues 4 x `global_load_b128` back to back with pipelined
+  `s_waitcnt vmcnt(8->7->6...)`, not the per-load serialization the Bonsai lane fixed.  Its effective rate
+  is ~190 GB/s on the scattered expert blobs read per window, so the next measurement is a grouped
+  micro-bench at the served shapes before any rewrite (scatter/shape vs load latency).
+- **A real, small lens win exists on gfx11:** the register-staged `gr_norm_split_fast_kernel` ("loads issued
+  together, write once from registers", the vendor's gfx12 default) is compiled on gfx1100 and selectable
+  with `STRATA_GR_NORM_FAST=1`.  Measured with `STRATA_VERIFY_PROFILE=1`: hc0 norm 0.41 -> 0.37, hc1 norm
+  0.20 -> 0.16 (stage 0 GDN), 0.17/0.17 -> 0.13/0.13 (stage 1), QSA norms 0.06 -> 0.05 — about 0.2-0.3
+  ms/window across the stages.  Below the wall's run-to-run spread; recorded as an opt-in candidate, not a
+  default change (the same pattern in `gr_up_multi_kernel` has no gfx11 fast variant yet).
+- **`STRATA_VERIFY_DEVICE_PLAN` is unavailable under `--pipeline-windows`** by design: the stage verifiers
+  are set to `always_publish`, which turns the device plan off (the device residency table may lag the
+  host's while windows are in flight).
+
+## Step 3 — Scion-35B-A3B: the bring-up is a format port, not a config (blocked, measured)
+
+Header census of `Scion-35B-A3B-v2-PQ2_0-corr.gguf` (11.34 GB, sha 4d6c333f..., from
+`work/hivebench/models/gguf/qwen35-release-v2-cur05-soup.gguf`): architecture `qwen35moe`, 40 layers, 256
+experts top-8, hidden 2048; **expert banks are ggml type 142** (the fork's PQ2_0 / `Q1_0_g128`, 34-byte
+blocks of 128); 240 embedded `.lora_` correction tensors; **no MTP block in the file** (the drafter is the
+separate `mtp-sidecar-v2-cur05.gguf`, 50.3 MB).
+
+Strata has a qwen35moe path (`strata-q36`, reached through the family switch in `strata`), but two measured
+gaps block it:
+
+1. **Load refuses before the weights:** `strata-q36: missing qwen35moe.nextn_predict_layers` — the
+   architecture guard requires the key; the sidecar-style release does not carry it (it has no `nextn`
+   tensors).
+2. **The expert container is not supported in this tree.**  Strata's MoE path serves type 42 (its own
+   Q2_0, 18-byte/64) and 143 (PTQ1_0); `iq_row_bytes(142)` is 0, so `native_expert_supported(142, 142)`
+   fails.  Type 142 exists only in the unmerged Bonsai dense tree (`block_pq2_0`, `dq_pq2_0`,
+   `native_pq2_0_mmvq` — dense GEMV shapes, not the grouped MoE kernels).
+
+The port, in order: (a) tolerate `nextn_predict_layers` absent and load the sidecar drafter; (b) `Fmt<142>`
+specializations for the grouped expert kernels (`native_gu_multi` / `native_down_multi` / SwiGLU-quant) plus
+the MMQ prompt path and the loader cases, with a parity oracle against the fork (the Bonsai tree's
+`dq_pq2_0` is a reference for the row decode, not the GEMM); (c) corrections in the q36 engine (the 240
+tensors follow the same placements as the 176B's, but q36 has no correction path at all).  Each is its own
+step; the speed lane for the 35B starts after (a)+(b).  The one-card/two-card arms, the drafter and the
+budget then follow the same instruments as step 1.
+
+## Next steps (session queue)
+
+1. Grouped expert micro-bench at the served shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the ~190 GB/s
+   implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
+2. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
+   `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
+3. A per-window timeline split (launch -> first ring vs last ring -> finish) to bound the ~6 ms hand-off
+   exposure without adding kernel time.
+
