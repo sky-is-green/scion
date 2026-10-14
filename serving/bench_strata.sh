@@ -1,8 +1,9 @@
 #!/bin/bash
-# bench_strata.sh <label> - fixed 4-request decode benchmark against the local Strata server.
-# Run 1 is warm-up (prompt cache/graphs); runs 2-4 report.
+# bench_strata.sh <label> [port] - fixed 4-request decode benchmark against the local Strata server.
+# Run 1 is warm-up (prompt cache/graphs); runs 2-4 report.  Default port 8081 (the 176B lane); the 35B lane
+# calls it with 8082.
 set -u
-PORT=8081
+PORT=${2:-8081}
 LABEL=${1:-run}
 P='You are helping tune a local model. Write a detailed, factual paragraph about the history of computing. Begin now and do not stop early.'
 for i in 1 2 3 4; do

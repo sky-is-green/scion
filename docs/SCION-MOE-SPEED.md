@@ -162,15 +162,90 @@ is the corrected one); (b) the MTP drafter — the released v1 file has no `next
 sidecars are not part of it; (c) the two-card arm; (d) then steps 1-2's instruments and speed work on
 this model.
 
+## Step 4 — the 35B corrections (engine `dd673041`, 2026-10-14)
+
+**What the container is.**  The export (`scion/moe/export_branches_lora.py`) packs the deployed factors
+as rank-512 LoRA pairs on the three output projections plus rank-256 pairs on `ffn_gate_inp`
+(`adapter.lora.alpha = 0.0` -> the fork applies scale 1.0); `--branch-quant g128` packs them as
+`Q1_0_g128`: per 128 weights one fp16 scale and 32 bytes of 2-bit codes, value = `d * (code - 1)`.
+The fork imports that legacy type 43 **as PQ2_0** (commit `96222cf9a`: "byte-identical ... codes
+{0,1,2} -> {-1,0,+1}") and runs the factors as ordinary `mul_mat`s: g128 factors therefore multiply a
+**q8_1** activation (MMVQ/MMQ), the f16 router pairs a **f16** rounding (cuBLAS path).  The apply
+places (fork `moe-corr-runtime`): `build_lora_mm` adds `B (A x)` to `ssm_out.weight` / `attn_output.weight`
+from the gated pre-projection input, `build_lora_branch` adds it to the MoE block output from the
+normalized FFN input, and the router delta rides the ordinary `mul_mat(gate_inp, cur)` into the
+logits **before** top-k.
+
+**What landed** (single change to `src/qwen35/q36_engine.cu` + one MMVQ type registration): the loader
+takes the optional `.lora_` tensors (type 43 remapped to 142, the fork's own rule); `corr_branch` runs
+A on the q8_1 image of x through `iq_mmvq(142)` and B on the A pass's own q8_1 image, `k_corr_add`
+adds it; the router pairs run through the repo's f16 round-trip rule (`lora_corr_apply`, the 176B's
+validated kernel); `k_moe_out` takes the branch as one more addend; base files run exactly as before.
+`STRATA_Q36_NO_CORR=1` is the base-model arm.
+
+**Parity** (`g128_corr_parity`, real factors from the release): the block decode against a host
+reference on the q8_1 two-pass chain, A / B mean |gpu - ref| / mean |ref| = **1.5e-7 / 7.0e-8**
+(ffn_moe_out), **2.0e-7 / 9.3e-8** (ssm_out), **1.9e-7 / 5.4e-8** (attn_output); max 2.8e-6 (f32
+summation order only).
+
+**Oracle vs the fork** (warmed greedy, 10 parity prompts x 64 tokens, same ids):
+
+| arm | identical streams | tokens equal |
+| --- | ---: | ---: |
+| corrected fork vs corrected q36 | 6/10 | 512/640 |
+| uncorrected fork vs uncorrected q36 (the floor) | 6/10 | 470/640 |
+
+Every first divergence of the corrected pair sits inside the engines' own logit noise: the fork's
+margin is 0.02-0.26 with both candidates' logits agreeing to < 0.1 on three of four; the fourth
+(p04) is inherited — the *uncorrected* pair already diverges 10 tokens earlier on that prompt, the
+corrections move both engines *further along* the same path.  With a fixed teacher-forced history the
+corrections' logit deltas correlate **0.93-0.99** per step between the engines.  The two engines are
+not bitwise siblings anywhere (q36's base-vs-fork floor is 6/10 streams on their own), so this is the
+ceiling; the corrections land on the release's distribution.
+
+**Cost** (one card, ctx 1024): corrected **pp8 293 / tg8 81.6 tok/s** against the part-1 uncorrected
+**346 / 102** -> the corrections are ~**2.5 ms/token**, the step-6 target (the 176B's reshape is the
+starting point, not the naive branch).
+
+**The 176B gate:** the pinned identity arm (`--adapt-every 0`) on the new binary is byte-identical to
+the part-1 state E on all 8 warmed bodies (558 chars, md5 `c1aa2407cb`), so `iq_kernels`' one-line
+type-list change and the q36 additions move nothing in the Flash-Next serve.
+
+**Tool gotcha (reusable).**  `tools/qwen35/q36_llama_dump` (built against a llama.cpp checkout) does
+**not** apply a release's embedded adapter by itself: the raw API only attaches `model.internal_lora`
+when `llama_set_adapters_lora(ctx, nullptr, 0, nullptr)` is called (the common CLI does it inside
+`common_set_adapter_lora`).  Without it the fork silently runs the uncorrected model — the first
+oracle run compared corrected q36 against *uncorrected* fork and "failed" 0/3.  The tool now calls it;
+`Q36_DUMP_NO_ADAPTER=1` is the base arm.
+
+## Step 5 — the 35B serve lane (2026-10-14)
+
+- **Config** `strata-35b-a3b.json` (gitignored, like the 176B configs): `build-hip/strata-q36`
+  `--model Scion-35B-A3B-PQ2_0-corr.gguf --max-context 4096 --chunk 512 --vram-reserve-mib 3072`,
+  `gpu [0]` (single card; q36 ignores the reserve flag - it is the policy's global value, and with the
+  display on card1 the 35B touches no display card), tokenizer extracted from the GGUF into
+  `pack-35b/tokenizer` (`tools/strata_tokenizer.py --check`: 16/16 round trips).
+- **Unit** `scion-35b.service` (port **8082**); ready ~9 s after start.  The two services cannot run
+  at once (the 176B uses both cards); every 35B window stops `scion-flashnext` first.
+- **Protocol**: `serving/bench_strata.sh <label> [port]` gained the port argument (the `moe-exact.sh`
+  pattern); `moe-exact.sh` already took it.  Fixed protocol, warmed: **prompt 328-329 tok/s, gen
+  81.8-82.2 tok/s** (runs 2-4), no drafter (v1 has no MTP block).
+- **Identity stash** `/tmp/opencode/scion-moe-exact/35b-base-g1..8.json`: all 8 warmed bodies
+  byte-identical (735 chars, md5 `9cce9e259b`), and a cold restart reproduces them exactly — the 35B
+  lane has a *deterministic* warmed stream where the 176B's shipped config has the cold-start
+  lottery.  Every later 35B change is checked with `moe-exact.sh <tag> 8082 35b-base`.
+
 ## Next steps (session queue)
 
-The continuation for these is `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt): fill the 35B
-gaps first (corrections, serve lane), then resume this queue.
+The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); steps 1-2
+are done above, steps 3+ resume below with a q36 decode budget first.
 
-1. **35B corrections**: apply type 43 + the F16 router pairs in the q36 engine (decode + prompt), with the
-   fork's `g128` branch semantics as the reference; then measure the corrected 35B against the release.
-2. **35B serve lane**: a config + service beside `scion-flashnext`, the fixed protocol, then the one-card and
-   two-card arms; the released v1 has no MTP block (so no drafter arm for it).
+1. ~~**35B corrections**~~ done (Step 4, engine `dd673041`); ~~**35B serve lane**~~ done (Step 5).  The
+   corrections' 2.5 ms/token is item 3 below's first measured number.
+2. **35B decode budget**: a q36 timing instrument (events around the decode graph launch + a
+   kernel-class split) and one published table *before* touching kernels; then the part-1 speed lens
+   on this model (the corrections' reshape first - the 176B went 12.6 -> 2.6 ms/token on the same
+   problem).
 3. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
    ~190 GB/s implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
 4. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
