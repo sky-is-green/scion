@@ -401,12 +401,14 @@ Replay **9.95-9.97 ms/step**; fixed protocol **101.1-101.2 tok/s**.  The uncorre
 is **8.73 ms/step (~114 tok/s)**, so ~1.2 ms of correction cost remains (out-corr 0.75 the largest single
 item).  Identity 8/8 (md5 `9cce9e259b`).  The 35B decode is 81.8 -> 101.2 tok/s across steps 6-13.
 
-## Publication gate (updated 2026-10-14, results now on the card)
+## Publication gate (updated 2026-10-14, results live on HF)
 
-Per instruction, the 35B results **are now on the model card**: `docs/RELEASE-35B-MODEL-CARD.md` gained
-a **Performance** section (first section of the card) with the fixed-protocol numbers — generation
-101.1-101.2 tok/s on one RX 7900 XT, prompt 330-331, 9.99 ms/token, the determinism note — plus a
-mention in the Model Overview's backends row.  The commit carries this record's update.
+Per instruction, the 35B results **are now on the live Hugging Face card**:
+`SkyIsNotGreen/Scion-35B-A3B`, revision `2229d0c2` — a **Performance** section as the card's first
+section, with the fixed-protocol numbers (generation 101.1-101.2 tok/s on one RX 7900 XT, prompt
+330-331, ~9.9 ms/token at ctx 4096, the determinism note) and a row in the card's Contents table.
+The local `docs/RELEASE-35B-MODEL-CARD.md` is refreshed from that revision (its snapshot banner
+kept), so it matches what is published.
 
 The numbers are the step-13 values (corrected 9.96 ms/step against the uncorrected floor 8.73 ms/step,
 ~114 tok/s; ~1.2 ms of correction cost remains, out-corr 0.75 the largest item; the 12-class split
