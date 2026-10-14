@@ -489,12 +489,33 @@ spread over 512 blocks.  A rewrite to one lane per row (two rounds, no shuffles)
 ms/step, the eager class +0.75 ms): a single block on strided 34-byte weight loads is latency bound.
 Reverted; the knot wants a cooperative launch or an order-free formulation.
 
+## Steps 19-20 - two more launches fused (engines `0fa55459`, `25d621b1`, 2026-10-15)
+
+**Step 19, alpha/beta + conv** (`0fa55459`): the GDN layer's `k_gdn_ab` (a row's float4 dot and XOR tree)
+and `k_conv_seq` (unchanged body) read different inputs and write different buffers, so at one row they run
+as one launch, `k_gdn_ab_conv` (128-thread blocks, four warps an alpha/beta block; T > 1 keeps the two
+launches).  Graph 8.85 -> 8.84 ms; served 113.5-113.6 -> **115.2-115.3 tok/s**.
+
+**Step 20, the router tail** (`25d621b1`): mixed B's two halves, top-k and the group tables are a chain of
+three nodes (mixedB -> topk -> setup) with small works.  At one row they run as one launch: the MoE output
+delta's rows first (the g128 B pass's own `warp_sum`, 32 rows a block), then the launch's last block runs the
+router f16 delta's rows (`f16_dot8` over 32 lanes, a warp a row), top-k and the group tables in order with
+barriers between.  The top-k body moved to `include/strata/kernels/router_topk_body.hpp`, shared by
+`native_router.cu`'s `route_topk` kernel ((256,8) and (512,10) both call it) and the fused tail; the group
+table kernel moved from q36 to `iq_kernels.cu` (`native_group_quant_kernel`, its block-0 body in
+`group_tables`) next to the expert launches that read it.  Graph **8.84 -> 8.69 ms**; served 115.2-115.3 ->
+**116.0 tok/s** (prompt 481-482).  The 176B's pin arm re-verified after the router refactor (state E, md5
+`c1aa2407cb`); the 35B's warmed bodies 8/8 byte-identical.
+
+The eager split shows the moves: corr-mix 0.47 -> 0.16, topk 0.52 -> 1.34 (the tail carries the deltas, the
+picks and the tables), exp-setup 0.72 -> 0.16.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
 
-- `SkyIsNotGreen/Scion-35B-A3B`, revision `d12e3002`: generation **113.5-113.6 tok/s** on one RX 7900 XT
-  (warmed, greedy, 128 tokens per request), prompt read **477-480**, ~8.8 ms/token at ctx 4096, the
+- `SkyIsNotGreen/Scion-35B-A3B`, revision `e91426e9`: generation **116.0 tok/s** on one RX 7900 XT
+  (warmed, greedy, 128 tokens per request), prompt read **481-482**, ~8.6 ms/token at ctx 4096, the
   determinism note (eight warmed requests byte-identical, cold restart the same).
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
@@ -544,7 +565,7 @@ arm above.
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
 part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 14) are done.  The 35B is
-**8.87 ms/step (113.6 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
+**8.69 ms/step (116.0 tok/s)** and the 176B **80.5-80.8 tok/s**, both bitwise-verified.
 
 1. ~~**35B corrections**~~ `dd673041`; ~~**35B serve lane**~~ Step 5; ~~**35B decode budget + first lens**~~
    `e582e92f`; ~~**experts + MoE-quantize**~~ `5ea747fe`; ~~**A+q fusion**~~ `bc4c7002`; ~~**setup + mixer
@@ -554,12 +575,12 @@ part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 
 2. ~~**The gate/up phase**~~ `1e2b47f2` (step 15: gu 30.9 -> 15.7 us at the 35B shapes, G=64/T=8
    492.7 -> 157.1; the 176B's nb = 20 keeps Q = 1 and its old path); ~~**the correction nodes' costs +
    the mmvq/A and router/mixed-A fusions**~~ `5d76fd7f`, `0ecfc0ca` (steps 16-17, 9.19 -> 8.87 ms).
-3. **35B, remaining**: with steps 16-17 the corrections' four nodes are down to three (out-corr B is the
-   one left alone; the B+add_rms fusion is break-even - see step 18 - and wants a cooperative launch or
-   an order-free formulation).  Next merges in the queue: **top-k + the expert group setup** (two
-   single-block nodes in sequence; the ablations price top-k alone at 0.24 ms) and the **mixed B pass**
-   (the MoE delta could ride inside `k_moe_out`, the router delta inside top-k, dissolving its node).
-   Then the core splits (ab/conv/rec ~0.5 each) and the shared pair.
+3. ~~**35B, remaining**~~ `0fa55459`, `25d621b1` (steps 19-20: alpha/beta + conv at one row; the
+   router tail - the deltas, top-k and the tables in one launch, 8.84 -> 8.69 ms, served 116.0 tok/s).
+   What remains: the **out-corr B** (break-even fused into add+rms; wants a cooperative launch or an
+   order-free formulation), the **shared expert's chain** (gate/up pair -> swiglu+quantize -> down, three
+   nodes), the attention layers' `wq` + `wk/wv` pair (one node a layer, few layers), `k_moe_out`'s
+   staging vs the next layer's first pair (grid-wide dependency), and the ISA lens on the core splits.
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
