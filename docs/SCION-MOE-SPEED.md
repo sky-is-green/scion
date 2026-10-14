@@ -414,26 +414,23 @@ named promises more, the published numbers can only firm up.  Publish then.
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
-part-2 gaps plus three speed steps are done above; the queue resumes the part-1 items on the 35B where they apply.
+part-2 gaps and the 35B speed lens through step 13 are done above.  The 35B decode is **9.96 ms/step
+(101.2 tok/s)** from 12.2 (82) at step 6; the uncorrected floor is 8.73 (~114).
 
-1. ~~**35B corrections**~~ done (Step 4, engine `dd673041`); ~~**35B serve lane**~~ done (Step 5);
-   ~~**35B decode budget + first lens**~~ done (Step 6, engine `e582e92f`); ~~**experts + MoE-quantize**~~
-   done (Step 7, engine `5ea747fe`); ~~**A+q fusion**~~ done (Step 8, engine `bc4c7002`).  35B decode now
-   **10.72 ms/step (94.1 tok/s)** from 12.2 (82) at step 6.
-2. **35B speed lens, next items** (each ~0.1-0.3 ms at the current sizes; verify with the fixed protocol's
-   spread before keeping):
-   - fold `exp-setup`'s two nodes (the single-block group table + the h quantize) into one launch, or into
-     the expert kernel's prologue (`k_group`'s tables have no dependency on the quantize);
-   - the router + MoE corrections are 4 nodes/layer at T=1: one mixed-type A node (f16 router + g128 MoE) and
-     one mixed B node would take it to 2, if a shared f16/g128 kernel home is worth the plumbing;
-   - the mixer's `mix-qkv` 1.89: `qkv`+`zg` (30 GDN layers) and `wk`+`wv` (10 attention) are same-activation
-     MMVQ pairs - the Bonsai pair kernel is the template (bitwise the two calls);
-   - `mix-core` 1.15 (`k_conv_seq` + `k_gdn_seq` at T=1) and `shared` 0.98: the serialized-load / register
-     staging lens from part 1, per-kernel micro-bench first (their T=1 shapes are 16-256-block launches).
-3. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
+1. ~~**35B corrections**~~ `dd673041`; ~~**35B serve lane**~~ Step 5; ~~**35B decode budget + first lens**~~
+   `e582e92f`; ~~**experts + MoE-quantize**~~ `5ea747fe`; ~~**A+q fusion**~~ `bc4c7002`; ~~**setup + mixer
+   staging**~~ `beec6f23`; ~~**q8_1 reuses**~~ `0e253d11`; ~~**mixed router+MoE pair**~~ `9244bf4a`;
+   ~~**mixer pairs**~~ `92e41681`; ~~**shared pair + 12-class split**~~ `34ce314c`.
+2. **35B, remaining**: the corrections' `out-corr` 0.75 ms eager is the largest single correction item
+   (the A+q + B passes of 40 branches; further node merges within this kernel set are exhausted).  The
+   core splits (ab/conv/rec ~0.5 each, shared 0.46 + sh-down 0.56) name no dominant kernel, so the next
+   step there needs a per-kernel micro-bench (ISA-level, optional) rather than a node merge.
+3. The two-card arm for q36: scope it now that corrections + serve exist (the q36 engine is
+   single-device; it is engine work, not a config).
+4. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
    ~190 GB/s implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
-4. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
+5. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
-5. A per-window timeline split (launch -> first ring vs last ring -> finish) to bound the ~6 ms hand-off
+6. A per-window timeline split (launch -> first ring vs last ring -> finish) to bound the ~6 ms hand-off
    exposure without adding kernel time.
 
