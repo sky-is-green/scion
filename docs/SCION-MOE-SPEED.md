@@ -130,11 +130,15 @@ rolled back.
 
 ## Step 3 — Scion-35B-A3B: the bring-up is a format port, not a config (blocked, measured)
 
-Header census of `Scion-35B-A3B-v2-PQ2_0-corr.gguf` (11.34 GB, sha 4d6c333f..., from
-`work/hivebench/models/gguf/qwen35-release-v2-cur05-soup.gguf`): architecture `qwen35moe`, 40 layers, 256
-experts top-8, hidden 2048; **expert banks are ggml type 142** (the fork's PQ2_0 / `Q1_0_g128`, 34-byte
-blocks of 128); 240 embedded `.lora_` correction tensors; **no MTP block in the file** (the drafter is the
-separate `mtp-sidecar-v2-cur05.gguf`, 50.3 MB).
+The released 35B is **v1** — `qwen35-release.gguf`, 11.337 GB, sha 545d83a9… (per its model card; **there is
+no v2 release**).  The v1 file is not on this box: the link at
+`work/hivebench/artifacts/ternary/moe/qwen35/qwen35-release.gguf` points at a missing
+`/home/penis/Desktop/qwen35-release.gguf`.  The census below is of the unpublished dev artifact
+`Scion-35B-A3B-v2-PQ2_0-corr.gguf` (`work/hivebench/models/gguf/qwen35-release-v2-cur05-soup.gguf`); it uses
+the same container the v1 card documents, flagged as a dev-file census: architecture `qwen35moe`, 40 layers,
+256 experts top-8, hidden 2048; **expert banks are ggml type 142** (the fork's PQ2_0 / `Q1_0_g128`, 34-byte
+blocks of 128); 240 embedded `.lora_` correction tensors; **no MTP block in the file** (the dev drafter is a
+separate sidecar, `mtp-sidecar-v2-cur05.gguf`).
 
 Strata has a qwen35moe path (`strata-q36`, reached through the family switch in `strata`), but two measured
 gaps block it:
