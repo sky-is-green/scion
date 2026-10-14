@@ -412,8 +412,13 @@ kept), so it matches what is published.
 
 The numbers are the step-13 values (corrected 9.96 ms/step against the uncorrected floor 8.73 ms/step,
 ~114 tok/s; ~1.2 ms of correction cost remains, out-corr 0.75 the largest item; the 12-class split
-found no core kernel worth an ISA rewrite).  Further engine work can only firm them up.  The 176B card
-was not touched; its measured 68-77 tok/s (two cards, fixed protocol) is in this record if wanted there.
+found no core kernel worth an ISA rewrite).  Further engine work can only firm them up.
+
+The **176B card** (`SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `94773139`) now carries the same
+kind of Performance section: generation **76-78 tok/s** on the two-card box (warmed, greedy, 128 tokens
+per request, fixed protocol), ~13 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline window
+(`--pipeline-windows 2`, +62-68% over the non-pipelined engine), corrections applied.  Local snapshots
+of both cards are refreshed from the published revisions.
 
 ## The two-card arm, scoped (2026-10-14; not implemented)
 

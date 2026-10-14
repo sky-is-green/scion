@@ -41,6 +41,22 @@ Q4_0 with per-row decoding — no full-precision masters, no full-model QAT.
 The name comes from grafting. A scion is the shoot grafted onto a rootstock, and
 here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
 
+## Performance
+
+Measured with **Strata**, this project's own inference engine (a separate runtime from the
+llama.cpp fork the rest of this card documents), serving this exact file with the corrections
+attached at load — the local two-card box (2x RX 7900 XT, 20 GB each; layers split 26/22), the
+expert caches across both cards:
+
+| | tok/s |
+| :--- | ---: |
+| Generation (warmed, greedy, 128 tokens per request) | **76-78** |
+
+- **~13 ms per generated token** at context 4096, at 2.3-2.4 tokens per pipeline window
+  (`--pipeline-windows 2`, which is +62-68% over the same engine without it on this workload).
+- Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,
+  timings from the engine's own record.  The embedded corrections are applied; the file is unmodified.
+
 ## Highlights
 
 - **One 60.17 GB file at 2.72 bpw.** The official FP8 release of the same model is 185.6 GB; the published community quants are 102 GB (ggml-org IQ4_NL), 92 GB (the only other ternary build, Mooney PQ2_0), 83.6 GB (GSQ-RCO IQ3_S), 75.8 GB (IQ3_XXS), 68.0 GB (IQ2_XS) and 66.4 GB (GSQ-RCO Q2_0). This is the smallest unpruned build of this model we can see; the only smaller file on the Hub is ISTA's **expert-pruned** coder IQ1_M at 58.4 GB.
