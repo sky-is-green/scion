@@ -126,6 +126,31 @@ desktop (2026-10-13); the safety case it must pass is in
 Side items if wanted: raw-prefill logits dump for an exact PPL instrument;
 body/corrections companions (unbuilt, ~-1.6 GB).
 
+## Spec tuning sweep (2026-10-14)
+
+Cross-checked our decode knobs against the NInfer V100 engine's published lessons
+(`github.com/geoffwatts/ninfer-v100`; its own real-text sweeps are 50-93 tok/s on a
+single V100-32GB for a 27B dense model, with 219 tok/s only on a synthetic
+continuation). Both transferable ideas are already in the engine: an
+acceptance-adaptive window policy (`src/spec/draft_policy.cpp`) and a context-lookup
+suffix drafter (`--suffix-draft`, on by default). The sweep found only noise:
+
+| `--spec` cap | steady gen tok/s | draft acceptance |
+| ---: | ---: | ---: |
+| 2 | ~72 | 85% |
+| 3 | ~71 | 76% |
+| **4 (current)** | **~74-78** | 71% |
+| 5 | ~64 | 63% |
+| 6 | ~58 | 60% |
+
+`--spec-min-p` at K=4: 0.3 -> ~66 (58% acceptance); 0.5 and 0.7 -> ~74-76 (within
+noise). Suffix drafts fired about once per request on both the essay prompt and a
+copy-heavy code prompt ("suffix drafts: 1 windows, 1 of 3 drafts accepted"), so the
+lookup path is not a lever for these benchmarks. **No config change kept** (4 / 0.5
+restored); the gap to engines like NInfer is structural - their model fits one card
+and ours spans two over PCIe - not a missing technique. Numbers are 4-run windows
+with the policy learning inside each process; treat +-2 tok/s as noise.
+
 ## Commands
 
 ```sh
