@@ -98,7 +98,9 @@ desktop (2026-10-13); the safety case it must pass is in
 2. **Upgrade the engine to upstream 0.1.44** (we are 7 releases behind) - **DONE
    2026-10-13 (night)**.  The histories are unrelated (upstream re-imported the repo),
    so it was a 3-way patch port, not a merge: 29 hunks resolved, first build clean,
-   branch `scion-0.1.44` (`319cf7f5` port, `42bef63a` PTQ1_0 split fix).  Parity:
+   branch `scion-0.1.44` (`319cf7f5` port, `42bef63a` PTQ1_0 split fix) - the only Scion branch
+   since 2026-10-14, pushed (the old `scion-support` lineage is retired; its correction
+   reshape lives here in evolved form as `src/kernels/f16_dot8.hpp`).  Parity:
    lora_corr 8 pairs 0 differ, ple_q4 PASS, ptq1_0 0 failures; ple_x32 needs its ad-hoc
    fixture (not in the repo).  Served: 0.1.44 alone 41-43.5 tok/s; with
    `--pipeline-windows 2` (now in both serve configs) **70-71 tok/s steady**, warmed
