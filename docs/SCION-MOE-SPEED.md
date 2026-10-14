@@ -411,6 +411,41 @@ item) and the 12-class split found no core kernel worth an ISA rewrite.  The las
 +0.8, +1.0, +2.7 and +0.7-1.5 tok/s; when they settle to a few tenths of a millisecond each and nothing
 named promises more, the published numbers can only firm up.  Publish then.
 
+## The two-card arm, scoped (2026-10-14; not implemented)
+
+The 35B fits one card entirely (4.42 GiB dense + 7.97 GiB experts) and its decode is a serial
+per-layer chain at T=1. What a second card could buy, and what each costs:
+
+- **Layer split (the 176B's model).**  Layers 0..k on card 0, the rest on card 1, one 8 KB hidden
+  hand-off per token.  A single conversation makes the cards run *alternately* (the 176B's measured
+  story: layer parallelism is capacity, not throughput), and the 35B needs no capacity - a layer
+  split would add hand-off latency for no work offload.  **A loss on this model**, and it would
+  duplicate the 176B's split machinery (`--layer-split`, peer buffers, pipeline windows) in the q36
+  driver.
+- **Expert parallelism.**  The routed experts are 2.31 ms of the 9.99 ms step (~23%).  Splitting
+  their rows needs per-expert dispatch (the router decides the experts per token), a PCIe round trip
+  for each layer's 6.6 MB, and a cross-device combine; at T=1 that is latency-bound (~0.5-1 ms),
+  more than the ~1.1 ms the ideal split could save.  A batched serve could amortize it - a different
+  serving shape than this lane's fixed protocol.
+- **Two independent contexts.**  Not one model on two cards: two `scion-35b` instances, one per
+  card, serving two conversations.  No engine change; only useful with the 176B stopped (it owns
+  both cards today).  The one configuration that pays today; out of scope here.
+
+**Verdict:** for the 35B at T=1 the two-card arm is not worth its engine cost.  Revisit if the model
+outgrows one card, if batched serving becomes the protocol, or if expert-parallel dispatch is wanted
+for the 176B (where capacity *is* the constraint) and is built there first.
+
+## Budget closes (2026-10-14)
+
+`STRATA_Q36_DECODE_TIME` now also brackets `head_rows` (the output MMVQ + argmax): the eager budget
+closes at **12 layer classes 12.03 + head+embed 0.71 ms**, the rest (1.87) being the eager arm's
+per-boundary launch bubbles - what the graphs hide.  The head reads `output.weight` (248320 x 2048,
+Q8_0, 540 MB) in 0.71 ms (~760 GB/s): the card's wall, nothing to win without changing the weights.
+Every remaining item is engine work: the corrections' `out-corr` 0.75 (fusing A/B into the
+out-projection kernel), `router+topk` 1.94 and `exp-setup` 0.71 (merging topk / the group table into
+their neighbours), the expert kernel's ISA lens (2.31), the ~0.5 ms core kernels, and the two-card
+arm above.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
