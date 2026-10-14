@@ -332,6 +332,16 @@ The 35B decode has gone 12.22 ms/step (81.8 tok/s) to **10.72** (94.1) across st
 2.39 -> ~1.7 (their nodes: out 4->3, router 3->2, MoE 4->3 at one row), experts 3.2 -> 2.3, and the
 setup/quantize nodes the wins left behind.
 
+## Publication gate (2026-10-14)
+
+The speed results in this record are **provisional and not for the model cards yet**.  The 35B card
+(`docs/archive/RELEASE-35B-MODEL-CARD-draft.md`) and the 176B card stay unchanged until the lane's
+gains are mild: the hard ceiling is the *uncorrected* compute (measured on the same build:
+**8.93 ms/step / ~112 tok/s** vs the corrected 10.72), the corrections still cost ~1.8 ms, and the
+queue's named levers (exp-setup fold, router+MoE merge, mixer pairs, GDN serial kernels) total roughly
+0.5-1.0 ms.  Publish when the landed steps are a few tenths of a millisecond each and no named lever
+promises more - then the numbers can only firm up.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
