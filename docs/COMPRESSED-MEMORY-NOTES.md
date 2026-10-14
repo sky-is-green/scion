@@ -63,6 +63,24 @@ does today.
 
 ## Follow-up: "couldn't both combined drastically speed up CPU-based LLM hosting?"
 
+### Measured on this box (2026-10-14)
+
+- DRAM read bandwidth (2 GiB streaming scan, Ryzen 7 7800X3D): 1 thread **53 GB/s**,
+  2 threads **60**, 4 threads **62**, 8 threads **61.5** — the bus saturates with TWO
+  threads; the other 14 add nothing. The ceiling is the memory controller, not core count.
+- Software decompression, single core: zstd -1 **1.58 GB/s** output (ratio 1.033 on
+  Q2_0, 1.278 on the bf16 bridge), lz4 **3.6 GB/s** output (ratio 1.000 on both — it
+  does not even see the redundancy). Ideal 8-core aggregate: zstd ~10 GB/s, lz4 ~29
+  GB/s — both under the 61 GB/s bus.
+- For a bandwidth-bound consumer the compressed-memory speedup is `min(r, D/B)` with D
+  the aggregate decode rate: software gives D/B = 0.17 (zstd) / 0.48 (lz4) — slower
+  than raw. With *free* (hardware) decode the speedup is exactly r: **+3-6%** on our
+  quantized containers, **~+28%** on bf16.
+- The expansion that does beat the bus is the fused one: quantized codes expanded inside
+  the GEMV loop cost ~1-2 integer ops per weight (>60 GB/s equivalent). That is the
+  multiplier already in use (2.6 bpw ~ 6x fewer bytes than bf16), beside MoE sparsity
+  (A6B: ~6B of 176B active per token).
+
 Batch-1 CPU decode is memory-bandwidth-bound: one token streams the active weights
 once, so throughput scales as 1/(bytes read). A memory tier that decompresses for free
 raises the *effective* bandwidth by the compression ratio, and never by more. Our
