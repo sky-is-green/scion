@@ -315,23 +315,42 @@ Identity after both: 8/8 warmed bodies byte-identical (md5 `9cce9e259b`); prompt
 q36 changes (part 1's `pin2` drew 550; the pre-change ref binary draws E).  It is the arm's startup
 cache lottery; two fresh runs on the new binary drew E.
 
+## Step 8 — the corrections' A pass carries its own q8_1 image (engine `bc4c7002`, 2026-10-14)
+
+Each g128 branch paid a separate quantize of the A pass's output between A and B (120 branches/token,
+node-bound).  `corr_g128_aq` computes 32 rows per block (one warp each, mmvq's exact mapping), stages
+the 32 outputs in shared, and one warp turns them into one q8_1 block with the standalone quantizer's
+own XOR reduction (lane `l` holds row `32 b + l`), so the blocks are bitwise `quantize_q8_1_rows` of
+A's output - `g128_corr_parity` checks it against the staged chain, bitwise.  One row now runs
+**quant x, A+q, B+add** (three nodes); the batch path keeps the staged chain.
+
+Replay **10.83-10.90 -> 10.69-10.76 ms/step**; eager out-corr **0.96 -> 0.88**, moe+combine
+**1.77 -> 1.67**; fixed protocol **92.9-93.0 -> 94.1-94.2 tok/s**.  Warmed bodies 8/8 byte-identical
+(md5 `9cce9e259b`), prompt unchanged (330).
+
+The 35B decode has gone 12.22 ms/step (81.8 tok/s) to **10.72** (94.1) across steps 6-8: corrections
+2.39 -> ~1.7 (their nodes: out 4->3, router 3->2, MoE 4->3 at one row), experts 3.2 -> 2.3, and the
+setup/quantize nodes the wins left behind.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
-part-2 gaps plus two speed steps are done above; the queue resumes the part-1 items on the 35B where they apply.
+part-2 gaps plus three speed steps are done above; the queue resumes the part-1 items on the 35B where they apply.
 
 1. ~~**35B corrections**~~ done (Step 4, engine `dd673041`); ~~**35B serve lane**~~ done (Step 5);
    ~~**35B decode budget + first lens**~~ done (Step 6, engine `e582e92f`); ~~**experts + MoE-quantize**~~
-   done (Step 7, engine `5ea747fe`).  35B decode now 10.85 ms/step (93.0 tok/s) from 12.2 (82) at step 6.
-2. **35B speed lens, next items**:
-   - the corrections' `out-corr` (0.96) + `router+topk` (0.55 over the uncorrected arm) still ~1.5 ms
-     eager: merge the router pair with the MoE pair per layer (one mixed-type A node + one mixed B node;
-     needs a shared f16/g128 kernel home) - ~0.4 ms expected, bitwise-checkable;
-   - `exp-setup` 0.87 (k_group single-block + the quantize): fold the group table build into the
-     expert kernel or the quantize;
-   - the mixer: mix-qkv 1.89 (prep + 2-3 MMVQ applies per layer), mix-core 1.14 (the serial GDN core at
-     T=1: `k_conv_seq` + `k_gdn_seq`), mix-out 0.92 - the serialized-load lens applies here (part 1
-     found the pattern on the 176B).
+   done (Step 7, engine `5ea747fe`); ~~**A+q fusion**~~ done (Step 8, engine `bc4c7002`).  35B decode now
+   **10.72 ms/step (94.1 tok/s)** from 12.2 (82) at step 6.
+2. **35B speed lens, next items** (each ~0.1-0.3 ms at the current sizes; verify with the fixed protocol's
+   spread before keeping):
+   - fold `exp-setup`'s two nodes (the single-block group table + the h quantize) into one launch, or into
+     the expert kernel's prologue (`k_group`'s tables have no dependency on the quantize);
+   - the router + MoE corrections are 4 nodes/layer at T=1: one mixed-type A node (f16 router + g128 MoE) and
+     one mixed B node would take it to 2, if a shared f16/g128 kernel home is worth the plumbing;
+   - the mixer's `mix-qkv` 1.89: `qkv`+`zg` (30 GDN layers) and `wk`+`wv` (10 attention) are same-activation
+     MMVQ pairs - the Bonsai pair kernel is the template (bitwise the two calls);
+   - `mix-core` 1.15 (`k_conv_seq` + `k_gdn_seq` at T=1) and `shared` 0.98: the serialized-load / register
+     staging lens from part 1, per-kernel micro-bench first (their T=1 shapes are 16-256-block launches).
 3. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
    ~190 GB/s implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
 4. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
