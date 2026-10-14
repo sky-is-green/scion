@@ -17,6 +17,9 @@ tags:
 - qwen3.8
 - quantized
 - scion
+- speculative-decoding
+- draft-model
+- mtp
 ---
 
 > **Snapshot note.** This is the model card as published on
@@ -44,29 +47,168 @@ here the trained corrections are grafted onto a 2.125 bpw ternary body.
 
 ## Performance
 
-Served with **Strata**, this project's own inference engine, on **one RX 7900 XT** (20 GB, gfx1100):
-the same single file, corrections attached at load, no conversion step, the whole model resident on
-the card.
+Measured with **Strata**, this project's own inference engine (a separate runtime from the
+llama.cpp fork the rest of this card documents), serving this exact file with the corrections
+attached at load, on **one RX 7900 XT** (20 GB, gfx1100):
 
 | | tok/s |
 | :--- | ---: |
 | Generation (warmed, greedy, 128 tokens per request) | **101.1-101.2** |
 | Prompt read (38-token prompt) | 330-331 |
 
-- **9.99 ms per generated token** at context 4096, one card.
+- **~9.9 ms per generated token** at context 4096, one card, the whole 11.3 GB file resident
+  (a 200-token run measures 9.95-9.99 ms/token).
 - **Deterministic**: eight consecutive requests of the fixed prompt reproduce the full generated text
-  (reasoning plus answer) byte-for-byte, and a cold restart reproduces it again (the engine's identity
-  protocol compares every warmed request).
+  (reasoning plus answer) byte-for-byte, and a cold restart reproduces it again.
 - Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,
-  timings from the engine's own record — the fixed protocol this project uses for every engine
-  change.  The 101 tok/s runs the embedded corrections (the shipped file, unmodified).
+  timings from the engine's own record.  The embedded corrections are applied; the file is unmodified.
+
+## Contents
+
+| Section | Subsections |
+| :--- | :--- |
+| [Performance](#performance) | |
+| [Quickstart](#quickstart) | [Step 1 - runtime](#step-1---pick-a-runtime) · [Step 2 - weights](#step-2---get-the-weights) · [Step 3 - run](#step-3---run) · [Build from source](#build-from-source-any-platform) · [Troubleshooting](#troubleshooting) · [For AI assistants](#for-ai-assistants--agents-helping-a-user) |
+| [Highlights](#highlights) | |
+| [Resources](#resources) | |
+| [Model Overview](#model-overview) | |
+| [Weight Representation](#weight-representation-ternary-pq2_0--trained-corrections) | [Memory Requirement](#memory-requirement) · [Shipped Components](#shipped-components) |
+| [Best Practices](#best-practices) | [Generation Parameters](#generation-parameters) · [System Prompt](#system-prompt) · [Choosing Context and Offload](#choosing-context-and-offload) |
+| [Speculative decoding](#speculative-decoding-k1-drafter) | |
+| [Benchmarks](#benchmarks) | [Task Retention](#task-retention-400-tasks-each) · [Additional tasks](#additional-tasks-re-measured-2026-09-30) · [Reasoning and code](#reasoning-and-code-tasks-2026-10-07) · [Distributional Fidelity](#distributional-fidelity-the-known-gap) · [Full Grid](#full-grid) |
+| [Use Cases](#use-cases) | |
+| [Limitations](#limitations) | |
+| [Citation](#citation) | |
+| [License and Attribution](#license-and-attribution) | |
+---
+
+## Quickstart
+
+**The one thing to know first:** this file uses a container that only exists in
+the runtime fork. Stock/upstream `llama.cpp` (and the runtimes built on it, like
+LM Studio and Ollama) will refuse it with `invalid ggml type 142`. The Hub's
+auto-generated "Use this model" panel points at upstream binaries, so ignore it:
+you need [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp/tree/moe-corr-runtime),
+branch `moe-corr-runtime`. A pre-built copy of that fork is below, so most people
+do not need to compile anything.
+
+### Step 1 - pick a runtime
+
+| Your machine | Use this | Notes |
+| :--- | :--- | :--- |
+| **Windows x64 + NVIDIA** | [`llama-v0.4.2-bin-win-cuda-12.4-x64.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/llama-v0.4.2-bin-win-cuda-12.4-x64.zip) **+** [`cudart-llama-bin-win-cuda-12.4-x64.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/cudart-llama-bin-win-cuda-12.4-x64.zip) | Preferred for most drivers. CUDA 13.3 build also available if your driver is very new. |
+| **Windows x64, no GPU** | [`windows-x64-cpu.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/windows-x64-cpu.zip) | Slower, works everywhere. MTP still works. |
+| **Linux x64 + NVIDIA** | [`linux-x64-cuda.tar.gz`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/linux-x64-cuda.tar.gz) | |
+| **Linux x64, no GPU** | [`linux-x64-cpu.tar.gz`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/linux-x64-cpu.tar.gz) | |
+| **Linux x64 + AMD** | [`linux-x64-hip.tar.gz`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/linux-x64-hip.tar.gz) | The verified path is a source build with `-DGGML_HIP=ON`; see below. |
+| **macOS Apple Silicon** | [`macos-arm64-metal.tar.gz`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/macos-arm64-metal.tar.gz) | Metal path is present but has not been benchmarked by the author. |
+| **Anything else / you want max control** | Build from source | One command block below. |
+
+All release links point at the [`v0.4.2` release](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/tag/v0.4.2).
+
+> **Do not use Vulkan.** It is not a supported path for this model. The `PQ2_0`
+> kernels exist only for CPU, CUDA and Metal; a Vulkan build would leave the
+> expert matmuls on the CPU, which defeats the point. See Limitations.
+
+### Step 2 - get the weights
+
+```bash
+# model body (11.3 GB)
+hf download SkyIsNotGreen/Scion-35B-A3B Scion-35B-A3B-PQ2_0-corr.gguf --local-dir .
+
+# optional k=1 speculative drafter (50 MB, ~1.2x faster)
+hf download SkyIsNotGreen/Scion-35B-A3B-mtp-drafter Scion-35B-A3B-mtp-drafter.gguf --local-dir .
+```
+
+`hf download` is the current CLI; the older `huggingface-cli download` works the
+same.
+
+### Step 3 - run
+
+```bash
+# chat (the model thinks by default, so leave room for the trace)
+./llama-cli -m Scion-35B-A3B-PQ2_0-corr.gguf \
+    -ngl 99 -c 4096 -t 8 \
+    --temp 0.6 --top-p 0.95 --top-k 20 \
+    -p "Explain quantum computing in simple terms." -n 16384
+
+# OpenAI-compatible server with a web UI
+./llama-server -m Scion-35B-A3B-PQ2_0-corr.gguf -ngl 99 -c 4096 -t 8 --port 8080
+
+# same, with the drafter auto-detected from the sidecar GGUF
+./llama-server -m Scion-35B-A3B-PQ2_0-corr.gguf \
+    -md Scion-35B-A3B-mtp-drafter.gguf -ngl 99 -c 4096 -t 8 --port 8080
+```
+
+- `-ngl 99` offloads every layer (`0` is CPU-only).
+- `-c` is context up to 262144; start at 4096.
+- `-t` should equal the **physical** core count (SMT siblings hurt CPU expert throughput).
+- If VRAM is tight, keep `-ngl 99` and offload experts with `-ncmoe`.
+- On Windows, use `llama-cli.exe` / `llama-server.exe`, PowerShell or cmd.
+
+**Windows CUDA users:** extract the main zip, then extract the three DLLs from
+the matching `cudart` zip (`cudart64_12.dll`, `cublas64_12.dll`,
+`cublasLt64_12.dll`) into the same folder as `llama-server.exe` / `llama-cli.exe`.
+Without them the binary will fail to start with a missing-DLL error.
+
+### Build from source (any platform)
+
+```bash
+git clone -b moe-corr-runtime https://github.com/sky-is-green/prism-ml-llama.cpp
+cd prism-ml-llama.cpp
+./verify-container-support.sh          # must print "RESULT: OK"
+rm -rf build
+
+# pick ONE backend flag:
+cmake -B build -DGGML_CUDA=ON          # NVIDIA
+# cmake -B build -DGGML_HIP=ON         # AMD (verified on gfx1100 / RX 7900 XT)
+# cmake -B build                       # CPU only
+cmake --build build -j --target llama-cli llama-server
+# binaries land in build/bin/
+```
+
+On Windows, build with CMake + Ninja against MSVC (or the LLVM toolchain); a
+plain `cmake -B build -DGGML_CUDA=ON` after `vcvarsall.bat x64` is enough.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+| :--- | :--- | :--- |
+| `tensor '...' has invalid ggml type 142. should be in [0, 43)` | You ran an **upstream** llama.cpp build, an old binary earlier on `PATH`, or a stale `build/` dir | Use the fork binary from above; delete `build/` and re-clone if compiling. Run `./verify-container-support.sh`. |
+| Missing `cudart64_*.dll` / `cublas64_*.dll` | CUDA runtime not bundled in the main zip | Extract the matching `cudart-*` zip next to the executables. |
+| GPU not used / slow | Wrong build, or experts on CPU | Confirm `ggml-cuda.dll` loaded and `-ngl 99`; add `-ncmoe` only if VRAM is tight. |
+| Out of VRAM at long context | KV cache growth | Lower `-c`, or offload experts with `-ncmoe`. |
+| Hangs at start on old CPUs | CPU backend picked a variant the CPU lacks | Use the fork bundle (ships all CPU variants) or rebuild with `-DGGML_NATIVE=OFF`. |
+
+### For AI assistants / agents helping a user
+
+If you are an AI agent wiring Scion up for someone, the requirements are:
+
+```text
+Runtime MUST be sky-is-green/prism-ml-llama.cpp, branch moe-corr-runtime.
+  - Upstream llama.cpp, LM Studio, Ollama and llama.cpp wheels CANNOT load this file.
+Model file: Scion-35B-A3B-PQ2_0-corr.gguf
+  - Custom tensor type is PQ2_0 (ggml type id 142), group size 128. NOT upstream Q2_0 (type 42).
+GPU backends that implement PQ2_0: CUDA, CPU, Metal. Vulkan does NOT.
+Windows x64 + NVIDIA, no build required:
+  1. Download llama-v0.4.2-bin-win-cuda-12.4-x64.zip and cudart-llama-bin-win-cuda-12.4-x64.zip from
+     https://github.com/sky-is-green/prism-ml-llama.cpp/releases/tag/v0.4.2
+  2. Extract both into ONE folder (the cudart DLLs must sit next to llama-server.exe / llama-cli.exe).
+  3. Run:  llama-server.exe -m Scion-35B-A3B-PQ2_0-corr.gguf -ngl 99 -c 4096 -t <physical cores> --port 8080
+Recommended sampling: --temp 0.6 --top-p 0.95 --top-k 20, and allow -n up to 16384 (reasoning trace).
+Optional speedup: -md Scion-35B-A3B-mtp-drafter.gguf (drafter auto-detected, same context).
+"invalid ggml type 142" == wrong (upstream) binary; use the fork.
+```
+
+---
 
 ## Highlights
 
 - **One 11.34 GB file at 2.61 bpw** (expert banks at 2.125 bpw). The BF16 reference of the same model is 71.07 GB; Q4_K_M is 21.71 GB and IQ2_M is 12.56 GB. It is the smallest published build of this model I have seen at this quality level.
 - **Task retention inside the Q4 and BF16 noise band**: HellaSwag 400 gives **79.00%** (BF16 81.25, Q4_K_M 80.00) and Winogrande gives **76.25%** (BF16 76.00, Q4_K_M 76.00). It has the joint-best Winogrande row in the table and the **best PPL of the 2-bit class** (8.354 against IQ2_M 8.413 and Q2_K 8.473).
 - **Trained, not calibrated**: rank-512 correction branches on the attention output and the MoE block output, plus router deltas, trained by output-KD against the BF16 teacher with the deployed quantizer in the loop (ternary Lloyd g128). No imatrix and no calibration corpus, which is what separates this build from the imatrix-calibrated quants on the chart.
-- **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load. There is no sidecar and no adapter plumbing.
+- **One file, no `--lora`**: the corrections are embedded (`adapter.embedded=true`) and attached at load. There is no adapter plumbing.
+- **A k=1 speculative drafter ships alongside** ([`Scion-35B-A3B-mtp-drafter`](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter), 50 MB): it drafts the next token from the model's own hidden state and gives **1.14-1.37x faster generation** on llama.cpp's speculative path, with unchanged outputs. It needs the fork runtime (it is not a stock llama.cpp drafter).
 - **The gap is stated, not hidden**: full-vocabulary KLD against BF16 is 0.269 mean, a strong 2-bit-class result but still behind Q4_K_M at 0.031. Tail-aware training was attempted at full scale and did not transfer ([`TAIL-EXPERIMENT-PLAN.md`](https://github.com/sky-is-green/scion/blob/main/docs/TAIL-EXPERIMENT-PLAN.md)).
 
 ## Resources
@@ -88,7 +230,7 @@ the card.
 | Weight format | Ternary **PQ2_0** g128 expert banks (codes in {-1, 0, +1} plus one fp16 group scale per 128 weights), **Q8_0** for the rest, embedded corrections in the legacy `q1_0_g128` container (rank-512) |
 | Low-bit coverage | Expert banks only; attention, embeddings and the head stay Q8_0, and norms, routers and the output stay F32 |
 | Deployed size | **10.558 GiB / 11.337 GB** (text only, single file) |
-| Backends | llama.cpp fork; verified on CPU and ROCm/gfx1100, CUDA build expected to work but untested.  Also served by **Strata**, this project's engine (ROCm/gfx1100; see Performance) |
+| Backends | llama.cpp fork; **verified on CPU and ROCm/gfx1100**. Pre-built Windows x64 CUDA binaries are on the v0.4.2 release but the CUDA path is not yet runtime-verified end-to-end. Metal untested. **Vulkan unsupported** (no PQ2_0 kernels) |
 | License | Apache-2.0 (inherited from the base) |
 
 ## Weight Representation: ternary PQ2_0 + trained corrections
@@ -120,12 +262,15 @@ Benchmarks).
 | Component | Pack | Size | Residency |
 | :--- | :--- | ---: | :--- |
 | Language model (this repo) | PQ2_0 experts, Q8_0 rest, embedded corrections | 11.34 GB | resident; the whole model |
+| **k=1 MTP drafter** ([separate repo](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter)) | **fp16 head (`fc1`/`gelu`/`fc2`) over the model's own hidden + next-token embedding** | **50 MB** | **transient; ~1 ms/eval on GPU** |
 | Uncorrected body (not uploaded) | PQ2_0 experts and Q8_0 rest | 10.46 GiB | for swap tests |
 | Corrections (not uploaded) | rank-512 branches and router deltas (`q1_0_g128`) | 98 MiB | for swap tests |
 
-Only the single file is published. The two-file variant (body plus separate
-adapter) exists for reproducing the merge and swapping corrections at runtime.
-Ask in Discussions if you want it.
+The language model is the single released body file; the drafter is a separate
+50 MB file in its own repo
+([`Scion-35B-A3B-mtp-drafter`](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter)).
+The two-file variant (body plus separate adapter) exists for reproducing the
+merge and swapping corrections at runtime. Ask in Discussions if you want it.
 
 > **About the Hub's quant chip.** The Hub parses file names and labels this file
 > `Q2_0`; the same happens on Prism ML's own `PQ2_0` releases. The container is
@@ -148,10 +293,31 @@ This is a reasoning distill, and answers open with a long thinking segment.
 Allow generous `max_new_tokens` (for example `-n 16384`); a small cap ends
 generation mid-thought, before any answer.
 
+> **Override the file's default.** The GGUF's embedded `general.sampling.temp`
+> is `1.0`. Pass `--temp 0.6` explicitly (or override the metadata) so loaders
+> that honor the embedded defaults do not run too hot.
+
 ### System Prompt
 
 A simple prompt works, for example `You are a helpful assistant`. The base is a
 reasoning SFT distill and does not require a special system prompt.
+
+### Agentic / tool use
+
+When Scion drives a shell/editor tool loop, keep its thinking trace in the
+conversation history. The model plans inside a thinking block and then acts; if
+the client drops the assistant's `reasoning_content` between turns, the template
+re-inserts an empty thinking block and the model can end a turn with a plan but
+**no tool call** (an empty turn that looks like looping). Either:
+
+- return `reasoning_content` with each assistant message (the OpenAI-compatible
+  way), or
+- run the session with thinking disabled
+  (`chat_template_kwargs: {"enable_thinking": false}`).
+
+For tool use, sample at `--temp 0.6 --top-p 0.95 --top-k 20` with a generous
+per-turn token budget, and do not force a tool call on every turn — let the
+model finish.
 
 ### Choosing Context and Offload
 
@@ -164,67 +330,47 @@ reasoning SFT distill and does not require a special system prompt.
 - Do not layer-split across two cards when one card fits; the proxy
   measurements showed a 40% generation loss.
 
-## Quickstart
+## Speculative decoding (k=1 drafter)
 
-> The runtime is the fork, and the fork is the source of truth for running these
-> files: [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp/tree/moe-corr-runtime),
-> branch `moe-corr-runtime`.
-
-### These files need the fork build
-
-The PQ2_0 container, the legacy `Q1_0_g128` import, the `ffn_moe_out` virtual
-target and embedded adapters all live in the fork. **Stock llama.cpp will not
-run this file**: it treats `PQ2_0` and `Q1_0_g128` as unknown tensor types.
-Upstream's own `Q2_0` (type 42, g64) is a different container and is not a
-substitute.
-The fork's default branch is the one you want, so a plain clone is enough.
+The drafter lives in its own repo:
+[`Scion-35B-A3B-mtp-drafter`](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter)
+(50 MB). It is a small frozen-body head that predicts the model's own next
+token from its post-norm hidden state plus the next token's embedding; it reuses
+the model's own `output_norm`/`output`/`token_embd`, so it adds no second
+vocabulary projection. It is **not** a stock llama.cpp drafter: the fork's
+`draft-mtp-sidecar` implementation loads it (auto-detected from the GGUF) and
+runs it entirely against the target context, with no draft model.
 
 ```bash
-# build the runtime
-git clone https://github.com/sky-is-green/prism-ml-llama.cpp
-cd prism-ml-llama.cpp
-./verify-container-support.sh          # must print "RESULT: OK"
-rm -rf build
-cmake -B build -DGGML_CUDA=ON && cmake --build build -j --target llama-cli llama-server
-# ROCm: -DGGML_HIP=ON     CPU-only: no flag
-```
+hf download SkyIsNotGreen/Scion-35B-A3B-mtp-drafter Scion-35B-A3B-mtp-drafter.gguf --local-dir .
 
-> **If the model will not load:** `tensor '...' has invalid ggml type 142. should
-> be in [0, 43)` means the binary you ran is a build of upstream `master`, which
-> knows 43 types and has never heard of `PQ2_0` (type id 142). The branch above
-> defines `GGML_TYPE_PQ2_0 = 142` and `GGML_TYPE_COUNT = 144`, and
-> `./verify-container-support.sh` checks exactly that in a second. The same error
-> also comes from a stale `build/` directory or from an older `llama-cli` earlier
-> on your `PATH`; the reliable fix for all three is to delete the checkout and
-> the build directory and start from the clone above. See also the
-> [fork README](https://github.com/sky-is-green/prism-ml-llama.cpp#readme).
+# server (no extra flags; the sidecar is auto-detected)
+./build/bin/llama-server -m Scion-35B-A3B-PQ2_0-corr.gguf \
+    -md Scion-35B-A3B-mtp-drafter.gguf -ngl 99 -c 4096 -t 8 --port 8080
 
-```bash
-# fetch the weights
-hf download SkyIsNotGreen/Scion-35B-A3B Scion-35B-A3B-PQ2_0-corr.gguf --local-dir .
-```
-
-```bash
-# chat; the model thinks by default, so leave room for the trace
+# CLI
 ./build/bin/llama-cli -m Scion-35B-A3B-PQ2_0-corr.gguf \
-    -ngl 99 -c 4096 -t 8 \
-    --temp 0.6 --top-p 0.95 --top-k 20 \
-    -p "Explain quantum computing in simple terms." -n 16384
-
-# server
-./build/bin/llama-server -m Scion-35B-A3B-PQ2_0-corr.gguf -ngl 99 -c 4096 -t 8 --port 8080
+    -md Scion-35B-A3B-mtp-drafter.gguf -ngl 99 -c 4096 -t 8
 ```
 
-`-ngl 99` offloads every layer (`0` is CPU-only), `-c` sets context up to
-262144, and `-t` should be the physical core count. Verified on CPU and ROCm
-(gfx1100, RX 7900 XT, where the release was built and measured). A CUDA build is
-expected to work; reports are welcome in Discussions.
+Measured on one RX 7900 XT (greedy):
+
+| Workload | Baseline | + drafter | Speedup | Draft acceptance |
+| :--- | ---: | ---: | ---: | ---: |
+| Bench prompt, 400 tokens | 12.41 ms/tok | 9.07 ms/tok | **1.37x** | 0.738 |
+| Open-ended CLI generation | 49.0 tok/s | 57.2 tok/s | **1.17x** | 0.46-0.74 |
+| Server confirmation | - | - | 1.14-1.21x | 0.44-0.70 |
+
+Teacher-forced acceptance: fineweb 0.483 / wikitext 0.360. Speedup is
+prompt-dependent - treat **~1.2x as the typical figure** and 1.37x as the
+benchmark-prompt best. Drafting leaves the model's outputs unchanged apart from
+rare near-tie flips on batched verification.
 
 ## Benchmarks
 
 Community protocol, the same for every row: wikitext-2 PPL (`c512`, 580 chunks);
 KLD against BF16 logits over 50 chunks (25.5k tokens); HellaSwag 400 and
-Winogrande 400 zero-shot (about ±2% CI). BF16 and all quants were measured in one
+Winogrande 400 zero-shot (about +/-2% CI). BF16 and all quants were measured in one
 H100 session; this release was measured on the local card and cross-checked
 against the pod (IQ2_M KLD local vs pod: 0.2%).
 
@@ -238,14 +384,53 @@ against the pod (IQ2_M KLD local vs pod: 0.2%).
 | Q2_K | 13.84 GB | 3.19 | 76.50 | 73.25 |
 | **Scion-35B-A3B** | **11.34 GB** | **2.61** | **79.00** | **76.25** |
 
-Within ±2% noise of Q4_K_M and BF16; tied with IQ2_M on HellaSwag and ahead of
+Within +/-2% noise of Q4_K_M and BF16; tied with IQ2_M on HellaSwag and ahead of
 it on Winogrande at 1.2 GB less. Treat sub-1% differences as ties.
+
+### Additional tasks (re-measured 2026-09-30)
+
+The 2026-09-27 grid covered HellaSwag and Winogrande. A later local run added
+the remaining standard multiple-choice tasks on the same release and the same
+fork build (one RX 7900 XT, `llama-perplexity --multiple-choice`, same seed):
+
+| Task | Scion-35B-A3B |
+| :--- | ---: |
+| ARC-Challenge (299) | 57.19 +/-2.87 |
+| ARC-Easy (570) | 80.00 +/-1.68 |
+| MMLU (2000, seed 1234) | 40.15 +/-1.10 |
+| TruthfulQA (817) | 32.56 +/-1.64 |
+| wikitext-2 PPL (c512, 580 chunks) | 8.2731 +/-0.054 |
+
+The fresh PPL uses `--no-warmup` and `-np 8`, so its level sits ~1% below the
+grid's 8.3539; the model is unchanged.
+
+### Reasoning and code tasks (2026-10-07)
+
+Same release and fork build (one RX 7900 XT, `llama-server`).  Sampled sets:
+GSM8K-300 (300 sampled from the official test set, seed 0), MATH-200 (200
+sampled across the seven subjects, seed 0), HumanEval-164 (the full official
+test set).  Programmatic checkers (final-answer number, `\boxed{}`, unit tests
+for code); single sample at `--temp 0.7 --top-p 0.95 --top-k 20`.
+
+| Task | pass@1, thinking | pass@1, no thinking | pass@3, no thinking |
+| :--- | ---: | ---: | ---: |
+| GSM8K (300) | **88.7 +/-1.8** | 86.3 +/-2.0 | 95.3 +/-1.2 |
+| MATH (200) | **60.0 +/-3.5** | 50.5 +/-3.5 | 70.5 +/-3.2 |
+| HumanEval (164) | **84.1 +/-2.9** | 79.3 +/-3.2 | 91.5 +/-2.2 |
+
+- Thinking runs used a 2048-token cap and no-thinking a 700-token cap; about
+  8% of generations in each arm reached the cap, so these are conservative
+  against the recommended `-n 16384`.
+- The no-thinking column is for reference; the model's intended mode is
+  thinking (the base is a reasoning distill).
+- These are sampled-set numbers under the stated protocol, not official
+  full-set leaderboard figures.  Uncertainties are 1σ binomial.
 
 ### Distributional Fidelity: the known gap
 
 | Variant | PPL (lower better) | KLD mean vs BF16 (lower better) | KLD 99.9% |
 | :--- | ---: | ---: | ---: |
-| BF16 | 7.1595 | — | — |
+| BF16 | 7.1595 | - | - |
 | Q4_K_M | 7.2354 | 0.0314 | 1.141 |
 | IQ2_M | 8.4133 | 0.1636 | 3.963 |
 | Q2_K | 8.4729 | 0.1493 | 3.276 |
@@ -285,7 +470,7 @@ and method notes:
 | Q5_K_M | 25.35 | 5.84 | 7.273 | 0.015 | 0.717 | 80.50 | 76.25 |
 | Q6_K | 29.21 | 6.73 | 7.153 | 0.008 | 0.360 | 80.75 | 74.75 |
 | Q8_0 | 37.80 | 8.72 | 7.160 | 0.004 | 0.209 | 80.25 | 75.50 |
-| BF16 | 71.07 | 16.38 | 7.160 | — | — | 81.25 | 76.00 |
+| BF16 | 71.07 | 16.38 | 7.160 | - | - | 81.25 | 76.00 |
 
 </details>
 
@@ -295,7 +480,7 @@ and method notes:
   room for context, and can be tiered further with CPU expert offload.
 - **Low-bit research and testing**: a reference point for "ternary experts plus
   trained corrections, no full-precision masters, no full-model QAT". The
-  harness and every negative result are public.
+  build-scripts and every negative result are public.
 - **Local-first serving**: the model was built for an offline assistant stack,
   so a single file with embedded corrections keeps deployment to one download
   and one set of flags.
@@ -310,11 +495,14 @@ and method notes:
 - **Reasoning distill**: long thinking traces; budget `max_new_tokens`
   accordingly.
 - **Protocol caveats**: the KLD figure is 50 chunks; task numbers are 400-task
-  runs (about ±2% CI); the 2-bit and 3-bit competitors are imatrix-calibrated on
+  runs (about +/-2% CI); the 2-bit and 3-bit competitors are imatrix-calibrated on
   Wikipedia-like data, which flatters their wikitext KLD, and the corrections
   were trained on fineweb.
-- **Platform coverage**: CPU and ROCm (gfx1100) verified. CUDA is expected to
-  work but has not been tested, and Metal is untested.
+- **Platform coverage**: CPU and ROCm (gfx1100) verified. Windows x64 CUDA
+  binaries are now published on the `v0.4.2` release, but the CUDA path has not
+  been runtime-verified end-to-end yet; reports welcome. Metal is present but
+  untested. **Vulkan is unsupported**: `ggml-vulkan` has no PQ2_0 kernels, so the
+  expert matmuls would fall back to CPU.
 - **The Hub chip says `Q2_0`**: it is filename-derived; see the note above, and
   use the fork.
 - **Not affiliated** with Prism ML, empero-ai, or Alibaba Cloud. It builds on
