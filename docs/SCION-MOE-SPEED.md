@@ -401,24 +401,48 @@ Replay **9.95-9.97 ms/step**; fixed protocol **101.1-101.2 tok/s**.  The uncorre
 is **8.73 ms/step (~114 tok/s)**, so ~1.2 ms of correction cost remains (out-corr 0.75 the largest single
 item).  Identity 8/8 (md5 `9cce9e259b`).  The 35B decode is 81.8 -> 101.2 tok/s across steps 6-13.
 
-## Publication gate (updated 2026-10-14, results live on HF)
+## Step 14 — the grouped experts' down phase: 32/nb rows per warp (engine `e348c540`, 2026-10-14)
 
-Per instruction, the 35B results **are now on the live Hugging Face card**:
-`SkyIsNotGreen/Scion-35B-A3B`, revision `2229d0c2` — a **Performance** section as the card's first
-section, with the fixed-protocol numbers (generation 101.1-101.2 tok/s on one RX 7900 XT, prompt
-330-331, ~9.9 ms/token at ctx 4096, the determinism note) and a row in the card's Contents table.
-The local `docs/RELEASE-35B-MODEL-CARD.md` is refreshed from that revision (its snapshot banner
-kept), so it matches what is published.
+The queued micro-bench answered "scatter vs latency" and named the wall: at the served 176B shapes
+(G=28, real PTQ1_0 blobs) the **down phase ran at 55-90 GB/s** while gate/up ran at 205-305.  A down
+row is only nb = n_ff/128 blocks (5 for the 176B, 4 for the 35B), so the one-row mapping's warp XOR
+dot used nb of 32 lanes and re-decoded the block for every row and entry.
 
-The numbers are the step-13 values (corrected 9.96 ms/step against the uncorrected floor 8.73 ms/step,
-~114 tok/s; ~1.2 ms of correction cost remains, out-corr 0.75 the largest item; the 12-class split
-found no core kernel worth an ISA rewrite).  Further engine work can only firm them up.
+`native_down_rows_kernel`: **Q = 32/nb rows per warp** - lane (q, p) decodes row q's block p once,
+applies it to every entry of the group, and the per-row sum reproduces the same 32-lane XOR tree with
+only nb active lanes via masked shuffles (lane p adds lane p ^ off when p ^ off < nb, else +0).
+Bitwise the one-row mapping by construction; selected for the qk-128 formats (142/143) where nb is
+2..16, `STRATA_IQ_DOWN_ROWS=0` keeps the old path (the bench toggles it).
 
-The **176B card** (`SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `94773139`) now carries the same
-kind of Performance section: generation **76-78 tok/s** on the two-card box (warmed, greedy, 128 tokens
-per request, fixed protocol), ~13 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline window
-(`--pipeline-windows 2`, +62-68% over the non-pipelined engine), corrections applied.  Local snapshots
-of both cards are refreshed from the published revisions.
+Bench (G=28, the 176B release's blobs): down **112 -> 19.8 us at T=1** (90 -> 512 GB/s), 131 -> 22.5
+at T=2, 182 -> 29.5 at T=4; **outputs bitwise equal in every shape**.  Served, fixed protocol:
+
+| arm | before | after step 14 |
+| --- | ---: | ---: |
+| 176B generation (two cards) | 76-78 tok/s | **80.5-80.8** |
+| 35B generation (one card) | 101.1-101.2 tok/s | **108.4-108.6** |
+| 35B prompt read | 330-331 tok/s | **415-417** |
+| 35B replay | 9.96 ms/step | **9.29** (eager experts 2.31 -> 1.63) |
+
+Identity: 176B pinned arm byte-identical (state E); 35B warmed bodies 8/8 (md5 `9cce9e259b`).  Both
+model cards updated: 35B HF `a5e8e76b`, 176B HF `eb8f9768`.  Next expert target: the **gate/up phase**
+(nb = 20/16 keeps Q at 1-2; the same warp-utilization analysis applies differently).
+
+## Publication gate (updated 2026-10-14, both cards live)
+
+Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
+
+- `SkyIsNotGreen/Scion-35B-A3B`, revision `a5e8e76b`: generation **108.4-108.6 tok/s** on one RX 7900 XT
+  (warmed, greedy, 128 tokens per request), prompt read **415-417**, ~9.2 ms/token at ctx 4096, the
+  determinism note (eight warmed requests byte-identical, cold restart the same).
+- `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
+  two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
+  window (`--pipeline-windows 2`, +62-68% over the non-pipelined engine), corrections applied.
+
+The local snapshots (`docs/RELEASE-35B-MODEL-CARD.md`, `docs/RELEASE-FLASHNEXT-176B-A6B-MODEL-CARD.md`)
+are refreshed from the published revisions.  Both numbers rose once more with step 14's down-phase
+kernel; the remaining engine work (the gate/up phase's warp utilization, topk/group merges, the core
+kernels) can only firm them up.
 
 ## The two-card arm, scoped (2026-10-14; not implemented)
 

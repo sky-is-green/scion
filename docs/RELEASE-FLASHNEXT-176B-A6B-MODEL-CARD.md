@@ -50,9 +50,9 @@ expert caches across both cards:
 
 | | tok/s |
 | :--- | ---: |
-| Generation (warmed, greedy, 128 tokens per request) | **76-78** |
+| Generation (warmed, greedy, 128 tokens per request) | **80.5-80.8** |
 
-- **~13 ms per generated token** at context 4096, at 2.3-2.4 tokens per pipeline window
+- **~12.4 ms per generated token** at context 4096, at 2.3-2.4 tokens per pipeline window
   (`--pipeline-windows 2`, which is +62-68% over the same engine without it on this workload).
 - Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,
   timings from the engine's own record.  The embedded corrections are applied; the file is unmodified.
