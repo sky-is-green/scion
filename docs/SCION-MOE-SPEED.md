@@ -428,12 +428,33 @@ Identity: 176B pinned arm byte-identical (state E); 35B warmed bodies 8/8 (md5 `
 model cards updated: 35B HF `a5e8e76b`, 176B HF `eb8f9768`.  Next expert target: the **gate/up phase**
 (nb = 20/16 keeps Q at 1-2; the same warp-utilization analysis applies differently).
 
+## Step 15 — the gate/up phase's rows kernel where Q >= 2 (engine `1e2b47f2`, 2026-10-14)
+
+The down phase's rows mapping carried to the gate/up row space: `native_gu_rows_kernel` puts
+Q = 32/nb rows per warp (the 35B's nb = 16 gives Q = 2; the 176B's nb = 20 gives Q = 1 and keeps its
+multi path exactly - the branch is compile-time inert there).  Same masked-shuffle XOR-tree contract,
+bitwise by construction.  The bench gained an expert-geometry argument and now builds blobs from
+`native_expert_layout` instead of the CPU pool's `native_fmt` (no PQ2_0 entry; segfaulted on the 35B
+file).
+
+Bench at the 35B shapes: gu **30.9 -> 15.7 us** at G=8 T=1 (144 -> 283 GB/s), **492.7 -> 157.1** at
+G=64 T=8; outputs bitwise equal everywhere.  Served:
+
+| arm | step 14 | step 15 |
+| --- | ---: | ---: |
+| 35B generation | 108.4-108.6 tok/s | **109.7-109.8** |
+| 35B prompt read | 415-417 tok/s | **480-484** |
+| 35B replay | 9.29 ms/step | **9.17** (eager experts 1.63 -> 1.54) |
+
+Identity 8/8 (md5 `9cce9e259b`); the 176B's gu branch is inert and its fixed protocol stays in band
+(77-81 tok/s across the restart warm-up).  The 35B card was refreshed to these numbers.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
 
-- `SkyIsNotGreen/Scion-35B-A3B`, revision `a5e8e76b`: generation **108.4-108.6 tok/s** on one RX 7900 XT
-  (warmed, greedy, 128 tokens per request), prompt read **415-417**, ~9.2 ms/token at ctx 4096, the
+- `SkyIsNotGreen/Scion-35B-A3B`, revision `4b2d644c`: generation **109.7-109.8 tok/s** on one RX 7900 XT
+  (warmed, greedy, 128 tokens per request), prompt read **480-484**, ~9.1 ms/token at ctx 4096, the
   determinism note (eight warmed requests byte-identical, cold restart the same).
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
