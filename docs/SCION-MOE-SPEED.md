@@ -235,17 +235,62 @@ oracle run compared corrected q36 against *uncorrected* fork and "failed" 0/3.  
   lane has a *deterministic* warmed stream where the 176B's shipped config has the cold-start
   lottery.  Every later 35B change is checked with `moe-exact.sh <tag> 8082 35b-base`.
 
+## Step 6 — the 35B decode budget and the corrections' first lens (engine `e582e92f`, 2026-10-14)
+
+**Instrument.** `STRATA_Q36_DECODE_TIME=1`: events around each warmed T=1 replay (the headline) plus, in
+the eager arm (`--no-graph`), a per-layer class split - mixer / out-projection correction / router+topk /
+routed experts / shared+combine - a 64-step window average on stderr.  Opt-in; unset = no kernel, node or
+stream change (the identity arm confirms).
+
+**Budget** (one card, ctx 4096, 192 steps):
+
+| item | corrected | uncorrected | corrections |
+| --- | ---: | ---: | ---: |
+| replay, T=1 (graph on) | **12.22** | 9.83 | **2.39** |
+| eager total | 14.78 | 12.07 | 2.71 |
+| mixer | 3.62 | 3.60 | 0.02 |
+| out-corr | 1.12 | 0.16 | 0.96 |
+| router+topk | 2.07 | 1.19 | 0.88 |
+| experts | 3.71 | 3.69 | 0.02 |
+| shared+combine | 2.71 | 1.90 | 0.81 |
+
+The eager arm pays ~2.6 ms/step of launch overhead the graphs hide (the class split needs eager, the same
+trade as the 176B's profile arm).  The corrections are 120 branches/token (40 out + 40 router + 40 MoE) x
+~5 nodes for ~5 us of math each: **node-bound, not work-bound**.  The two uncorrected-heavy classes
+(mixer 3.62, experts 3.71) are the next lens targets after the corrections.
+
+**The lens.**  Shipped in `e582e92f`:
+
+- the f16 router pair at T=1: the rounding and the A pass in one launch (a shared x16 row rounded once per
+  block, then `lora_a_kernel`'s exact quarter split) and B in one, replacing round+A+B+memset+add;
+- the g128 branches fold the trailing f32 add into B (`iq_corr_g128_b`), one node fewer on the out paths;
+- both bitwise the staged chains (the parity test now checks the fused B against `iq_mmvq(142)` + the add).
+
+Measured: eager router+topk 2.07 -> 1.74, out-corr 1.12 -> 0.96, total 14.78 -> 14.32; replay
+12.22 -> **11.92** (-0.30 ms, -2.5%); fixed protocol 81.8-82.2 -> **84.3-84.4 tok/s**; warmed bodies
+8/8 byte-identical (md5 `9cce9e259b`), cross-restart.
+
+**Dead end, recorded.**  Fusing the q8_1 *quantizer* into the A/B dot kernels (a shared image built per
+block) loses: every block re-quantizes the whole activation (128 blocks for the ssm A), about 3x the dot
+work per row - out-corr 1.12 -> 1.37, replay 12.22 -> 12.45.  Reverted; the staged `native_quantize_q8_1`
+launches stay.
+
+**Identity note (176B).**  The pinned arm drew 550 chars once on the new binary - the same state as part 1's
+`pin2`; fresh reruns of *both* the new binary and the pre-change ref binary are byte-identical to state E
+(558, md5 `c1aa2407cb`).  The pinned arm has a rare second attractor; a single draw is not evidence.
+
 ## Next steps (session queue)
 
-The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); steps 1-2
-are done above, steps 3+ resume below with a q36 decode budget first.
+The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
+part-2 gaps are done above; the queue resumes the part-1 items on the 35B where they apply.
 
-1. ~~**35B corrections**~~ done (Step 4, engine `dd673041`); ~~**35B serve lane**~~ done (Step 5).  The
-   corrections' 2.5 ms/token is item 3 below's first measured number.
-2. **35B decode budget**: a q36 timing instrument (events around the decode graph launch + a
-   kernel-class split) and one published table *before* touching kernels; then the part-1 speed lens
-   on this model (the corrections' reshape first - the 176B went 12.6 -> 2.6 ms/token on the same
-   problem).
+1. ~~**35B corrections**~~ done (Step 4, engine `dd673041`); ~~**35B serve lane**~~ done (Step 5);
+   ~~**35B decode budget + first lens**~~ done (Step 6, engine `e582e92f`).  Corrections still ~2.25 ms/token
+   eager / ~2.1 graph; the remaining lever is merging the three branches' passes per layer (one A node and
+   one B node instead of 3+3) - test bitwise before keeping.
+2. **35B speed lens, next items**: mixer 3.62 ms (GDN chain + attention split-K at T=1) and experts 3.71 ms
+   (the grouped PQ2_0 kernel's effective rate vs its ~13 MB/layer footprint - the part-1 micro-bench shape,
+   now on the 35B's numbers); then the shared-expert pair (gate/up/down at T=1) inside shared+combine 2.73.
 3. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
    ~190 GB/s implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
 4. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
