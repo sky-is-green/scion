@@ -342,6 +342,50 @@ queue's named levers (exp-setup fold, router+MoE merge, mixer pairs, GDN serial 
 0.5-1.0 ms.  Publish when the landed steps are a few tenths of a millisecond each and no named lever
 promises more - then the numbers can only firm up.
 
+## Step 9 — the expert setup in one node + the mixer staged by k_moe_out (engine `beec6f23`, 2026-10-14)
+
+Two node-bound fusions, both bitwise:
+
+- **`k_group_quant`:** the expert setup's group-table build (one 256-thread block) and the q8_1 image of h
+  (`native_quantize_q8_1_kernel`'s blocks) are independent, so they run as one launch - block 0 groups,
+  blocks 1.. quantize with that kernel's exact mapping and warp reduction.  Eager exp-setup 0.87 -> 0.71.
+- **`k_moe_out` stages the next layer's mixer activation:** it writes `hout` anyway; the q8_1 image of the
+  same value is now staged in the same loop (lane `l` holds element `l` of each block, as the standalone
+  quantizer's warp does).  `layer()` carries a `bool& xq_staged` through `forward()`: layer 0 and the
+  first row after a prompt still prep, the other 39 layers' mixer quantize is gone (T <= 8 only).
+  Eager mix-qkv 1.89 -> 1.75, the moved work shows in moe+combine.
+
+Replay **10.69-10.76 -> 10.58-10.65 ms/step**; fixed protocol **94.1-94.2 -> 95.2 tok/s**; identity
+8/8 (md5 `9cce9e259b`); prompt unchanged.  The 35B decode is now 81.8 -> 95.2 tok/s since step 6.
+
+## Step 10 — the out-projection correction reuses mm()'s staged q8_1 (engine `0e253d11`, 2026-10-14)
+
+`mm(L.ssm_out/wo, x, y, T)` preps `q8_1(x)` into `q8` for its own MMVQ, and the out-projection
+correction reads that same `x`.  At T <= 8 it now takes the staged image instead of quantizing x
+again: eager out-corr 0.89 -> 0.74, replay 10.58-10.65 -> 10.50-10.52, fixed protocol 95.2 -> 96.0.
+
+## Step 11 — the router and MoE corrections in one launch each (engine `9244bf4a`, 2026-10-14)
+
+**Step 10.**  `mm(L.ssm_out/wo, x, y, T)` preps `q8_1(x)` into `q8` for its own MMVQ, and the out-projection
+correction reads that same `x`.  At T <= 8 the correction now takes the staged image
+(`corr_branch_staged`, as the MoE branch does with the expert path's `xq`): eager out-corr 0.89 -> 0.74,
+replay 10.58-10.65 -> 10.50-10.52, fixed protocol 95.2 -> **96.0 tok/s**.
+
+**Step 11.**  The router delta (f16) and the MoE delta (g128) are independent at one row, so each phase is
+now a single launch:
+
+- the h quantize moved into `k_add_rms` (which writes that h; same warp-per-32-block mapping as
+  `k_moe_out`, so the blocks are bitwise the standalone quantizer) - the expert setup is the group table
+  alone;
+- `iq_corr_mixed_a` runs the g128 A+q pass and the f16 router A pass in one kernel;
+  `iq_corr_mixed_b` the g128 B pass and the f16 router B pass (`+=` into the logits row).  `f16_dot8`
+  moved to a shared header.  `g128_corr_parity` checks the pair against the four standalone calls,
+  bitwise, on the real f16 router factors (all three placements pass).
+
+Replay **10.50-10.52 -> 10.17-10.24 ms/step**; eager moe+combine 1.77 -> 1.27, total 14.25 -> 13.91;
+fixed protocol **96.0 -> 98.7 tok/s**; identity 8/8 (md5 `9cce9e259b`).  The 35B decode is 81.8 -> 98.7
+tok/s across steps 6-11.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
