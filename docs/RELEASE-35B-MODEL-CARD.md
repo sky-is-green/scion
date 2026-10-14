@@ -42,6 +42,25 @@ small trained corrections, with no full-precision masters and no full-model QAT.
 The name comes from grafting. A scion is the shoot grafted onto a rootstock, and
 here the trained corrections are grafted onto a 2.125 bpw ternary body.
 
+## Performance
+
+Served with **Strata**, this project's own inference engine, on **one RX 7900 XT** (20 GB, gfx1100):
+the same single file, corrections attached at load, no conversion step, the whole model resident on
+the card.
+
+| | tok/s |
+| :--- | ---: |
+| Generation (warmed, greedy, 128 tokens per request) | **101.1-101.2** |
+| Prompt read (38-token prompt) | 330-331 |
+
+- **9.99 ms per generated token** at context 4096, one card.
+- **Deterministic**: eight consecutive requests of the fixed prompt reproduce the full generated text
+  (reasoning plus answer) byte-for-byte, and a cold restart reproduces it again (the engine's identity
+  protocol compares every warmed request).
+- Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,
+  timings from the engine's own record — the fixed protocol this project uses for every engine
+  change.  The 101 tok/s runs the embedded corrections (the shipped file, unmodified).
+
 ## Highlights
 
 - **One 11.34 GB file at 2.61 bpw** (expert banks at 2.125 bpw). The BF16 reference of the same model is 71.07 GB; Q4_K_M is 21.71 GB and IQ2_M is 12.56 GB. It is the smallest published build of this model I have seen at this quality level.
@@ -69,7 +88,7 @@ here the trained corrections are grafted onto a 2.125 bpw ternary body.
 | Weight format | Ternary **PQ2_0** g128 expert banks (codes in {-1, 0, +1} plus one fp16 group scale per 128 weights), **Q8_0** for the rest, embedded corrections in the legacy `q1_0_g128` container (rank-512) |
 | Low-bit coverage | Expert banks only; attention, embeddings and the head stay Q8_0, and norms, routers and the output stay F32 |
 | Deployed size | **10.558 GiB / 11.337 GB** (text only, single file) |
-| Backends | llama.cpp fork; verified on CPU and ROCm/gfx1100, CUDA build expected to work but untested |
+| Backends | llama.cpp fork; verified on CPU and ROCm/gfx1100, CUDA build expected to work but untested.  Also served by **Strata**, this project's engine (ROCm/gfx1100; see Performance) |
 | License | Apache-2.0 (inherited from the base) |
 
 ## Weight Representation: ternary PQ2_0 + trained corrections
