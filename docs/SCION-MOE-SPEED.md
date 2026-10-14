@@ -128,43 +128,50 @@ rolled back.
   are set to `always_publish`, which turns the device plan off (the device residency table may lag the
   host's while windows are in flight).
 
-## Step 3 — Scion-35B-A3B: the bring-up is a format port, not a config (blocked, measured)
+## Step 3 — Scion-35B-A3B bring-up (commit `3d34f904`): it runs
 
-The released 35B is **v1** — `qwen35-release.gguf`, 11.337 GB, sha 545d83a9… (per its model card; **there is
-no v2 release**).  The v1 file is not on this box: the link at
-`work/hivebench/artifacts/ternary/moe/qwen35/qwen35-release.gguf` points at a missing
-`/home/penis/Desktop/qwen35-release.gguf`.  The census below is of the unpublished dev artifact
-`Scion-35B-A3B-v2-PQ2_0-corr.gguf` (`work/hivebench/models/gguf/qwen35-release-v2-cur05-soup.gguf`); it uses
-the same container the v1 card documents, flagged as a dev-file census: architecture `qwen35moe`, 40 layers,
-256 experts top-8, hidden 2048; **expert banks are ggml type 142** (the fork's PQ2_0 / `Q1_0_g128`, 34-byte
-blocks of 128); 240 embedded `.lora_` correction tensors; **no MTP block in the file** (the dev drafter is a
-separate sidecar, `mtp-sidecar-v2-cur05.gguf`).
+The released file is **v1** — `Scion-35B-A3B-PQ2_0-corr.gguf` (11.337 GB, sha `4e9e3292…`), now fetched
+from `SkyIsNotGreen/Scion-35B-A3B` and verified, at
+`/home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf`.  Its census: `qwen35moe`, 40 layers,
+256 experts top-8, hidden 2048; **expert banks are ggml type 142** (PQ2_0, 34-byte/128 blocks); **the
+embedded corrections are type 43** (the same block) plus F16 router pairs; no MTP block in the file.
 
-Strata has a qwen35moe path (`strata-q36`, reached through the family switch in `strata`), but two measured
-gaps block it:
+What landed:
 
-1. **Load refuses before the weights:** `strata-q36: missing qwen35moe.nextn_predict_layers` — the
-   architecture guard requires the key; the sidecar-style release does not carry it (it has no `nextn`
-   tensors).
-2. **The expert container is not supported in this tree.**  Strata's MoE path serves type 42 (its own
-   Q2_0, 18-byte/64) and 143 (PTQ1_0); `iq_row_bytes(142)` is 0, so `native_expert_supported(142, 142)`
-   fails.  Type 142 exists only in the unmerged Bonsai dense tree (`block_pq2_0`, `dq_pq2_0`,
-   `native_pq2_0_mmvq` — dense GEMV shapes, not the grouped MoE kernels).
+1. **The type-142 expert path** (`iq_kernels.cu`): `block_pq2_0`, `vec_dot_pq2_0_q8_1` (the fork's
+   per-chunk order), `Fmt<142>`, `Split<142>` (the whole 128-block per call, as 143), the GU/DOWN
+   format lists, `dq_pq2_0`, `is_iq`/`iq_row_bytes`, and `block_geometry` for 142.  The architecture
+   guard also stopped requiring `qwen35moe.nextn_predict_layers` (a file without an in-file MTP block
+   now simply has none).
+2. **Type 43** as the same 34-byte block (sizes/names only; the correct branch decode still needs the
+   fork's `g128` rule before the corrections can be applied).
+3. **The layout check** learned the corrections as optional tensors (base qwen35moe files do not carry
+   them).
+4. **A warm-up overrun fix**: the load-time warm-up processed a full prompt chunk (512) into per-layer
+   K/V caches sized by `--max-context` and then two more passes; at ctx 256 that walks past the caches
+   (found by bisecting the GPU page fault down to `k_kv_f16` at P=512 into a 256-cell cache).  The
+   three passes now fit `ctx` together.
 
-The port, in order: (a) tolerate `nextn_predict_layers` absent and load the sidecar drafter; (b) `Fmt<142>`
-specializations for the grouped expert kernels (`native_gu_multi` / `native_down_multi` / SwiGLU-quant) plus
-the MMQ prompt path and the loader cases, with a parity oracle against the fork (the Bonsai tree's
-`dq_pq2_0` is a reference for the row decode, not the GEMM); (c) corrections in the q36 engine (the 240
-tensors follow the same placements as the 176B's, but q36 has no correction path at all).  Each is its own
-step; the speed lane for the 35B starts after (a)+(b).  The one-card/two-card arms, the drafter and the
-budget then follow the same instruments as step 1.
+Verified: the release loads (973 tensors, 4.32 GiB dense + 7.97 GiB experts on one card) and
+benchmarks **pp8 346 tok/s / tg8 102 tok/s** at ctx 256/512/1024 (single card, uncorrected, no MTP).
+`tests/pq2_0_expert_parity` (new, real blobs from the file) checks the GPU dot against a q8_1-rounded
+float reference: mean |gpu-ref| / mean |ref| **0.2%**, max 2% (intermediate-rounding boundary cases).
+
+Still open for the 35B lane: (a) applying the type-43/F16 corrections in q36 (the release's quality
+is the corrected one); (b) the MTP drafter — the released v1 file has no `nextn` block, so the dev
+sidecars are not part of it; (c) the two-card arm; (d) then steps 1-2's instruments and speed work on
+this model.
 
 ## Next steps (session queue)
 
-1. Grouped expert micro-bench at the served shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the ~190 GB/s
-   implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
-2. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
+1. **35B corrections**: apply type 43 + the F16 router pairs in the q36 engine (decode + prompt), with the
+   fork's `g128` branch semantics as the reference; then measure the corrected 35B against the release.
+2. **35B serve lane**: a config + service beside `scion-flashnext`, the fixed protocol, then the one-card and
+   two-card arms; the released v1 has no MTP block (so no drafter arm for it).
+3. Grouped expert micro-bench at the served 176B shapes (T=3-4, ~28 experts/layer, PTQ1_0) against the
+   ~190 GB/s implied by the in-graph stamps — decides scatter-vs-latency before touching the kernel.
+4. The same register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
-3. A per-window timeline split (launch -> first ring vs last ring -> finish) to bound the ~6 ms hand-off
+5. A per-window timeline split (launch -> first ring vs last ring -> finish) to bound the ~6 ms hand-off
    exposure without adding kernel time.
 
