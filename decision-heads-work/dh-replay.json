@@ -1,0 +1,38 @@
+{
+ "model": "/home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf",
+ "n": 378,
+ "dim": 2048,
+ "published": {
+  "test": {
+   "n": 116,
+   "auc": 0.9996036464526358,
+   "best_ba": 0.9942528735632183,
+   "best_ba_thr": 0.88,
+   "acc_at_0.87": 0.9827586206896551
+  },
+  "train": {
+   "n": 262,
+   "auc": 1.0,
+   "best_ba": 1.0,
+   "best_ba_thr": 0.5,
+   "acc_at_0.87": 1.0
+  }
+ },
+ "refit": {
+  "test": {
+   "n": 116,
+   "auc": 1.0,
+   "best_ba": 1.0,
+   "best_ba_thr": 0.9,
+   "acc_at_0.87": 0.9913793103448276
+  },
+  "platt": [
+   8.0,
+   -2.0
+  ],
+  "ridge": {
+   "lambda": 1.0
+  }
+ },
+ "test_score_corr": 0.9716978111424165
+}

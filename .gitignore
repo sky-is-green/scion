@@ -5,3 +5,8 @@ artifacts/
 *.pt
 *.gguf
 *.lora.gguf
+decision-heads/
+decision-heads-work/*.npz
+decision-heads-work/states/
+decision-heads-work/states-main/
+decision-heads-work/overnight/

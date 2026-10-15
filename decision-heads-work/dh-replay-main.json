@@ -1,0 +1,28 @@
+{
+ "states": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/dh-probe-states-main.npz",
+ "n": 378,
+ "dim": 2560,
+ "refit": {
+  "test": {
+   "n": 116,
+   "auc": 0.9940546967895363,
+   "best_ba": 0.9827586206896552,
+   "best_ba_thr": 0.6,
+   "acc_at_0.87": 0.9655172413793104
+  },
+  "platt": [
+   8.0,
+   -2.0
+  ],
+  "ridge": {
+   "lambda": 1.0
+  },
+  "train": {
+   "n": 262,
+   "auc": 1.0,
+   "best_ba": 1.0,
+   "best_ba_thr": 0.2,
+   "acc_at_0.87": 1.0
+  }
+ }
+}
