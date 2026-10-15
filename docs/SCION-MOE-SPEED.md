@@ -639,6 +639,32 @@ for the eval.  Warm start from round 1, 600 steps at lr 2e-4.  The round-1 head 
 held-out set.  The open question is whether the weak styles (the card's prompt at 38%, the index prompt
 at 54%) clear ~47%; if they do, the drafter is a win on every text measured and can go on the card.
 
+## The drafter's inputs at runtime are the verify window's, not a plain step's (the T=1 pairs were the wrong data)
+
+Round 2 finished at held-out **0.5690** and every served set went positive - technical **142.9 tok/s
+(+21.4%, 77.8%)**, held-out 123.1 (+4.6%), held-out factual prose 125.9 (+7.0%, 56.4%) - and the five
+warmed identity bodies stayed byte-identical.  But the card's fixed prompt stayed at **35/92 = 38%** for
+rounds 1 and 2 alike, while the round-2 head had *memorized that exact prompt's* training window
+(teacher-forced 0.9961).  Chasing that gap:
+
+- The engine dumps the drafter's pairs, and the round-2 data came from the plain T = 1 path.  A window
+  advances a + 1 positions, so at runtime the drafter is seeded from **row a's hidden and picks[a]** - and
+  the window's hiddens come from the 2-row kernels, which are not the same numbers as a 1-row step's
+  (compared on the same prompt: 0.43216 vs 0.40014 in the first element of position 39's hidden).
+- The probe's first verify-path mapping was itself off by one row (dumped the rejected row instead of the
+  kept one) - found because the acceptance computed from the dump disagreed with the engine's own
+  counter; the direct acceptance now matches it to the record (69/128 = 0.5391 against the engine's
+  70 of 129 = 54%; the pair right after the prompt is the one the dump cannot see).
+- So the correct dataset is the verify path's pairs, held across a window and written when the next
+  window reports its picks (engine `2b5d28d0`, `62735d6f`).  On the card prompt the heads' acceptance on
+  those pairs reads **0.46 (round 1) / 0.54 (round 2)** - the 38% runtime number was the T=1-trained head
+  meeting the T=2 hiddens, and the same number is exactly the lesson: fit the head to the path it reads.
+
+**Round 3 (running).**  The verify-path dump over the same 87 prompts: 46,536 records, 77 train + 12
+held-out windows, warm start from round 2, 600 steps at lr 2e-4.  The round-2 head's held-out acceptance
+on the verify-path data is **0.5039**, which matches the served runtime on those prompts (53.1%) - so the
+trainer's number now predicts the runtime, which is the whole point.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
@@ -710,10 +736,14 @@ part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 
    order-free formulation), the attention layers' `wq` + `wk/wv` pair (a triple launch, one node a layer),
    `k_moe_out`'s staging vs the next layer's first pair (grid-wide dependency), and the ISA lens on the core
    splits (ab/conv/rec ~0.5 ms each eager, no dominant kernel).
-4. **The drafter's economics** (`ed3188d5`): wired, exact and opt-in at 35% served acceptance (118.0-118.2 ->
-   109.3 tok/s).  Revisit when (a) an on-policy retrain lifts the acceptance past ~0.46, (b) the verify row
-   gets cheaper (the second row's expert work is the cost), or (c) the accept/verify split changes (e.g., a
-   target with shared experts or a cheaper MoE row).
+4. ~~**The drafter's economics**~~ (`ed3188d5`): wired, exact and opt-in at 35% served acceptance (118.0-118.2 ->
+   109.3 tok/s).  (b) and (c) are priced empty above (the verify row is serial recurrence plus its own experts;
+   there is no cheaper target).  (a) is **done**: fitted to the engine's own hiddens, the acceptance runs
+   38-79% by text and the drafter is **+10% served on technical prose** (116.8 -> 128.5 tok/s over six
+   prompts), break-even on the card's fixed prompt and a loss on degenerate loops.  Next: round 2 (engine-native
+   pairs, 87 prompts, 11 held out) and, if it plateaus again, a zero-padded width-1.5 head
+   (`moe/mtp_pad_head.py`) rather than a from-scratch run.  Kept opt-in whatever it measures: a tail that
+   degenerates costs 24%.
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
