@@ -824,10 +824,17 @@ part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 
    there is no cheaper target).  (a) is **done**: fitted to the engine's own hiddens - and specifically to the *verify path's* pairs, which
    are the hiddens the drafter actually reads - the acceptance runs 53-94% by text and the drafter is
    **+30.8% on technical prose, +18.1% on the card's own prompt, +6.2% averaged over 17 never-trained
-   prompts**, all served and byte-identical.  Still opt-in: the degenerate-loop tail costs 23.5%.
-   The next lever, if it is worth one, is more data for the weak styles (the head saturates the training
-   windows at acceptance ~1.0 while the held-out number plateaus at ~0.51), or a zero-padded width-1.5
-   head (`moe/mtp_pad_head.py`) if capacity turns out to bind.
+   prompts**, all served.  Two corrections since: the drafts are *not* bit-exact - the 2-row verify flips
+   genuine near-ties (0.029 top-two margin measured; drafts forced to always reject still diverge from plain
+   at token 61 of 800, and six of six free-running generations diverge by token 112) - so the card calls it a
+   speed option, not a bit-exact one; and the degenerate tail is fixed engine-side (`--mtp-backoff`:
+   89.0 -> 119.9 tok/s, 213 of 707 windows paused, -24% -> +3% against plain).  Round 4 attacked the weak
+   styles: the structured prompts the old mix never trained (44.6-48.9%) reached 50.0-61.3% on the same
+   prompts, 47.8-66.3% on five fresh ones, and the card's prompt 140.9-142.7 (78.9%), at the cost of ~2
+   points of held-out factual prose; round 5 (mixed replay) is in flight and a head ships only if it beats
+   op3 on every set.  Remaining levers: more data for the weak styles (the head saturates the training
+   windows at acceptance ~1.0 while held-out plateaus at ~0.52), or the zero-padded width-1.5 head
+   (`moe/mtp_pad_head.py`) if capacity turns out to bind.
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
