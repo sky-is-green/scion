@@ -564,6 +564,81 @@ yields 1 + p tokens, so at this engine's 8.5 ms plain step break-even sits at **
 1.135x was on a 12.2 ms/step baseline, where the same marginal row is a smaller fraction.  Kept opt-in and
 documented; it pays when the acceptance rises (on-policy retrain) or the verify row gets cheaper.
 
+## The drafter retrained on the engine's own hiddens (2026-10-15; the acceptance is the whole ballgame)
+
+Two engine-side levers were priced first and both came out empty, so the acceptance was the only one
+left:
+
+- **Merge the drafter's head call into the verify's.**  The head is a 540 MB read whatever the row
+  count, so a draft's head looks free next to a 2-row verify's.  It is not: the verify window's row 1
+  **is the draft's token**, so the draft must exist before the window is built.  Circular - dropped
+  without a build.
+- **Defer row 1's head until the draft is accepted** - the head is one launch over both rows, so the
+  second row's head costs its FLOPs only (~0).  Nothing to save.
+- **An abstain gate on a low-confidence draft.**  The confidence *is* the draft's logit margin, and
+  getting it needs the head call that produces the draft.  Gated-out steps would then pay the drafter
+  (0.85 ms) *and* the plain step: 9.35 ms for one token against 8.5.  Only pays if the drafter itself
+  gets cheaper; dropped.
+- **A cheaper verify row.**  The second row is +3 ms of serial recurrence (GDN) plus its own routed
+  experts, measured, not a node-count artifact.  Irreducible without changing the target.
+
+So: **the acceptance.**  The shipped drafter was fitted to llama.cpp's hiddens of the release model.  The
+engine computes the same model its own way (PQ2_0 + the corrections), so at runtime it was reading a
+slightly different h.  The engine now dumps its own training pairs, so the head can be fitted to them:
+
+- `STRATA_Q36_MTP_PROBE=<file>` (engine, opt-in): one record per decode step - the hidden at pos - 1,
+  the token the step processed, the token the engine's own head then chose, and pos.  That is
+  `moe/mtp_release_train.py`'s convention exactly, so its loader reads the dump as it reads a probe dir.
+  A pos jump marks a prompt, so windows are cut at request boundaries.  The plain decode path only
+  (T = 1, `process(n == 1)`), warm-up excluded.
+- `mtp_release_train.py` now **keeps the best held-out checkpoint**, not the last one (the train windows
+  saturate at acceptance 1.0 long before the held-out number peaks), and the report says which step was
+  exported.
+
+**Round 1 (on-policy, fork probes, 51 windows x 512 from 32 served prompts).**  Held-out acceptance
+**0.389 -> 0.498** (`head-op.pt`, 300 steps, warm start).  Teacher-forced on engine-native pairs the two
+heads score 0.4105 (shipped) and 0.6315 (this one), and the runtime says the same thing:
+
+| prompt (CLI, 400 tokens) | plain | shipped head | this head |
+| --- | --- | --- | --- |
+| how a compiler works | 117.1 | 113.9 (43%) | **132.4** (66%) |
+| merge two sorted lists | 117.4 | 116.7 (47%) | **141.8** (79%) |
+| TCP vs UDP | 117.5 | 111.7 (40%) | **127.7** (60%) |
+
+**Served, the same thing with the chat template** (400 tokens per request, this box today):
+
+| prompt | plain | drafts | this head |
+| --- | --- | --- | --- |
+| how a compiler works | 116.7 | 156/244 | **130.3** |
+| how a database index works | 116.8 | 140/259 | **122.1** |
+| how a packet is routed | 116.8 | 149/250 | **127.0** |
+| noise-cancelling headphones | 117.0 | 129/270 | **117.4** |
+| how GPS finds a position | 116.7 | 178/221 | **144.1** |
+| how a refrigerator stays cold | 117.0 | 157/243 | **130.3** |
+| *the card's fixed prompt* | **117.9** | 35/92 | *111.0* |
+
+So the drafter is **+10% averaged over the six** (116.8 -> 128.5) and **-5.9% on the card's fixed
+prompt**, which is the break-even story from the previous section landing where it predicted: the
+served acceptance there is 38%, and p ~ 0.47 is the line (48% measured 117.4, i.e. even).  What decides
+it is the *text*: formulaic technical prose is easy to draft, a factual paragraph is not.
+
+**Text can also go degenerate, and then the drafter is a 24% loss.**  The oracle's `p00` prompt (a
+chat-formatted story prompt) has the model emitting the template's `user` control token in a loop after
+~600 tokens; from there the acceptance is **0% for both heads** - 84 accepted, then 400 consecutive
+rejections - and 800 tokens cost 88.4 tok/s against plain's 116.7.  Plain decode degenerates too (the
+same text), so this is the model's behaviour, not the engine's, but it is the tail risk an always-on
+drafter would carry.
+
+**Exactness, re-proved with the new head.**  `moe-exact.sh mtp-op1-8082 8082 35b-base`: all five warmed
+bodies byte-identical to the plain reference (735 chars each).
+
+**Round 2 (running).**  Engine-native pairs this time, and a wider mix: 87 served prompts (factual
+paragraphs, technical explanations, code, step-by-step maths, lists, stories, dialogue, reviews,
+structured output), 69,210 records, 81 windows - 70 train, and 11 windows from **11 held-out prompts**
+for the eval.  Warm start from round 1, 600 steps at lr 2e-4.  The round-1 head scores **0.5339** on that
+held-out set.  The open question is whether the weak styles (the card's prompt at 38%, the index prompt
+at 54%) clear ~47%; if they do, the drafter is a win on every text measured and can go on the card.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:

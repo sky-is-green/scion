@@ -223,6 +223,7 @@ def main() -> None:
     t0 = time.time()
     curve = []
     step = 0
+    best, best_step_best = None, 0
     if not args.out:
         raise SystemExit("--out is required for training")
     while step < args.steps:
@@ -244,14 +245,29 @@ def main() -> None:
             curve.append({"step": step, "accept": round(a, 4),
                           "accept_fineweb": None if af is None else round(af, 4),
                           "accept_train": None if at is None else round(at, 4)})
+            if best is None or a > best[0]:
+                best = (a, {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
+                            "_mtp_head.fc2.weight": fc2.detach().cpu().float()})
+                best_step_best = step
             print(f"  [eval] step {step} release acceptance {a:.4f}"
                   + ("" if af is None else f" (fineweb-heldout {af:.4f})")
                   + ("" if at is None else f" (train {at:.4f})"), flush=True)
 
     final, final_fw = eval_split()
 
-    sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
-          "_mtp_head.fc2.weight": fc2.detach().cpu().float()}
+    # The held-out acceptance is the number that matters, and it can peak before the last step (the train windows
+    # saturate long before), so the checkpoint that goes out is the best eval one, not the last one.
+    if best is None or final <= best[0]:
+        sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
+              "_mtp_head.fc2.weight": fc2.detach().cpu().float()}
+        best_step = args.steps
+        final_sd = final
+    else:
+        sd = best[1]
+        best_step = best_step_best
+        final_sd = best[0]
+        print(f"kept the step {best_step} weights (held-out {best[0]:.4f}) over the "
+              f"last step ({final:.4f})", flush=True)
     torch.save(sd, args.out)
     report = {"out": args.out, "gguf": args.gguf, "probe_dir": str(root),
               "n_train": args.n_train, "n_eval": args.n_eval,
@@ -259,6 +275,8 @@ def main() -> None:
               "steps": args.steps, "lr": args.lr, "layers": args.layers,
               "width_mult": args.width_mult, "weight_decay": args.weight_decay,
               "final_accept": round(final, 4),
+              "exported_accept": round(final_sd, 4),
+              "exported_step": best_step,
               "final_fineweb": None if final_fw is None else round(final_fw, 4),
               "curve": curve,
               "wall_s": round(time.time() - t0, 1)}
