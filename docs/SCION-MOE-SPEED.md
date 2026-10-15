@@ -665,6 +665,30 @@ held-out windows, warm start from round 2, 600 steps at lr 2e-4.  The round-2 he
 on the verify-path data is **0.5039**, which matches the served runtime on those prompts (53.1%) - so the
 trainer's number now predicts the runtime, which is the whole point.
 
+## The tail, fixed engine-side: --mtp-backoff (and the near-tie finding that came with it)
+
+Two things the worst-case work turned up, both measured:
+
+**The backoff.**  `--mtp-backoff <streak>[:<cap>]` (engine `27d8c29f`) pauses speculation for 16 steps
+after `<streak>` consecutive rejections, then 32, 64 .. up to `<cap>` (128), and any acceptance ends the
+streak and the growth.  On the degenerate prompt (800 tokens, op3): **89.0 -> 119.9 tok/s** against
+plain's 116.4 - from -24% to +3% - with the offered windows falling 707 -> 494 (213 steps paused).
+A paused step is the plain one-row path and returns -1 to its callers, so no draft is counted as
+offered; the sidecar path only, since the in-file MTP block chains rows through its own calls.  Off by
+default.
+
+**The drafter is not bit-exact, and that had to go on the card.**  Chasing the degenerate prompt's
+divergence with drafts *forced to always reject* - no accept/commit path runs at all, only 2-row verify
+batches against 1-row plain steps - an 800-token generation still diverges from plain at token 61
+(9047 against 32635).  The plain logits at that position read 19.92149 against 19.89257: a top-two margin
+of **0.029**, next candidate 1.4 behind - a genuine near-tie flipped by the batched kernels' own
+rounding, which is what llama.cpp's speculative decoding documents too.  Six free-running 400-token
+generations first diverge at tokens **32, 41, 49, 64, 72 and 112**, so it is the normal case for long
+drafted text, not an edge: one early flip cascades (60-90% of later tokens differ).  The card said "the
+generated text is unchanged" when first published and now says otherwise (README `130ede91`,
+`a5998bb0`); the card's own 128-token protocol does pass byte-for-byte, and the plain path is untouched.
+Any future claim about the drafter has to carry this.
+
 ## Round 3, measured: the drafter pays on every ordinary text, and the card's prompt went 38% -> 74%
 
 Round 3 finished at held-out **0.5077** (peak 0.5126 at step 100 - the best-checkpoint condition was
