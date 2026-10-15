@@ -63,6 +63,29 @@ attached at load, on **one RX 7900 XT** (20 GB, gfx1100):
 - Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,
   timings from the engine's own record.  The embedded corrections are applied; the file is unmodified.
 
+**With the optional MTP drafter.** Strata can also run a 96 MiB k=1 draft head
+(`Scion-35B-A3B-mtp-strata.gguf`, below) that proposes the next token from the target's own hidden state
+and hands it to the model in the two-row window the verify step needs anyway.  It is opt-in
+(`--mtp 1 --mtp-sidecar Scion-35B-A3B-mtp-strata.gguf`), greedy requests only, and the generated text is
+unchanged: the determinism check above passes byte-for-byte with it enabled, on every workload measured.
+Same card, same day, same protocol as the row above:
+
+| Workload | plain | with the drafter | Draft acceptance |
+| :--- | ---: | ---: | ---: |
+| **the fixed benchmark prompt** (128 tokens) | **117.9-118.3** | **139.1-139.3 (+18%)** | **74%** |
+| six technical prompts (400 tokens each) | 117.3 | **153.5 (+31%)** | 94% |
+| seventeen prompts outside its training mix | 117.1 | **124.4 (+6%)** | 53-63% |
+| repetitive text it loses the thread of (worst case measured) | 116.4 | 89.0 (-24%) | 13% |
+
+- Acceptance on the fixed prompt by generation length: 83% at 64 tokens, 74% at 128, 71% at 256 and
+  400, 68% at 800.
+- The head was fitted to this engine's own hidden states (the two-row verify path's, which is what the
+  drafter actually reads).  A head fitted to another runtime's hidden states reaches only 38% here, so
+  the runtime's own drafter repo file and this file are not interchangeable.
+- Because the last row is a real loss, the drafter is **off by default**.  Treat it as a per-workload
+  switch: +6% to +31% on ordinary prose, code and explanations, a loss on text where the model falls
+  into a repeated-token loop.
+
 ## Contents
 
 | Section | Subsections |
@@ -369,6 +392,14 @@ Teacher-forced acceptance: fineweb 0.483 / wikitext 0.360. Speedup is
 prompt-dependent - treat **~1.2x as the typical figure** and 1.37x as the
 benchmark-prompt best. Drafting leaves the model's outputs unchanged apart from
 rare near-tie flips on batched verification.
+
+**Two drafter files, one per runtime.** The numbers just above are the llama.cpp fork's, with the head the
+fork auto-detects.  Strata's own engine runs its own draft head (`Scion-35B-A3B-mtp-strata.gguf` in this
+repo, 96 MiB) on the same model file, opt-in via `--mtp 1 --mtp-sidecar` - its numbers are in the
+[Performance](#performance) section: 139.1-139.3 tok/s against 117.9-118.3 plain on the fixed prompt
+(+18%, 74% acceptance), up to +31% on technical prompts, and a measured worst case of -24% on text the
+model degenerates on.  The two heads were trained against different runtimes' hidden states and are not
+interchangeable: in Strata, the fork's head accepts 38% and is slower than not drafting at all.
 
 ## Benchmarks
 
