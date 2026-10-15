@@ -257,7 +257,7 @@ def main() -> None:
 
     # The held-out acceptance is the number that matters, and it can peak before the last step (the train windows
     # saturate long before), so the checkpoint that goes out is the best eval one, not the last one.
-    if best is None or final <= best[0]:
+    if best is None or final > best[0]:
         sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
               "_mtp_head.fc2.weight": fc2.detach().cpu().float()}
         best_step = args.steps
