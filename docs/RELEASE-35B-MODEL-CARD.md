@@ -74,7 +74,8 @@ strata-q36 --model Scion-35B-A3B-PQ2_0-corr.gguf --max-context 4096 --chunk 512 
 ```
 
 In a serve config (`serve/server.py --config <file>`) that same command line goes into `args`; add
-`--mtp-backoff 8` to bound the degenerate-text case to about plain speed.  Like llama.cpp's own
+`--mtp-period 4` for text that can loop and/or `--mtp-backoff 8` as the generic guard (see the last two
+rows below).  Like llama.cpp's own
 speculative decoding, the batched verify can flip a near-tie: on six free-running 400-token generations
 the drafted text first diverged from plain decoding at tokens 32, 41, 49, 64, 72 and 112, at positions
 whose top two logits differed by about 0.03 (one instance: 19.92149 for the plain pick against 19.89257
@@ -91,6 +92,7 @@ protocol as the row above:
 | eight structured prompts (JSON, YAML, markdown tables) | 117.3 | **124.5 (+6%)** | 57% |
 | seventeen prompts outside its training mix | 117.1 | **125.7 (+7%)** | 55-62% |
 | repetitive text it loses the thread of (worst case measured) | 116.4 | 88.9 (-24%) | 13% |
+| that same run with `--mtp-period 4` | 114.8 | **132.3 (+15%)** | 65% |
 | that same run with `--mtp-backoff 8` | 116.4 | **112.1 (-4%)** | 39% |
 
 - Acceptance on the fixed prompt by generation length: 78% at 64 tokens, 76% at 128, 72% at 256, 71%
@@ -99,10 +101,15 @@ protocol as the row above:
   drafter actually reads).  A head fitted to another runtime's hidden states reaches only 38% here, so
   the runtime's own drafter repo file and this file are not interchangeable.
 - The drafter is **off by default**: +6% to +32% on ordinary prose, code, explanations and structured
-  output, a loss - down to -24% - on text where the model falls into a repeated-token loop.  The backoff
-  row is the fix for that tail: after a streak of rejected drafts it pauses speculation (16 steps, then
-  32, 64 ... up to 128, and any acceptance resets it), converges to plain decode on text nothing can
-  draft, and costs nothing on ordinary text (identical window counts measured with and without it).
+  output, and a loss on text where the model falls into a repeated-token loop.  That loop is a control
+  problem, not a prediction one - it is one period-4 stretch, and the head is *never* right there
+  (0.0% acceptance over the 89% of windows a period covers in a 2500-token run).  `--mtp-period 4`
+  drafts a confirmed period directly (the head call is skipped, the verify untouched), turning the
+  measured worst case from -24% into **+15%**.  `--mtp-backoff 8` is the generic alternative: after
+  rejected drafts in a row it pauses speculation (16 steps, then 32, 64 ... up to 128, any acceptance
+  resets it), which bounds any bad text to about plain speed and costs nothing on ordinary text
+  (identical window counts measured).  Prefer the rule where text can loop and relax the backoff when
+  it is on - on that run the pair reaches only 124.3 against the rule's 132.3.
 
 ## Contents
 
@@ -416,8 +423,9 @@ fork auto-detects.  Strata's own engine runs its own draft head (`Scion-35B-A3B-
 repo, 96 MiB) on the same model file, opt-in via `--mtp 1 --mtp-sidecar` - how to enable it and its
 numbers are in the [Performance](#performance) section: 142.0 tok/s against 117.9-118.3 plain on the
 fixed prompt (+20%, 76% acceptance), up to +32% on technical prompts, +6-7% on structured output and on
-prompts outside its training mix, and a measured worst case of -24% on text the model degenerates on,
-bounded to about plain by `--mtp-backoff 8`.  The two heads were trained against different runtimes'
+prompts outside its training mix, and a measured worst case of -24% on text the model degenerates on -
+that run is +15% with `--mtp-period 4`, which drafts a confirmed period itself, and -4% with the generic
+`--mtp-backoff 8`.  The two heads were trained against different runtimes'
 hidden states and are not interchangeable: in Strata, the fork's head accepts 38% and is slower than not
 drafting at all.
 

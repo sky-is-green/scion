@@ -772,6 +772,30 @@ hidden state and recent tokens) generalizes what the rule cannot: near-periodic 
 periods, firing before the 2p-token confirmation, and the transition in and out of the loop.  That is the
 next control step, not the next training round - and it is measured by the same protocol as the rule.
 
+## The controller readout, measured: the rule is the signal, a linear head is not (2026-10-15)
+
+`STRATA_Q36_JEV_PROBE` records one line per verify window - the head's input hidden, the last 16 emitted
+tokens, the head's draft, the model's pick, whether it was accepted and whether the rule would fire -
+collected with the rule *off* so every window carries a head draft.  Served: 26 fresh long-form prompts
+(dialogue, code in five languages, math, CSV/XML/TOML/JSON, factual and prose), 1500 tokens each, 20,909
+windows.  CLI: the degenerate p00 prompt, 2500 tokens, 2,409 windows.
+
+- **Separation.**  In the degenerate run the head accepts **0.000** on the 2,154 windows (89.3%) where the
+  rule would fire, and 0.346 elsewhere.  In the served run the rule fires on only 0.9% of windows - and the
+  head accepts **0.924** there, 0.539 elsewhere.  A free deterministic rule already isolates the regime.
+- **A closed-form linear readout** (ridge over standardized h + rule + tail run-length, the decision-head
+  method) overfits: train AUC 0.893, **cross-prompt held-out AUC 0.629**; leave-one-request-out (within
+  prompt) 0.672 weighted, range 0.49-0.78.  Real but modest.
+- **Policy simulation** on held-out requests (W = 12.45 ms per window, P = 8.5 ms per plain step):
+  always-draft 8.50 ms/token; **oracle 7.06 (+17%)**; gate at p-hat > 0.35 8.23 (+3%), 0.46 8.28 (+3%),
+  0.55 8.33 (+2%).  The gate captures about a fifth of the oracle - so for control, the deterministic rule
+  is the paying gate, and the rest of the prize is acceptance.
+- **Long-form is where acceptance goes.**  The 26 prompts at 1500 tokens average **0.542** (31-94%), against
+  68-76% at 128-800 tokens on the card prompt.  Round 6's data is assembled
+  (`/tmp/opencode/mtp-onpolicy/probe7win`): 24 train + 3 held-out windows from these prompts plus 4 windows
+  from the 2500-token degenerate run - thin, so a round on it wants either another collection pass or
+  oversampled degenerate windows.
+
 ## The engine rebuild re-verified against the 176B identity (2026-10-15 20:12)
 
 The `--mtp-backoff` build changed the engine binary the 176B lane also runs, so the pinned identity cycle
@@ -841,6 +865,10 @@ Both models' results are on the live Hugging Face cards, as a **Performance** se
   - `SkyIsNotGreen/Scion-35B-A3B-mtp-drafter`, revision `5a5f4fa2`: its card gained the second-runtime
     section - Strata reads the model repo's head, the two files are not interchangeable, same enable
     block and numbers.  Its own file's sha256 was re-verified (`2dabf2cf`, matches the table).
+  - both cards refreshed again with the control results: 35B README `73d73549` (enable block now carries
+    `--mtp-period 4`; new table row "that same run with `--mtp-period 4`: 114.8 -> 132.3 (+15%)"; the
+    loop bullet rewritten around the 0.0% separation), drafter README `b17a0e06` (its Strata section got
+    the rule and the relax-the-backoff note).
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
   window (`--pipeline-windows 2`, +62-68% over the non-pipelined engine), corrections applied.
