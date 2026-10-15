@@ -65,8 +65,16 @@ attached at load, on **one RX 7900 XT** (20 GB, gfx1100):
 
 **With the optional MTP drafter.** Strata can also run a 96 MiB k=1 draft head
 (`Scion-35B-A3B-mtp-strata.gguf`, below) that proposes the next token from the target's own hidden state
-and hands it to the model in the two-row window the verify step needs anyway.  It is opt-in
-(`--mtp 1 --mtp-sidecar Scion-35B-A3B-mtp-strata.gguf`) and greedy requests only.  Like llama.cpp's own
+and hands it to the model in the two-row window the verify step needs anyway.  It is opt-in and greedy
+requests only:
+
+```console
+strata-q36 --model Scion-35B-A3B-PQ2_0-corr.gguf --max-context 4096 --chunk 512 \
+    --vram-reserve-mib 3072 --mtp 1 --mtp-sidecar Scion-35B-A3B-mtp-strata.gguf
+```
+
+In a serve config (`serve/server.py --config <file>`) that same command line goes into `args`; add
+`--mtp-backoff 8` to bound the degenerate-text case to about plain speed.  Like llama.cpp's own
 speculative decoding, the batched verify can flip a near-tie: on six free-running 400-token generations
 the drafted text first diverged from plain decoding at tokens 32, 41, 49, 64, 72 and 112, at positions
 whose top two logits differed by about 0.03 (one instance: 19.92149 for the plain pick against 19.89257
@@ -78,19 +86,23 @@ protocol as the row above:
 
 | Workload | plain | with the drafter | Draft acceptance |
 | :--- | ---: | ---: | ---: |
-| **the fixed benchmark prompt** (128 tokens) | **117.9-118.3** | **139.1-139.3 (+18%)** | **74%** |
-| six technical prompts (400 tokens each) | 117.3 | **153.5 (+31%)** | 94% |
-| seventeen prompts outside its training mix | 117.1 | **124.4 (+6%)** | 53-63% |
-| repetitive text it loses the thread of (worst case measured) | 116.4 | 89.0 (-24%) | 13% |
+| **the fixed benchmark prompt** (128 tokens) | **117.9-118.3** | **142.0 (+20%)** | **76%** |
+| six technical prompts (400 tokens each) | 117.3 | **154.8 (+32%)** | 94% |
+| eight structured prompts (JSON, YAML, markdown tables) | 117.3 | **124.5 (+6%)** | 57% |
+| seventeen prompts outside its training mix | 117.1 | **125.7 (+7%)** | 55-62% |
+| repetitive text it loses the thread of (worst case measured) | 116.4 | 88.9 (-24%) | 13% |
+| that same run with `--mtp-backoff 8` | 116.4 | **112.1 (-4%)** | 39% |
 
-- Acceptance on the fixed prompt by generation length: 83% at 64 tokens, 74% at 128, 71% at 256 and
-  400, 68% at 800.
+- Acceptance on the fixed prompt by generation length: 78% at 64 tokens, 76% at 128, 72% at 256, 71%
+  at 400, 68% at 800.
 - The head was fitted to this engine's own hidden states (the two-row verify path's, which is what the
   drafter actually reads).  A head fitted to another runtime's hidden states reaches only 38% here, so
   the runtime's own drafter repo file and this file are not interchangeable.
-- Because the last row is a real loss, the drafter is **off by default**.  Treat it as a per-workload
-  switch: +6% to +31% on ordinary prose, code and explanations, a loss on text where the model falls
-  into a repeated-token loop.
+- The drafter is **off by default**: +6% to +32% on ordinary prose, code, explanations and structured
+  output, a loss - down to -24% - on text where the model falls into a repeated-token loop.  The backoff
+  row is the fix for that tail: after a streak of rejected drafts it pauses speculation (16 steps, then
+  32, 64 ... up to 128, and any acceptance resets it), converges to plain decode on text nothing can
+  draft, and costs nothing on ordinary text (identical window counts measured with and without it).
 
 ## Contents
 
@@ -401,11 +413,13 @@ rare near-tie flips on batched verification.
 
 **Two drafter files, one per runtime.** The numbers just above are the llama.cpp fork's, with the head the
 fork auto-detects.  Strata's own engine runs its own draft head (`Scion-35B-A3B-mtp-strata.gguf` in this
-repo, 96 MiB) on the same model file, opt-in via `--mtp 1 --mtp-sidecar` - its numbers are in the
-[Performance](#performance) section: 139.1-139.3 tok/s against 117.9-118.3 plain on the fixed prompt
-(+18%, 74% acceptance), up to +31% on technical prompts, and a measured worst case of -24% on text the
-model degenerates on.  The two heads were trained against different runtimes' hidden states and are not
-interchangeable: in Strata, the fork's head accepts 38% and is slower than not drafting at all.
+repo, 96 MiB) on the same model file, opt-in via `--mtp 1 --mtp-sidecar` - how to enable it and its
+numbers are in the [Performance](#performance) section: 142.0 tok/s against 117.9-118.3 plain on the
+fixed prompt (+20%, 76% acceptance), up to +32% on technical prompts, +6-7% on structured output and on
+prompts outside its training mix, and a measured worst case of -24% on text the model degenerates on,
+bounded to about plain by `--mtp-backoff 8`.  The two heads were trained against different runtimes'
+hidden states and are not interchangeable: in Strata, the fork's head accepts 38% and is slower than not
+drafting at all.
 
 ## Benchmarks
 

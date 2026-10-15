@@ -809,6 +809,14 @@ Both models' results are on the live Hugging Face cards, as a **Performance** se
 - `SkyIsNotGreen/Scion-35B-A3B`, revision `e5d120bb`: generation **118.0-118.2 tok/s** on one RX 7900 XT
   (warmed, greedy, 128 tokens per request), prompt read **480-482**, ~8.5 ms/token at ctx 4096, the
   determinism note (eight warmed requests byte-identical, cold restart the same).
+  - its optional k=1 MTP drafter is published with it: README `8fc244be`, the head file `eb4c6cf6`
+    (`Scion-35B-A3B-mtp-strata.gguf` = op5-300, lfs sha256 `c9d183d4`), checksums `eeb53a51`.  The
+    Performance section now carries the enable block (flags and the serve-config form), the refreshed
+    table (+20% / +32% / +6% structured / +7% held-out, worst case -24%), the `--mtp-backoff 8` row
+    (-4% on the same degenerate run) and the near-tie caveat.
+  - `SkyIsNotGreen/Scion-35B-A3B-mtp-drafter`, revision `5a5f4fa2`: its card gained the second-runtime
+    section - Strata reads the model repo's head, the two files are not interchangeable, same enable
+    block and numbers.  Its own file's sha256 was re-verified (`2dabf2cf`, matches the table).
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
   window (`--pipeline-windows 2`, +62-68% over the non-pipelined engine), corrections applied.
