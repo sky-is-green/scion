@@ -772,6 +772,46 @@ hidden state and recent tokens) generalizes what the rule cannot: near-periodic 
 periods, firing before the 2p-token confirmation, and the transition in and out of the loop.  That is the
 next control step, not the next training round - and it is measured by the same protocol as the rule.
 
+## Round 6, measured: long-form coverage, and the loop trained away (op6 <- op5, 2026-10-15)
+
+The long-form regime is where acceptance actually goes: round 5's 26 prompts at 1500 tokens averaged 0.542
+(31-94%) against 68-76% at 128-800 tokens on the card prompt.  Round 6 collected two more long-form sets
+(56 fresh prompts, 1500-2000 tokens, acceptance 21-66%) plus a 3000-token degenerate run, and trained on a
+merged 237-window set: probe6's 122 (rounds 4-5) + 50 from the new collections + the degenerate stretches
+oversampled x4 - the round-4/5 replay kept in the mix so prose cannot be replayed away again.  Warm from
+op5, lr 1e-4, 400 steps; best checkpoint step 350 at merged held-out 0.5446 (op5's plateau ~0.533).
+
+Served A/B, one service, same day:
+
+| set | op5 | op6 |
+| :--- | ---: | ---: |
+| card prompt (128 tok) | 142.0, 76.4% | 141.5-142.3, 76.4% (equal) |
+| structured old held-out | 57.7 / 61.9 / 49.4% | **59.0 / 66.7 / 51.1%** |
+| five fresh structured | 58.3 / 56.9 / 62.6 / 66.3 / 48.9% | 59.0 / 59.4 / 59.9 / **70.5** / 50.0% |
+| structured 8-prompt aggregate | 124.5, 57.4% | **126.7, 59.1%** |
+| held-out factual 6 | 61.5% | 61.2% (equal) |
+| technical 6 | 94.2% | 94.0% (equal) |
+| held-out 11 | 54.9% | **55.6%** |
+| 17-prompt aggregate | 125.7 (+7.3%) | **125.9 (+7.5%)** |
+| round-4 prose 12 | 54.1% | **55.1%** |
+| long-form held-out 7 (1500 tok) | 50.5%, 117.2 tok/s | 51.2%, 117.9 tok/s |
+
+Headline: **the degenerate loop was trained away.**  The same 800-token p00 run the previous head lost 24%
+on (88.9 tok/s, 13% acceptance) now measures **155.6 tok/s and 96% acceptance with no control flag at
+all** - the head itself drafts the period-4 loop.  `--mtp-period 4` matches it (160.8, 95%) and remains the
+free backstop for unseen text, as does the backoff.  So the control-vs-training question is answered
+empirically: on a frozen hidden state, a handful of oversampled worst-case windows in training beat
+controlling around them, and control survives as the safety net.
+
+The one regression to note: the card-prompt acceptance-by-length profile moved from 78/76/72/71/68% to
+83/76/71/70/67% - flat at 128 and -1 point at 256/400/800 (deterministic reruns, so real but tiny), while
+the 64-token point rose 5.
+
+Publication: head file `78064ec7` (op6-350, lfs sha256 `a375a459`), README `b44a3e1b`, sums `de285106`,
+drafter README `31c7b802`.  The card's table is now 141.5-142.3 (+20%, 76%), 155.1 (+32%), 126.7 (+8%),
+125.9 (+7%), and the last row - repeated-token text - reads **+33% at 96%**, with the old -24% kept in the
+bullet as the before/after.
+
 ## The controller readout, measured: the rule is the signal, a linear head is not (2026-10-15)
 
 `STRATA_Q36_JEV_PROBE` records one line per verify window - the head's input hidden, the last 16 emitted
@@ -869,6 +909,10 @@ Both models' results are on the live Hugging Face cards, as a **Performance** se
     `--mtp-period 4`; new table row "that same run with `--mtp-period 4`: 114.8 -> 132.3 (+15%)"; the
     loop bullet rewritten around the 0.0% separation), drafter README `b17a0e06` (its Strata section got
     the rule and the relax-the-backoff note).
+  - and again with round 6 (op6-350): 35B README `b44a3e1b`, head `78064ec7` (lfs sha256 `a375a459`),
+    sums `de285106`; drafter README `31c7b802`.  The table now reads 141.5-142.3 (+20%), 155.1 (+32%),
+    126.7 (+8%), 125.9 (+7%), and the repeated-token row is **+33% at 96%** - the worst case became the
+    best row, with the old -24% kept as the before/after in the bullet.
 - `SkyIsNotGreen/Scion-FlashNext-176B-A6B`, revision `eb8f9768`: generation **80.5-80.8 tok/s** on the
   two-card box (the same fixed protocol), ~12.4 ms/token at ctx 4096, 2.3-2.4 tokens per pipeline
   window (`--pipeline-windows 2`, +62-68% over the non-pipelined engine), corrections applied.
