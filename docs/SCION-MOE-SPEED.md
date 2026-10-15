@@ -542,6 +542,28 @@ refuses the packed layout (the caller runs the two calls).  Same-build A/B: 117.
 ~+0.3%.  Served 117.4-117.5 -> **118.0-118.2 tok/s** (prompt 480.4-482.8); the 176B's pin arm re-verified
 after both (state E, md5 `c1aa2407cb`).
 
+## The k=1 MTP drafter in q36 (engine `ed3188d5`, 2026-10-15; opt-in, off in the serve)
+
+The recipe's drafter lane (SCION-RECIPE.md 7) reaches the Strata 35B lane: the k=1 sidecar
+(`mtp-sidecar-v2-cur05.gguf` in `work/hivebench/models/gguf`: `mtp.fc1`/`mtp.fc2` f16, hidden 2048, width
+4096, source `qwen35-release-v2-cur05-soup`, acceptance 0.486 fineweb / 0.359 wikitext teacher-forced) now
+loads with `--mtp-sidecar` and drafts inside `spec_step` (D = 1; the head's inputs are `hlast` and the decided
+token's embedding, its output goes through the target's own `output_norm`/head; no redo rows - it recomputes
+each step).  The verify/accept/commit machinery is the in-file MTP block's own, so the emitted text stays the
+plain greedy text - measured byte-identical on the served fixed protocol.
+
+**The verify windows surfaced a latent bug** (fixed in the same commit): `corr_branch_staged`'s T > 1 arm
+ignored `accumulate` and *replaced* the mixer output with the correction for every 2 <= T <= 8 row.  The
+prompt path (T > kGemmT) uses `corr_add` and the decode path the T == 1 kernels, so nothing had exercised
+that range; the forced-draft arm showed it (a forced-correct draft rejected, the stream diverging).
+
+**The economics, measured.**  Served: drafts **33/94 = 35%** accepted, generation **118.0-118.2 -> 109.3
+tok/s** (prompt unchanged, bodies byte-identical).  A window costs a 2-row verify (+~3 ms for the second row -
+the MoE's own experts; the recipe measured the same +2.3-3.1 ms/row) plus the draft's head call (~0.7 ms) and
+yields 1 + p tokens, so at this engine's 8.5 ms plain step break-even sits at **p ~ 0.46**.  The fork's
+1.135x was on a 12.2 ms/step baseline, where the same marginal row is a smaller fraction.  Kept opt-in and
+documented; it pays when the acceptance rises (on-policy retrain) or the verify row gets cheaper.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
@@ -613,6 +635,10 @@ part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 
    order-free formulation), the attention layers' `wq` + `wk/wv` pair (a triple launch, one node a layer),
    `k_moe_out`'s staging vs the next layer's first pair (grid-wide dependency), and the ISA lens on the core
    splits (ab/conv/rec ~0.5 ms each eager, no dominant kernel).
+4. **The drafter's economics** (`ed3188d5`): wired, exact and opt-in at 35% served acceptance (118.0-118.2 ->
+   109.3 tok/s).  Revisit when (a) an on-policy retrain lifts the acceptance past ~0.46, (b) the verify row
+   gets cheaper (the second row's expert work is the cost), or (c) the accept/verify split changes (e.g., a
+   target with shared experts or a cheaper MoE row).
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
