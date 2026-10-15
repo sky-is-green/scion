@@ -665,6 +665,32 @@ held-out windows, warm start from round 2, 600 steps at lr 2e-4.  The round-2 he
 on the verify-path data is **0.5039**, which matches the served runtime on those prompts (53.1%) - so the
 trainer's number now predicts the runtime, which is the whole point.
 
+## Round 3, measured: the drafter pays on every ordinary text, and the card's prompt went 38% -> 74%
+
+Round 3 finished at held-out **0.5077** (peak 0.5126 at step 100 - the best-checkpoint condition was
+inverted and exported the last step, half a point down; fixed for the next run, the numbers stand).
+Served, 400-token requests, this box, byte-identical bodies throughout (`moe-exact.sh` all five warmed):
+
+| set | plain | round 1 | round 2 | **round 3** |
+| --- | --- | --- | --- | --- |
+| six technical prompts *(in the training mix)* | 117.3 | 128.4 (+9.5%) | 142.9 (+21.4%) | **153.5 (+30.8%, 94.1%)** |
+| eleven held-out prompts | 117.2 | 119.0 (+1.6%) | 123.1 (+4.6%) | **121.5 (+3.7%, 53.2%)** |
+| six held-out factual-paragraph prompts | 116.9 | 115.6 (-1.1%) | 125.9 (+7.0%) | **129.6 (+10.9%, 63.1%)** |
+| **the card's fixed prompt** (bench protocol, 128 tokens) | **117.9** | 111.0 (38%) | 111.9 (38%) | **139.1-139.3 (74%)** |
+
+The card's prompt is the one that matters most here: it sat at 38% for two rounds - including for a head
+that had memorized that prompt's own window on the T = 1 pairs - and the verify-path data takes it to
+**74%**, 139.3 tok/s against plain's 117.9 (**+18.1%**, and +24.5% over round 2's 111.9).  Its acceptance
+by generation length: 83% at 64 tokens, 74% at 128, 71% at 256 and 400, 68% at 800.
+
+Over the 17 never-trained prompts the drafter averages **124.4 tok/s against plain's 117.1 (+6.2%)**.
+
+**The tail is still a loss.**  The oracle's `p00` prompt (the model looping on the template's `user`
+control token) accepts 92/707 = **13%** and costs 89.0 tok/s against plain's 116.4 (-23.5%) - the drafter
+does not follow a degenerate loop, and this is why it stays opt-in (`--mtp 1 --mtp-sidecar <head>`) with
+the serve config plain.  A prompt that degenerates *after* ~600 tokens is the price; the alternative
+(an abstain gate) was priced empty earlier because the decision needs the draft, hence the head call.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
@@ -738,12 +764,13 @@ part-2 gaps, the 35B speed lens through step 13, and the 176B expert lens (step 
    splits (ab/conv/rec ~0.5 ms each eager, no dominant kernel).
 4. ~~**The drafter's economics**~~ (`ed3188d5`): wired, exact and opt-in at 35% served acceptance (118.0-118.2 ->
    109.3 tok/s).  (b) and (c) are priced empty above (the verify row is serial recurrence plus its own experts;
-   there is no cheaper target).  (a) is **done**: fitted to the engine's own hiddens, the acceptance runs
-   38-79% by text and the drafter is **+10% served on technical prose** (116.8 -> 128.5 tok/s over six
-   prompts), break-even on the card's fixed prompt and a loss on degenerate loops.  Next: round 2 (engine-native
-   pairs, 87 prompts, 11 held out) and, if it plateaus again, a zero-padded width-1.5 head
-   (`moe/mtp_pad_head.py`) rather than a from-scratch run.  Kept opt-in whatever it measures: a tail that
-   degenerates costs 24%.
+   there is no cheaper target).  (a) is **done**: fitted to the engine's own hiddens - and specifically to the *verify path's* pairs, which
+   are the hiddens the drafter actually reads - the acceptance runs 53-94% by text and the drafter is
+   **+30.8% on technical prose, +18.1% on the card's own prompt, +6.2% averaged over 17 never-trained
+   prompts**, all served and byte-identical.  Still opt-in: the degenerate-loop tail costs 23.5%.
+   The next lever, if it is worth one, is more data for the weak styles (the head saturates the training
+   windows at acceptance ~1.0 while the held-out number plateaus at ~0.51), or a zero-padded width-1.5
+   head (`moe/mtp_pad_head.py`) if capacity turns out to bind.
 4. The two-card arm for q36: scoped and ruled out for the 35B at T=1 (see the scope section).
 5. The register-staged lens on `gr_up_multi_kernel` (gfx11 has no fast variant) and on the
    `native_quantize_q8_1` / `lora_round` small kernels that appear 3x per layer in the served graph.
