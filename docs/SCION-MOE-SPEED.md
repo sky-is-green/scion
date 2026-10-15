@@ -748,6 +748,30 @@ was consistent across five of six prompts, so it is treated as real.  Round 5 is
 lr 1e-4, 400 steps.  A head ships only if it beats op3 on every set; otherwise op4 is kept with the prose
 caveat stated, since structured was the worst case.
 
+## The degenerate loop made a win: `--mtp-period` (engine `5ee873c4`, 2026-10-15)
+
+The worst case was never an acceptance problem - it was a control problem.  In the 800-token degenerate run
+the output is one **period-4 stretch, tokens 398-800 (402 of 800 tokens)**, so the continuation is trivially
+predictable exactly where the head is confidently wrong (13%).  The engine now supplies the draft itself:
+when the last 2p emitted tokens confirm period p <= N, draft `token[i - p]` and skip the head call
+entirely.  The verify is untouched, so the model's own pick still decides every emitted token, and a
+period-p loop is self-similar, so a near-tie flip does not throw the rule off.
+
+| run (CLI, op5 head) | plain | drafter | + `--mtp-period 4` |
+| :--- | ---: | ---: | ---: |
+| degenerate prompt, 800 tokens | 114.8 | 88.2 (-23%) | **132.3 (+15%)** |
+| card prompt, 128 | - | 133.6 | 133.2 (identical windows, 0 firings) |
+| technical, 400 | - | 125.1 | 125.7 (0 firings) |
+| markdown table, 400 | - | 131.1 | 130.5 (0 firings) |
+
+So the tail went from -24% to +15%: the same text that motivated the backoff is now a speedup, and the
+backoff's own premise weakens there - its pauses give up the rule's wins (both flags: 124.3 against 132.3),
+so with the rule on it should be relaxed or dropped.  The rule is the crudest possible *jev-controller*:
+deterministic, free, and it changes only which token is drafted.  The learned version (a readout over the
+hidden state and recent tokens) generalizes what the rule cannot: near-periodic text rather than strict
+periods, firing before the 2p-token confirmation, and the transition in and out of the loop.  That is the
+next control step, not the next training round - and it is measured by the same protocol as the rule.
+
 ## The engine rebuild re-verified against the 176B identity (2026-10-15 20:12)
 
 The `--mtp-backoff` build changed the engine binary the 176B lane also runs, so the pinned identity cycle
