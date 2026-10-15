@@ -67,11 +67,14 @@ attached at load, on **one RX 7900 XT** (20 GB, gfx1100):
 (`Scion-35B-A3B-mtp-strata.gguf`, below) that proposes the next token from the target's own hidden state
 and hands it to the model in the two-row window the verify step needs anyway.  It is opt-in
 (`--mtp 1 --mtp-sidecar Scion-35B-A3B-mtp-strata.gguf`) and greedy requests only.  Like llama.cpp's own
-speculative decoding, the batched verify can flip a rare near-tie: on the fixed prompt above the
-eight-request determinism check passes byte-for-byte with it enabled, but on a longer free-running
-generation the first divergence from plain decoding appeared at token 61 of 800, at a position whose top
-two logits differed by 0.03 (19.921 against 19.893, the next candidate 1.4 behind).  Treat it as a speed
-option, not a bit-exact one.  Same card, same day, same protocol as the row above:
+speculative decoding, the batched verify can flip a near-tie: on six free-running 400-token generations
+the drafted text first diverged from plain decoding at tokens 32, 41, 49, 64, 72 and 112, at positions
+whose top two logits differed by about 0.03 (one instance: 19.92149 for the plain pick against 19.89257
+for the batched one, the next candidate 1.4 behind).  One early flip cascades, so longer drafted
+generations are not the same text as plain ones.  The fixed-prompt determinism check above does pass
+byte-for-byte with it enabled (its first 128 tokens contain no such tie), and the plain path is
+untouched.  Treat the drafter as a speed option, not a bit-exact one.  Same card, same day, same
+protocol as the row above:
 
 | Workload | plain | with the drafter | Draft acceptance |
 | :--- | ---: | ---: | ---: |
