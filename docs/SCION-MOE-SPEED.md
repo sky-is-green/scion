@@ -715,6 +715,39 @@ does not follow a degenerate loop, and this is why it stays opt-in (`--mtp 1 --m
 the serve config plain.  A prompt that degenerates *after* ~600 tokens is the price; the alternative
 (an abstain gate) was priced empty earlier because the decision needs the draft, hence the head call.
 
+## Round 4, measured: the structured-output worst case was never trained (op4 <- op3, 2026-10-15)
+
+The weak styles were not weak in isolation - they were absent from the mix.  The round-2/3 training set had
+exactly three structured prompts (a markdown table, a JSON object, a YAML config) and all three sat in its
+*held-out* set, so structured output had never been trained: op3 accepted 44.6-48.9% there, around or below
+the ~46-47% break-even, and the structured rows of the served table were a wash (110-121 tok/s against plain
+117.2-117.3).
+
+Data: 38 fresh prompts weighted to structured styles (JSON, YAML, TOML, XML, CSV, markdown tables) plus code,
+math, dialogue and degenerate-prone long prose, 1800 tokens each; 26 train / 12 held out; 45 train + 20
+held-out windows (`probe5`).  Warm start op3, lr 1.5e-4, 600 steps.  On the new prose held-out op3 scores
+0.5283 and the run's best was 0.5254 at step 100 - the best-checkpoint logic kept it over the final 0.5145
+(the fix from round 3 doing its job).
+
+Served A/B, one service, same day, 400-token protocol (plain rows the same day: 117.2-117.3):
+
+| set | op3 | op4 |
+| :--- | ---: | ---: |
+| old held-out structured: markdown / JSON / YAML | 48.9 / 48.3 / 46.2% @ 118.8 / 118.7 / 117.0 | **57.7 / 61.3 / 50.0%** @ 117.0 / 124.9 / 118.5 |
+| five fresh structured prompts | 45.6 / 48.7 / 50.8 / 48.3 / 38.1% @ 110.4-120.6 | **59.6 / 55.6 / 61.7 / 66.3 / 47.8%** @ 117.2-129.7 |
+| the card's fixed prompt (128 tok, card protocol) | 140.2-140.3, 74.0% | **140.9-142.7, 78.9%** |
+| six technical prompts | ~153, 94.1% | ~154, 93.4% |
+| held-out factual 6 | 917/1480 = 62.0% | 901/1496 = 60.2% |
+
+So round 4 fixes exactly what it aimed at - structured output is now well above break-even - and lifts the
+card's prompt, but the factual prose gives back ~2 points: a structured-heavy round replayed away some prose
+acceptance.  The numbers come from single 400-token runs per prompt whose texts already differ between heads
+(one early near-tie flip cascades), so a 2-point gap is at the edge of what this protocol resolves; still, it
+was consistent across five of six prompts, so it is treated as real.  Round 5 is the fix: a mixed replay
+(`probe6` = probe4's 77 prose windows + probe5's 45 structured windows, held-out = 12 + 20), warm from op4,
+lr 1e-4, 400 steps.  A head ships only if it beats op3 on every set; otherwise op4 is kept with the prose
+caveat stated, since structured was the worst case.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
