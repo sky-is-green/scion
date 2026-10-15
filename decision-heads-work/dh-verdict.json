@@ -1,0 +1,9 @@
+{
+ "n": 378,
+ "parity_worst": 4.997864312683564e-07,
+ "mean_ms": 325.2140182666678,
+ "test_auc": 1.0,
+ "test_ba": 1.0,
+ "threshold": 0.9,
+ "head": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/scion-35b-a3b-decision-head-q36.json"
+}

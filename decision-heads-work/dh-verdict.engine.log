@@ -1,0 +1,23 @@
+strata-q36: /home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf: 973 tensors (layout checked), 4.42 GiB on the GPU in 3.0 s (the routed experts are placed after the engine's buffers)
+strata-q36: decision head loaded (2048 dims, platt a=8.000 c=-2.000) from /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/head-35b.bin
+strata-q36: prompt experts on the native grouped kernels
+strata-q36: context 4096 cells, prompt chunk 512, 14.04 GiB of VRAM free
+strata-q36: every routed expert in VRAM (7.97 GiB) in 11.9 s
+strata-q36: /home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf: 973 tensors (layout checked), 4.42 GiB on the GPU in 2.7 s (the routed experts are placed after the engine's buffers)
+strata-q36: decision head loaded (2048 dims, platt a=8.000 c=-2.000) from /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/head-35b.bin
+strata-q36: prompt experts on the native grouped kernels
+strata-q36: context 4096 cells, prompt chunk 512, 14.05 GiB of VRAM free
+strata-q36: every routed expert in VRAM (7.97 GiB) in 11.9 s
+strata-q36: warmed up in 0.5 s (one prompt chunk, a decode step)
+strata-q36: /home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf: 973 tensors (layout checked), 4.42 GiB on the GPU in 3.7 s (the routed experts are placed after the engine's buffers)
+strata-q36: decision head loaded (2048 dims, platt a=8.000 c=-2.000) from /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/head-35b.bin
+strata-q36: prompt experts on the native grouped kernels
+strata-q36: context 4096 cells, prompt chunk 512, 14.04 GiB of VRAM free
+strata-q36: every routed expert in VRAM (7.97 GiB) in 12.1 s
+strata-q36: warmed up in 3.3 s (one prompt chunk, a decode step)
+strata-q36: /home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf: 973 tensors (layout checked), 4.42 GiB on the GPU in 2.3 s (the routed experts are placed after the engine's buffers)
+strata-q36: decision head loaded (2048 dims, platt a=8.000 c=-2.000) from /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/head-35b.bin
+strata-q36: prompt experts on the native grouped kernels
+strata-q36: context 4096 cells, prompt chunk 512, 14.05 GiB of VRAM free
+strata-q36: every routed expert in VRAM (7.97 GiB) in 135.9 s
+strata-q36: warmed up in 0.7 s (one prompt chunk, a decode step)

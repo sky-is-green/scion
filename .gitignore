@@ -11,3 +11,4 @@ decision-heads-work/states/
 decision-heads-work/states-main/
 decision-heads-work/overnight/
 byte-distill/*.bin
+decision-heads-work/states-verdict/

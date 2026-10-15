@@ -74,6 +74,7 @@ def verify_dump(path: Path, tol: float = 1e-2) -> int:
     (n_sym,) = struct.unpack_from("<I", raw, 4)
     off, n, bad, worst = 8, 0, 0, 0.0
     prods: list[float] = []
+    bad_pe: list[float] = []
     while off < len(raw):
         token, p_token, p_exact, n_rows = struct.unpack_from("<iffi", raw, off)
         off += 16
@@ -94,10 +95,14 @@ def verify_dump(path: Path, tol: float = 1e-2) -> int:
         worst = max(worst, abs(prod - float(p_exact)))
         if abs(prod - float(p_exact)) > tol * max(1e-6, float(p_exact)):
             bad += 1
+            bad_pe.append(float(p_exact))
         n += 1
     a = np.asarray(prods) if prods else np.zeros(1)
     print(f"dump: {n:,} records, n_sym {n_sym}, product-vs-p_exact worst |diff| {worst:.3e}, "
           f"{bad} over tolerance ({tol:.0e} relative)")
+    if bad_pe:
+        print(f"      the {len(bad_pe)} over-tolerance records have p_exact <= {max(bad_pe):.2e} "
+              f"(float16 rounding on tiny probabilities)")
     print(f"      product: median {np.median(a):.3e}, mean {a.mean():.3e} "
           f"(the teacher's true next-token probabilities)")
     return 1 if bad else 0

@@ -91,6 +91,12 @@ honest cost so far: a judge pass on the 176B is about 3 s in the served config, 
 
 ## Stage 3 — the endpoints and the community arms (built; the overnight run is queued)
 
+The method itself is now written down and verified end to end on q36, the reference host:
+`docs/JEV-HEAD-METHOD.md`.  The engine-side sidecar loads the head (`STRATA_Q36_JEV_HEAD`) and EMB
+answers `EMB <dim> <file> <p_correct>`; measured on the 35B: parity against the JSON head 5.0e-7 over
+378 items, the engine's own verdicts on the frozen test split AUC 1.0000 / BA 1.0000 at 0.90, a judge
+pass 325 ms mean, and a real EOT dump from the same run verified (3,211 records).
+
 The readout's vector is served through the API (commit `69cb2515`): `POST /embedding` (llama.cpp's shape,
 `embd_normalize` `-1` raw or `2` L2), `POST /v1/embeddings` (OpenAI's, unit-norm), and `POST /apply-template`
 (renders the model's own template).  8 unit tests (`serve/test_embeddings.py`, no GPU or pack).  With those,
