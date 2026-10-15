@@ -66,9 +66,12 @@ attached at load, on **one RX 7900 XT** (20 GB, gfx1100):
 **With the optional MTP drafter.** Strata can also run a 96 MiB k=1 draft head
 (`Scion-35B-A3B-mtp-strata.gguf`, below) that proposes the next token from the target's own hidden state
 and hands it to the model in the two-row window the verify step needs anyway.  It is opt-in
-(`--mtp 1 --mtp-sidecar Scion-35B-A3B-mtp-strata.gguf`), greedy requests only, and the generated text is
-unchanged: the determinism check above passes byte-for-byte with it enabled, on every workload measured.
-Same card, same day, same protocol as the row above:
+(`--mtp 1 --mtp-sidecar Scion-35B-A3B-mtp-strata.gguf`) and greedy requests only.  Like llama.cpp's own
+speculative decoding, the batched verify can flip a rare near-tie: on the fixed prompt above the
+eight-request determinism check passes byte-for-byte with it enabled, but on a longer free-running
+generation the first divergence from plain decoding appeared at token 61 of 800, at a position whose top
+two logits differed by 0.03 (19.921 against 19.893, the next candidate 1.4 behind).  Treat it as a speed
+option, not a bit-exact one.  Same card, same day, same protocol as the row above:
 
 | Workload | plain | with the drafter | Draft acceptance |
 | :--- | ---: | ---: | ---: |
