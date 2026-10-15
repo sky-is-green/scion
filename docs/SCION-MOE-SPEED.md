@@ -763,6 +763,45 @@ the state is exact.  The `traj ... md5` lines are the real check (or pass a stat
 argument).  Same day: every 35B capture (plain, op1, op2, op3) sits at `6e1cb21f6e`, so the identity
 prompt stayed constant across the drafter work as well.
 
+## Round 5, measured: prose restored without losing structured (op5 <- op4, 2026-10-15)
+
+Mixed replay: `probe6` = probe4's 77 prose windows + probe5's 45 structured windows (held-out = 12 + 20 = 32
+windows), warm start op4, lr 1e-4, 400 steps; best checkpoint step 300 at held-out 0.5329, kept over the
+final 0.5327.
+
+Served A/B, one service, same day, 400-token protocol (plain 117.2-117.3; the 128-token row is the card
+protocol):
+
+| set | op3 | op4 | op5 |
+| :--- | ---: | ---: | ---: |
+| card prompt (128 tok) | 140.2-140.3, 74.0% | 140.9-142.7, 78.9% | **142.0, 76.4%** |
+| structured old held-out | 48.9 / 48.3 / 46.2% | 57.7 / 61.3 / 50.0% | 57.7 / 61.9 / 49.4% |
+| five fresh structured | 45.6 / 48.7 / 50.8 / 48.3 / 38.1% | 59.6 / 55.6 / 61.7 / 66.3 / 47.8% | 58.3 / 56.9 / 62.6 / 66.3 / 48.9% |
+| held-out 11 | 53.2%, 121.5 | - | 54.9%, 123.6 |
+| held-out factual 6 | 62.0%, 130.3 | 60.2%, 128.2 | 61.5%, 129.6 |
+| technical 6 | 94.1% | 93.4% | 94.2% |
+| round-4 prose 12 | - | 53.3% | 54.1% |
+| 17 never-trained (11 + 6) | 124.4 (+6.2%) | - | 125.7 (+7.3%) |
+
+Round 5 meets its goal: it keeps round 4's structured gains (within one window of op4 on every structured
+prompt) and recovers the prose to within noise of op3 (factual -0.5 points with mixed per-prompt signs on
+op5 against op4's -1.8 with five of six negative).  Its only trail against op4 is the card prompt's
+acceptance (76.4% against 78.9%) at equal speed (142.0 against a 141.9 average).
+
+Publication consequences, recorded because "numbers only rise":
+
+- swapping the published head to op5 would raise the card prompt (139.1-139.3 -> 142.0), technical
+  (153.5 -> 154.8) and the 17-prompt row (124.4 -> 125.7), but would lower the factual acceptance
+  (63.1% -> 61.5%) and the backoff's degenerate line (+3% -> -4%).  So the swap needs a decision, not an
+  automatic card edit.
+- the backoff is costless on ordinary text: card prompt 51/76 windows, 133.3 vs 134.6 tok/s; technical
+  148/251, 127.4 vs 127.5 (with vs without `--mtp-backoff 8`) - no streak of 8 rejections occurs, so it can
+  be enabled wherever the drafter is.
+
+The degenerate 800-token run with op5: plain 116.4, op5 88.9 (-23.6%, 89/710 windows), op5 + backoff 112.1
+(-3.7%, 151 of 384 offered).  Across heads the backoff bounds that case to about plain (op3: +3%, op5:
+-4%); the residual spread is where the pauses land relative to the head's own rejection pattern.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
