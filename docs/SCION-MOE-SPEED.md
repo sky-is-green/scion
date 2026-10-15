@@ -748,6 +748,21 @@ was consistent across five of six prompts, so it is treated as real.  Round 5 is
 lr 1e-4, 400 steps.  A head ships only if it beats op3 on every set; otherwise op4 is kept with the prose
 caveat stated, since structured was the worst case.
 
+## The engine rebuild re-verified against the 176B identity (2026-10-15 20:12)
+
+The `--mtp-backoff` build changed the engine binary the 176B lane also runs, so the pinned identity cycle
+was re-run (`moe-pin-cycle.sh engine-backoff`).  Its authoritative line - the trajectory hash - is
+**md5 `c1aa2407cb`, len 558 on all 8 bodies**, identical to every pinned capture since Oct 14 19:33
+(15 captures: pin1/pin4/pin5/pinref/pincheck-new/pincheck-ref/corr/rem/rows/single/176b-routerref/
+176b-swdown/176b-swgate/176b-shdown and today's).  The build changed nothing for the 176B.
+
+Caveat for future readers: `moe-pin-cycle.sh` calls `moe-exact.sh "$TAG"` with the default reftag `base`,
+and `base` is an **Oct 14 19:15** capture (md5 `497b1ecec3`, len 564) - 18 minutes *before* the pinned
+state was first recorded - so the cycle prints `identical: NO` against a pre-state-E reference even when
+the state is exact.  The `traj ... md5` lines are the real check (or pass a state-E tag as the third
+argument).  Same day: every 35B capture (plain, op1, op2, op3) sits at `6e1cb21f6e`, so the identity
+prompt stayed constant across the drafter work as well.
+
 ## Publication gate (updated 2026-10-14, both cards live)
 
 Both models' results are on the live Hugging Face cards, as a **Performance** section near the top:
