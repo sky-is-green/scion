@@ -46,24 +46,68 @@ tree; no numbers are guessed.
 5. **Vision (omni wrapper)**: deferred; text-only serve first, mmproj later (the engine's vision
    path is a separable piece).
 
-## Bring-up ladder, parity-gated at every step
+## Reference status (2026-10-16)
 
-The reference is the fork's own implementation (`prism-moe-corr/src/models/nemotron-h-moe.cpp` plus
-the llama.cpp graph/hparams behind it), so every step compares against a working implementation on
-the same GGUF:
+- The user's forks predate Nemotron 3.5: `/home/penis/llama.cpp` (the decision-head fork) refuses the
+  file with `key nemotron_h_moe.expert_used_count has wrong type arr but expected type u32` - the 3.5
+  "puzzle" recipe carries per-layer arrays where the fork's reader wants scalars.
+- Upstream `ggml-org/llama.cpp` master supports it fully (`src/models/nemotron-h.cpp`,
+  `nemotron-h-moe.cpp`, `mamba-base.cpp`).  A stock HIP build of master is in
+  `work/llama-stock/build` and is this project's reference implementation.
+- The upstream contract, read from those files:
+  * hparams: `get_key_or_arr` for `expert_feed_forward_length` and `expert_used_count` (per-layer,
+    88 entries); `moe_latent_size`; SSM constants; a layer is **recurrent iff `n_head_kv(i) == 0 and
+    n_ff(i) == 0`**; 88 layers with a heterogeneous top-k array is `75B_A9B` (Bolt), uniform is
+    `120B_A12B` (Super).
+  * the **per-layer expert count comes from the tensor shapes** (the router's `ne[1]`, cross-checked
+    against `n_expert_used(i)`), never from the header's global `expert_count`.
+  * Mamba2 layer (`build_mamba2_layer`): `ssm_in` -> `z [d_inner] | xBC [d_inner + 2*n_group*d_state]
+    | dt [dt_rank]`; conv over xBC with a `d_conv-1`-row state, bias, SiLU; split x/B/C; `dt += dt_b`;
+    selective scan with A and the per-head D skip (`y += x*D`); `swiglu(z, y)`; grouped RMS norm
+    `[d_inner/n_group, n_group]`; `ssm_out`.  d_in_proj = `2*d_inner + 2*n_group*d_state + dt_rank`
+    (4096 -> 18560 on Bolt).
+  * MoE layer: `latent_down` -> experts on the 1024-latent (`up_exps`/`down_exps`, squared-ReLU, no
+    gate matrix) -> `latent_up`; shared expert `up_shexp`/`down_shexp` from the *pre-latent* input;
+    sigmoid gating with `exp_probs_b` bias, `expert_weights_norm`, `expert_weights_scale = 5.0`;
+    add both branches.  Attention layer: plain GQA (32/2 heads x 128), kq_scale `1/sqrt(128)`, rope 128.
+- Bolt's file has no embedded NextN/MTP block (blocks 0..87 only); NVIDIA ships the **LiLiCorr spec
+  decoder as a separate GGUF** - the same slot as the MTP sidecar.
 
-1. **metadata**: load the 88-block recipe, print it against the fork's hparams (a CPU test).
-2. **embed + one Mamba block**: teacher-forced hidden/logit comparison against the fork's graph on
-   a fixed prompt (the `q36ref.cu` pattern).
-3. **one attention block, one MoE block**, then the **full forward**: logits parity (max-abs and
-   KL against the fork) on the same prompt.
-4. **generate + serve**: tok/s, VRAM/RAM split, context growth; then the scion stages (corrections,
-   MTP sidecar against NVIDIA's own LiLiCorr spec decoder, JEV head fitted on the served body).
+## Where it goes in Strata
 
-## Status (2026-10-16, ~04:15)
+The q36 engine is the right host: it is the family engine for hybrid-MoE bodies, and it already has
+the pieces this model needs - per-layer dispatch (GDN vs attention), a **hybrid expert mode** (VRAM
+slots + the CPU pool; Bolt's 22 GB does not fit one 20 GB card resident), the serve/MTP/sidecar
+machinery, and access to the shared kernels that already decode IQ2_XXS and NVFP4 on gfx1100.  The
+build is therefore: the `nemotron_h_moe` loader branch (per-layer arrays, tensor shapes as the
+authority), a third block kind (mamba2) beside GDN and attention, and the latent-MoE variant in the
+expert path.  Worktree: `work/strata-nem`, branch `nemotron-hip`.
 
-- The 24 GB Bolt QAT GGUF + mmproj are downloading to `/home/penis/models/nemotron-bolt` (on
-  `/home`, a different disk from the busy decision-head run).
-- The cards are held by the overnight arms run until about 05:45 (`scion-flashnext` returns then);
-  the first load test happens after it.
-- Super's quant choice is still open: UD-IQ2_XXS (~30 GB) vs UD-IQ2_M vs NVFP4.
+## Bring-up ladder (revised)
+
+1. **Reference up**: stock build serves Bolt (speed baseline, and the top-k logprobs to compare against).
+2. **Loader + Mamba2**: the q36 loader branch plus the mamba2 block, parity-tested per block against a
+   small numpy reference computed from the same weights (the `q36ref.cu` pattern).
+3. **Full forward parity**: teacher-forced top-k logprobs against the stock build on fixed prompts.
+4. **Serve with hybrid experts**, measure tok/s and the VRAM/RAM split.
+5. Then the scion stages: corrections, the LiLiCorr draft (or our MTP sidecar) and the JEV head.
+
+## Status (2026-10-16)
+
+- **Done: the metadata layer.**  The `nemotron_h_moe` family, the per-layer recipe (block kinds from the
+  `head_count_kv` / FF arrays, per-MoE top-k and FF width, `moe_latent_size`, the mamba-2 SSM keys) and
+  the architecture guard are in `work/strata-nem` (commit `5b7f16a7`).  Validated against the real Bolt
+  file: 88 = 40 mamba + 8 attn + 40 moe, latent 1024, top-k max 9, FF max 2560, ssm 8192/128/8/128/4.
+  The suite's `model_family_test` still passes; the GGUF reader now keeps small numeric arrays whole
+  (it sampled 64 entries before - the recipe indexes all 88).
+- **Reference: running.**  Stock upstream (`work/llama-stock`, HIP build) loads Bolt on **CPU** in 35 s
+  and answers (`"The capital of France is"` -> `" Paris."`, top-5 logprobs captured in
+  `/tmp/opencode/bolt-ref-lp1.json`: ` Paris` -0.025, ` **` -5.53, ...).  On the two cards the stock
+  **HIP upload path is unusably slow**: ~21 GB of tensors took 14.5 minutes (about 24 MB/s, one core
+  87% busy in a per-tensor host loop, RSS 17 GB); a second attempt did not finish in 35 minutes.  The
+  reader/pipeline is fine - the host->device copy path is the problem, which is exactly what the
+  engine's batched DMA (docs/BATCHED_DMA.md) exists for.  The CPU reference stays up on port 8896 as
+  the parity target; speed work waits for the engine path.
+- Next: the `nemotron_h_moe` loader branch in q36 (tensor names per block kind, per-layer expert counts
+  from the router shapes) and the mamba-2 block (conv + selective scan + grouped RMS norm), parity-
+  tested per block against the captured reference.
