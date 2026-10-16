@@ -980,6 +980,48 @@ the new windows use the probe9 convention exactly.  Merged with `probe9/` keepin
 `probe11/` = **306 windows, n_train 259, n_eval 47** (probe9's 200 train + the new 59; probe9's 37 eval
 + the new 10 held).  Training runs from `head-op6.pt`, lr 1e-4, 400 steps, best-by-eval.
 
+## Round 7, measured: the long-form pass holds every set and lifts long-form ~1.4 points (op7 <- op6, 2026-10-16)
+
+**Training.**  On the merged set the held-out acceptance ran 0.5271 / 0.5357 / 0.5353 / 0.5326 / 0.5442 /
+0.5431 / 0.5419 / 0.5323 at steps 50-400, so the peak is **step 250 at 0.5442** and the run keeps that
+checkpoint (the final is 0.5323).  The shipped op6 on the same merged held-out scores **0.5281**, so the
+new long-form windows add **+1.6 points** of held-out acceptance.  (op6 on its own probe9 eval reads
+0.5435 - the record's "best 0.5446" was never saved; see below.)
+
+**The best-by-eval snapshot was a view.**  `detach().cpu().float()` on a CPU float32 parameter returns the
+live tensor, not a copy, so the trainer's "best" dict tracked fc1/fc2 as training continued and every
+exported head was actually the *last* step.  op4/op5/op6's peaks were within 0.05-0.2 of their finals, so
+it went unnoticed; for op7 the gap is 1.2 points (0.5442 vs 0.5323).  Fixed with `.clone()`
+(`moe/mtp_release_train.py`); the re-run reproduced the curve exactly and the saved file now evaluates at
+the peak (0.5442).
+
+**Served A/B**, one service, same day.  `op6check` is the shipped op6 head re-exported from `head-op6.pt`
+(it reproduces round 6's op6 rows exactly: fresh structured 59.0 / 59.4 / 59.9 / 70.5 / 50.0%, factual
+61.2%, technical 94.0%, prose 55.1%); `op7-250` is the new head.  Warmed identity: all five bodies
+byte-identical to the plain `35b-base` (735 chars) for **both** heads, so the swap moves no warmed text.
+
+| set | op6check | op7-250 |
+| :--- | ---: | ---: |
+| card prompt (128 tok) | 141.4-141.5, 76.4% | 141.3-141.7, 76.4% |
+| structured old held-out | 58.7% | 58.7% (per-prompt signs mixed) |
+| five fresh structured | 59.5% | **60.3%** |
+| structured 8-prompt aggregate | 59.1% | **59.6%** |
+| held-out factual 6 | 61.2% | 60.9% |
+| technical 6 | 94.0% | **94.5%** |
+| round-4 prose 12 | 55.1% | **56.2%** |
+| long-form held-out 16 (1500 tok) | 49.3%, 117.4 tok/s | **50.7%, 118.5** |
+| - the round-6 seven | 51.2% | **52.4%** |
+| - the nine fresh prompts9 prompts | 47.9% | **49.4%** |
+
+The round does exactly what it aimed at: the long-form regime rises **+1.4 points** (the nine fresh
+prompts +1.5, the round-6 seven +1.2, so the gain is not memorization of the old set), and technical
+(+0.5), round-4 prose (+1.1) and fresh structured (+0.8) ride with it; the structured old 3-prompt
+aggregate is identical (443/755 both) and held-out factual gives back 0.3, inside the single-run text
+noise the record already priced.  At ~50% acceptance the long-form drafter is still near break-even (the
+controller readout's W = 12.45 ms and P = 8.5 ms put the line at p ~ 0.47, so +1.4 points is ~+1.4%
+speed), but **no set regresses**, so op7-250 is shippable under the round's gate.  The head is kept as
+`head-op7.pt` / `mtp-sidecar-op7-250.gguf`; the shipped file stays op6-350 until the card is swapped.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
