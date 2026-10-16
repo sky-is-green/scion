@@ -41,6 +41,13 @@ build support for NVIDIA Nemotron 3.5 via **Strata first** (not the fork), then 
   latent experts must go through `iq_mmvq` / an iq-backed grouped path (the loader gates on
   `iq_supported`).  The mamba-2 `ssm_in`/`ssm_out` are **NVFP4 (type 40)**: also the iq path, not
   `native_mmvq`.
+- **The mamba-2 block is in and parity-tested.** `7ee0aabd` (geometry reads `layer_norm_rms_epsilon`
+  - Bolt's is 1e-5) + `80feeeab`: `strata::kernels::nem_mamba2_block` (conv + selective scan +
+  SwiGLU/grouped-RMS-norm) in `include/strata/kernels/nemotron_mamba.hpp` +
+  `src/kernels/cuda/nemotron_mamba.cu`; `tests/hip/nemotron_mamba.cpp` (a real Bolt mamba layer
+  against a double host reference, GPU vs host rel 4e-7) and `tools/nemotron/mamba_parity.py` (an
+  independent numpy reference GPU vs numpy rel 3.3e-7).  The ssm_in / ssm_out projections stay the
+  caller's (the iq kernels'): step 3 wires the mm around `nem_mamba2_block`.
 - **The model is on disk.** `/home/penis/models/nemotron-bolt/` (NVIDIA's own GGUF repo):
   `NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf` 22.0 GB (74.0B params: IQ2_XXS experts 17.5 GB,
   **NVFP4 type-40** SSM weights 2.47 GB, Q8_0 attention/latent/embed 1.8 GB, F32 0.24 GB) plus the
@@ -79,6 +86,13 @@ build support for NVIDIA Nemotron 3.5 via **Strata first** (not the fork), then 
    `ssm_out`.  State per layer: conv `[3, 10240]` + ssm `[128, 64, 128]` per sequence (~4 MB/layer).
    Parity-test the block alone against a numpy reference computed from the same weights (the
    `q36ref.cu` pattern), not against the whole model.
+   **DONE** (`7ee0aabd` + `80feeeab`): `include/strata/kernels/nemotron_mamba.hpp` +
+   `src/kernels/cuda/nemotron_mamba.cu` (`nem_mamba2_block`: conv + scan + gate_norm; the ssm_in/ssm_out
+   projections stay the caller's), `tests/hip/nemotron_mamba.cpp` (real Bolt layer, T 1/2/4/16, a
+   double host reference) and `tools/nemotron/mamba_parity.py` (numpy reference straight off the GGUF).
+   GPU vs numpy rel 3.3e-7 on Bolt block 0.  Two bugs the numpy check caught: `ssm_conv1d.weight` is
+   GGUF `[d_conv, channels]` **tap-fastest** (element (k,c) at `c*d_conv + k`), and `geometry_from_gguf`
+   never read `attention.layer_norm_rms_epsilon` (Bolt's is 1e-5, not the 1e-6 default).
 3. **Attention + MoE variants in the q36 dispatch**: the third block kind and the latent MoE
    (experts on 1024, squared-ReLU, sigmoid gating with `exp_probs_b` + `expert_weights_norm` +
    `scale = 5.0`, shared expert from the pre-latent input, add both).  The engine's kernels already
