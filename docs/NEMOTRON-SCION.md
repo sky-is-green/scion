@@ -72,21 +72,28 @@ expert cache (today only 55% fits at 17.05 GB of experts).
 
 ## Findings that shape the plan
 
+- **A sub-IQ2_XXS expert re-quant needs an imatrix (measured).**  `llama-quantize --allow-requantize` with a
+  `--tensor-type-file` that pins every non-expert tensor to its own type and sends the experts to `iq1_m`
+  *is* expressible (manual overrides bind per tensor, and `nvfp4` / `q8_0` / `f32` are accepted targets), and
+  the dry-run sizes it: all-IQ1_M 16.3 GB (1.85 bpw), experts-only ~19.4 GB.  But the run is refused:
+  `this quantization requires an imatrix!` - the i-quants below IQ2_XXS want an importance matrix, so this is
+  a calibration-pass job, not a free re-pack.
 - `exp_probs_b` is **near-constant per layer** (spread 0.014-0.3 within a layer, but 4.4-51.3 across
   layers; 0 experts fall more than 3 sigma below the mean).  It is a soft tie-breaker, **not** a per-expert
-  importance signal — so pruning cannot be read off the file; it needs a live routing map over a
+  importance signal - so pruning cannot be read off the file; it needs a live routing map over a
   calibration set (the REAP pattern the qwen4exp lane already has).
 - Bolt is **already a 2-bit QAT** model.  Post-hoc re-quant of a QAT body is the known-bad path
   (`SCION-LOCAL-ARCHITECTURE.md` P5), so an expert re-quant must be paired with corrections to be shippable.
-- **Super (BF16 120B) is the bigger, cleaner target**: no QAT to fight, and UD-IQ2_XXS is 51 GB untuned —
+- **Super (BF16 120B) is the bigger, cleaner target**: no QAT to fight, and UD-IQ2_XXS is 51 GB untuned -
   a ternary/pruned Scion Super would be the release, not a re-quant of a re-quant.
 
 ## Recommended cheap measurements (next)
 
-1. **Output-drift of an expert re-quant, measured on the engine we already have.**  Re-quant one MoE
-   layer's 240-496 experts (IQ2_XXS -> IQ1_M and -> PTQ1_0) into a copy of the file, run the engine's
-   teacher-forced logits against the original, and report the KL / top-5 overlap per layer budget.  This is
-   the cheapest real quality signal; the engine path already accepts the types.
+1. **Output-drift of an expert re-quant, measured on the engine we already have.**  Needs an imatrix first
+   (see above); then re-quant the experts (IQ2_XXS -> IQ1_M / PTQ1_0) into a copy of the file and run the
+   engine's teacher-forced logits against the original, reporting KL / top-5 overlap.  The engine path
+   already accepts the types, so this is the cheapest *real* quality signal once the imatrix exists.  An
+   imatrix is a GPU-calibration pass (rented GPU) and is reusable for both Bolt and Super.
 2. **Routing map for pruning** (needs a calibration pass): capture the per-layer expert histogram over a
    few hundred prompts, then size pruning by the *routed* mass, not `exp_probs_b`.  The engine can dump the
    ids (a small probe) or we add one.
