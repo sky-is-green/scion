@@ -6,7 +6,8 @@ sits where Unsloth's own docs say agentic use breaks, NVIDIA's BF16 numbers show
 the agentic/coding axis *before* any quantization, and the only source we can legally quantize from locally is
 itself an already-quantized file. That is community-scale work we don't want to own.
 
-Nothing here is Super-specific. Three things transfer, in value order.
+Nothing here is Super-specific. Two things transfer, and one earlier recommendation turned out to be wrong —
+recorded below so nobody repeats it.
 
 ## 1. Measurement methodology  (→ both lanes, zero port cost)
 
@@ -31,33 +32,40 @@ merge (`sums` summed, `ncall` summed — llama-quantize divides one by the other
 
 Tools, family-agnostic — only the model path and the tensor-name regex change (already committed in strata-nem
 `5b781526`): `tools/nemotron/{calib_chunks.sh, merge_imatrix.py, drift.sh, drift_kl.py}`.
-The 35B lane already has `tools/qwen35/kl.py`; it needs the `--force`-based multi-step reporting added.
 
-## 2. Host-side expert residency, promoted into the core  (→ Flash-Next)
+`tools/qwen35/kl.py` — the harness the other lanes already use — was **already doing this right**: it
+teacher-forces llama.cpp's greedy answer (`--force`) and reports mean, median, p99, top-1 and the noise-floor
+ratio. So the lesson is not "add multi-step reporting", it is **"never hand-roll a single-token KL again"**,
+which is precisely what this lane did before the lesson landed. The one figure it lacked — the count of steps
+that flip by more than a nat, which is what the mean is actually dominated by — is now reported.
 
-CachyLLama's `--moe-expert-residency`, adapted: a per-layer **recency+frequency** slot cache that issues
-`madvise(MADV_WILLNEED)` on the selected experts' **mmap pages** and `MADV_COLD` on evicted ones
-(non-destructive; `MADV_DONTNEED` is destructive on a file mapping and `MADV_FREE` is `EINVAL` on
-`MAP_SHARED|PROT_READ`).
+## 2. Host-side expert residency — **do not port: the core already has it**
 
-- **Now:** `src/qwen35/q36_engine.cu`, `NemRes` / `nem_res_touch` / `madv_range`, env `STRATA_Q36_NEM_RESIDENT`,
-  driven only from the Nemotron latent-MoE dispatch.
-- **Should be:** `src/core/expert_source.cpp` (`FileExpertSource`). The core already has the primitives —
-  `platform::advise_willneed` and the `mincore`-based `resident_sampled` — and `ExpertCache` owns the VRAM side.
-  **Flash-Next is served by the core stack** (`src/program/generate.cpp` + `ExpertCache`/`FileExpertSource`), so
-  promoting the policy there hands it to Flash-Next *and every other MoE* at once. Port is ~120 lines.
+**Correction (2026-10-16, after actually reading the core): do not port this. The core already has it, and
+better.** `FileExpertSource` owns a `RouterLookahead` (CS-T) that applies layer *l+1*'s router to layer *l*'s MoE
+input to *predict* the next layer's experts and warm their pages while layer `l` computes; `--expert-profile`
+(`read_expert_profile`, produced by `tools/make_profile.py`) decides residency from a whole-corpus
+routing-frequency ranking — with a comment in the header stating outright that a frequency profile beats the
+compulsory-miss/LRU policy; and it measures *physical* residency with `mincore` (`resident_sampled` /
+`resident_in`). Flash-Next's serve config uses exactly this (`--mmap-experts --expert-cache auto
+--expert-profile ...`). Our `NemRes` per-layer recency+frequency cache is a crude rediscovery of one piece of it,
+with **zero lookahead** — promoting it would have been a duplicated, inferior mechanism.
 
-**Sizing rule, measured:** the policy asks for pages, the kernel decides. On Super, 64 experts/block gave a
-58.6% software hit rate; 256/block gave 82.4% and **bought no wall time at all**, because the policy requested
-~29 GB of hot pages inside a 30 GB box and the kernel evicted them. Keep the resident budget at roughly **40% of
-RAM or less**, and instrument with the existing `mincore` sampler — a "hit rate" from the policy is a *software*
-number and the CachyLLama doc warns about exactly this confusion.
+What our version does genuinely add, kept for the record: a **non-destructive** release (`MADV_COLD`) where the
+core uses `MADV_DONTNEED` to free mapped layers (destructive on a file mapping — it re-faults from disk), and the
+sizing rule below.
 
-**Budget against this:** a model larger than RAM reads **0.69-0.91 GB/token** from disk (measured on Super:
-32 tokens → 22.1 GiB, 64 tokens → 58.2 GiB). That, not FLOPs, is the throughput ceiling.
+**Measured, and still worth knowing:** the policy asks for pages; the kernel decides. On Super, 64 experts/block
+gave a 58.6% software hit rate and 256/block gave 82.4% (evictions 44,056 → 9,627), and **neither bought any
+wall time at all** — at 256 the policy requested ~29 GB of hot pages inside a 30 GB box, and the kernel evicted
+them. Keep any resident budget at roughly **40% of RAM or less**, and trust `mincore`, never a policy counter.
 
-`ExpertCache` also has a deliberate **no-eviction** per-layer rule (`admit()` returns `kNotResident` when full) —
-worth revisiting alongside the residency policy, since eviction is what the R+F policy is for.
+**The number that actually bounds throughput:** a model larger than RAM reads **0.69-0.91 GB/token** from disk
+(measured on Super: 32 tokens → 22.1 GiB, 64 tokens → 58.2 GiB).
+
+**Where it could still matter:** the q36 engine path (`src/qwen35`: `qwen35moe` + `nemotron_h_moe`) has none of
+this — but its consumers are the 35B (11 GB, fits in RAM) and Nemotron (deleted), so nothing needs it today. If a
+`qwen35moe` model larger than RAM ever lands, borrow the core's `RouterLookahead`, not this.
 
 ## 3. Expert imatrix accumulator  (→ the 35B lane's quantization work)
 
