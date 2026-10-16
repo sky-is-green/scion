@@ -28,6 +28,7 @@ tags:
 > dense forensics stayed in
 > [`bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics).
 
+
 <p align="center">
   <a href="https://github.com/sky-is-green/scion"><b>GitHub: Build-scripts and docs</b></a> &nbsp;|&nbsp;
   <a href="https://github.com/sky-is-green/bonsai2-ternary-forensics"><b>Forensics study</b></a> &nbsp;|&nbsp;
@@ -107,6 +108,12 @@ protocol as the row above:
   64 ... up to 128, any acceptance resets it; 112.1 on the same run).  Neither costs anything on ordinary
   text - the rule fires only on confirmed periods and the backoff only on rejection streaks, both
   measured at identical window counts on ordinary prompts.
+- **Long-form coverage (the head on this card).**  A 60-prompt pass over the weakest long-form styles
+  (dialogue, uncommon-language code, essays, reviews, emails, "begin now and do not stop early" factuals)
+  retrained the head on the merged mix: long-form held-out acceptance **49.3% -> 50.7%** (the earlier set
+  51.2% -> 52.4%, a fresh nine-prompt set 47.9% -> 49.4%), with round-4 prose (55.1% -> 56.2%), fresh
+  structured (59.5% -> 60.3%) and technical (94.0% -> 94.5%) rising too and no set giving way.  The rows
+  above are within rounding of the updated head's.
 
 ## Contents
 
@@ -308,6 +315,7 @@ Benchmarks).
 | :--- | :--- | ---: | :--- |
 | Language model (this repo) | PQ2_0 experts, Q8_0 rest, embedded corrections | 11.34 GB | resident; the whole model |
 | **k=1 MTP drafter** ([separate repo](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter)) | **fp16 head (`fc1`/`gelu`/`fc2`) over the model's own hidden + next-token embedding** | **50 MB** | **transient; ~1 ms/eval on GPU** |
+| **Decision head (optional)**, in this repo under [`decision-head/`](./decision-head) | **closed-form ridge + Platt (66 KB) over the model's own last-prompt-token hidden** | **66 KB** | **transient; one judge pass, ~0.3 s on one 7900 XT** |
 | Uncorrected body (not uploaded) | PQ2_0 experts and Q8_0 rest | 10.46 GiB | for swap tests |
 | Corrections (not uploaded) | rank-512 branches and router deltas (`q1_0_g128`) | 98 MiB | for swap tests |
 
@@ -329,6 +337,39 @@ merge and swapping corrections at runtime. Ask in Discussions if you want it.
 > because it is a mix: `PQ2_0` expert banks, the embedded corrections in the
 > legacy `q1_0_g128` container, and `Q8_0` for the rest (norms and routers in
 > F32).
+
+## Decision head (optional): a correctness readout
+
+A 66 KB closed-form head (ridge + Platt) that answers "is this candidate answer correct?" from the
+model's own last-prompt-token hidden state, read through one judge pass.  It is not a second model.
+The study behind it ([`SkyIsNotGreen/decision-heads`](https://huggingface.co/datasets/SkyIsNotGreen/decision-heads))
+measured AUC 0.999 on the frozen judge bench (a prompted self-judge: 0.903), 23 of this model's own
+28 wrong answers caught at zero false rejects, and two uses that pay: best-of-3 accuracy at about
+half the pool cost (gating) and +7 tasks over majority on the held-out community set (veto).  Run
+through the Strata engine, the same head reads Strata's states at AUC 0.9996 against 0.9988 where it
+was fit, and a refit in Strata's serving format is 1.0000, engine-vs-client parity 5.0e-7 over 378
+judge passes.
+
+**Files.**  [`decision-head/`](./decision-head) carries the fitted head: the `.json` is the exchange
+form (the study's schema), the `.bin` is the engine's runtime form for the Strata sidecar.
+
+**With the Strata q36 engine**, either the engine sidecar:
+
+```
+STRATA_Q36_JEV_HEAD=decision-head/scion-35b-a3b-decision-head-q36.bin strata-q36 --serve --model ...
+# an EMB request then answers:   EMB 2048 <file> <p_correct>
+```
+
+or the server route (any body Strata serves): put `"decision_head": "<path>.json"` in the run config,
+
+```
+curl -s localhost:8080/v1/verdict -d '{"task": "...", "candidate": "..."}'
+# -> {"p_correct": 0.997, "threshold": 0.9, "accept": true, "tokens": 271, "ms": 318.4}
+```
+
+The full record (the arms table, the cross-engine transfer, the 176B results) is in the dataset's
+`PORT-REPORT.md`.  Refit per body and per prompt format: this head belongs to this body and to the
+decision-function wording shipped with it.
 
 ## Best Practices
 
@@ -418,9 +459,10 @@ rare near-tie flips on batched verification.
 **Two drafter files, one per runtime.** The numbers just above are the llama.cpp fork's, with the head the
 fork auto-detects.  Strata's own engine runs its own draft head (`Scion-35B-A3B-mtp-strata.gguf` in this
 repo, 96 MiB) on the same model file, opt-in via `--mtp 1 --mtp-sidecar` - how to enable it and its
-numbers are in the [Performance](#performance) section: 142.0 tok/s against 117.9-118.3 plain on the
-fixed prompt (+20%, 76% acceptance), up to +32% on technical prompts, +6-7% on structured output and on
-prompts outside its training mix, and no measured loss left: repeated-token text, where the previous head
+numbers are in the [Performance](#performance) section: 141.3-141.7 tok/s against 117.9-118.3 plain on the
+fixed prompt (+20%, 76% acceptance), up to +32% on technical prompts, +7-8% on structured output and on
+prompts outside its training mix (long-form held-out acceptance 50.7%, up from 49.3%), and no measured loss
+left: repeated-token text, where the previous head
 accepted 0-13%, is now its best row at +33% and 96% acceptance.  `--mtp-period 4` (draft a confirmed
 period directly) and `--mtp-backoff 8` (pause after a rejection streak) remain as free backstops for text
 the head has not seen.  The two heads were trained against different runtimes'

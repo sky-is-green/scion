@@ -1019,8 +1019,14 @@ prompts +1.5, the round-6 seven +1.2, so the gain is not memorization of the old
 aggregate is identical (443/755 both) and held-out factual gives back 0.3, inside the single-run text
 noise the record already priced.  At ~50% acceptance the long-form drafter is still near break-even (the
 controller readout's W = 12.45 ms and P = 8.5 ms put the line at p ~ 0.47, so +1.4 points is ~+1.4%
-speed), but **no set regresses**, so op7-250 is shippable under the round's gate.  The head is kept as
-`head-op7.pt` / `mtp-sidecar-op7-250.gguf`; the shipped file stays op6-350 until the card is swapped.
+speed), but **no set regresses**, so op7-250 passes the round's gate.
+
+**Published.**  The 35B card's `Scion-35B-A3B-mtp-strata.gguf` is now the op7-250 bytes (HF rev
+`7e0a0f2b`, lfs sha256 `7aaf18b8`), with the README's Strata drafter section gaining the long-form bullet
+(same rev) and `SHA256SUMS.txt` updated; the drafter card's Strata section was refreshed (HF rev
+`22dd3d0b`).  The 176B service was up at the end of every window.  The head is kept as `head-op7.pt` /
+`mtp-sidecar-op7-250.gguf` in the lane directory.  The optional decision-head section that another lane
+added to the same 35B card today is untouched.
 
 ## Next steps (session queue)
 
