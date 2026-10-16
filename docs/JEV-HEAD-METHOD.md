@@ -74,8 +74,18 @@ selection and veto, so the study's "validate per model" caveat is the rule.  Ful
 ## What is not done
 
 - The 176B's engine-side sidecar readout (the main engine's `head_mixed_` behind the same protocol);
-  the vector path (`emb=`) is in and the head exists, the in-engine verdict on the main path is not.
+  the vector path (`emb=`) is in and the head exists, the API route covers it, and the in-engine
+  verdict on the main path would only save a file read.
 - In-stream scoring (the engine running the judge readout on the trace it just produced) is a product
   option; the reference path scores a judge prompt the client sends.
 - The think-harder arm (B) on the 176B: left out of the night on purpose (dominated by gating in the
   study; about five hours of 2,048-token thinking for an arm already answered).
+
+## Published (2026-10-16)
+
+- `SkyIsNotGreen/decision-heads`, commit `d991c74`: `PORT-REPORT.md` plus the three heads
+  (176B J-Bench and community, 35B q36), README updated.
+- `SkyIsNotGreen/Scion-35B-A3B`, commit `ac1572d2`: a `decision-head/` folder (JSON + engine binary +
+  usage) and a section in the model card with the measured numbers.
+- Strata side: `POST /v1/verdict` + the `decision_head` config key (commit `8234da4c`), the q36
+  engine sidecar (`STRATA_Q36_JEV_HEAD`), all in the local trees, not pushed upstream.
