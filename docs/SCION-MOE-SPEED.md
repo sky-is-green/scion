@@ -957,6 +957,29 @@ out-projection kernel), `router+topk` 1.94 and `exp-setup` 0.71 (merging topk / 
 their neighbours), the expert kernel's ISA lens (2.31), the ~0.5 ms core kernels, and the two-card
 arm above.
 
+## Round 7, collected: a fresh long-form pass, and the merged set (op7 <- op6, 2026-10-16)
+
+The remaining weak regime is long-form text (~51% acceptance at 1500-2000 tokens against 68-96% short),
+so round 7 is a coverage pass over the lowest styles.  **60 fresh prompts** (`prompts9.txt`: dialogue,
+Ruby/Lua/Zig/Haskell/OCaml/Elixir/Perl/Fortran code, essays, reviews, emails and the "begin now and do not
+stop early" factuals), served through the 35B with the op6-350 head and both probes
+(`STRATA_Q36_MTP_PROBE=probe10.bin`, `STRATA_Q36_JEV_PROBE=jev10.bin`), 2000 tokens each, greedy.  The
+window ran only once the decision-heads overnight job had finished and the 176B was restored; it took
+668 s and restored `scion-flashnext` (up=200) at the end.
+
+Served acceptance: **46.8% over 51,777 windows** (24,246 accepted), **26-62% per prompt** - the weak
+long-form regime, as expected.  The lowest rows are exactly the ones the round targets: the Ruby hash
+class 26%, the Elixir supervisor 36%, the boundary email 36%, the conference email 35%, the board-game
+review 40%, the Lua state machine 41%.
+
+Assembly (the round-6 recipe, unchanged): cut into 60 requests by the `pos` deltas (`d != 1 and d != 2`
+is a boundary), one 512-record window per `floor(records/512)` per request with `h` shifted by one
+(`hh[:510] = h[i+1:i+511]`), train windows first and the last 9 prompts' windows last.  `probe10/` =
+**69 windows (59 train, 10 held)**.  The assembler reproduces `probe7win`'s 23 windows byte-for-byte, so
+the new windows use the probe9 convention exactly.  Merged with `probe9/` keeping the replay rule,
+`probe11/` = **306 windows, n_train 259, n_eval 47** (probe9's 200 train + the new 59; probe9's 37 eval
++ the new 10 held).  Training runs from `head-op6.pt`, lr 1e-4, 400 steps, best-by-eval.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
