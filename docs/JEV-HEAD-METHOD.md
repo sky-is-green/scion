@@ -42,6 +42,13 @@ Measured on q36 + Scion-35B-A3B-PQ2_0-corr, one 7900 XT, 2026-10-15:
 The test is `dh_verdict.py`.  On the main engine the readout reads `head_mixed_` (the last stage's
 head input, what `emb=` already writes) and the same ten lines of arithmetic apply.
 
+**The API path (any body, no engine build):** a run config may name a `decision_head` (the JSON this
+directory exports), and `POST /v1/verdict {"task", "candidate"}` then answers `p_correct`, the head's
+threshold and `accept` over one judge pass, computed in the server (pure Python, no numpy).  That is
+the delivery for the 176B and the 35B alike: a client that already knows how to call the engine gets
+the verdict from the same server, and the engine-side `STRATA_Q36_JEV_HEAD` above stays the
+zero-copy fast path where it exists.
+
 ## 3. Policy (what pays, and what does not)
 
 The head is an **end-of-trace verifier**.  The study's negative result stands: early cancellation saves
