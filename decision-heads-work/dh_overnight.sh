@@ -103,7 +103,13 @@ ce --prefix dh-smoke --phase eval --samples 1 || { echo "== smoke eval FAILED"; 
 echo "== $(date -Is) smoke ok"
 
 # the frozen J-Bench states of this body (the eval's J-Bench arm)
-cp "$W/scion/decision-heads-work/dh-probe-states-main.npz" "$OUT/probe-states-main176b.npz" || true
+# the frozen J-Bench states of this body, for the eval's J-Bench arm: the study's npz key (L1), not ours (X)
+"$PY" - "$W/scion/decision-heads-work/dh-probe-states-main.npz" "$OUT/probe-states-main176b.npz" <<'PYEOF'
+import sys, numpy as np
+z = np.load(sys.argv[1], allow_pickle=False)
+np.savez_compressed(sys.argv[2], L1=z['X'], labels=z['labels'], splits=z['splits'], item_ids=z['item_ids'])
+print('wrote', sys.argv[2], z['X'].shape)
+PYEOF
 
 # ---- the full run
 echo "== $(date -Is) gen: the 664 tasks x 3 samples"

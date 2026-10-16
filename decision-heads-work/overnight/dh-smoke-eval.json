@@ -1,0 +1,219 @@
+{
+ "prefix": "dh-smoke",
+ "model": "SkyIsNotGreen/Scion-FlashNext-176B-A6B (local Q6K)",
+ "sampling": {
+  "temperature": 0.7,
+  "max_tokens": 700,
+  "thinking": false
+ },
+ "hard": {
+  "thinking": true,
+  "max_tokens": 2048
+ },
+ "primary_candidate": "answer",
+ "n_tasks": 2,
+ "n_samples": 2,
+ "indomain_heads": {
+  "answer": {
+   "train": {
+    "n": 1,
+    "auc": null,
+    "best_ba": {
+     "bal_acc": 0.5,
+     "threshold": 0.2
+    },
+    "at_0.5": {
+     "threshold": 0.5,
+     "accept_rate": 1.0,
+     "false_accepts": 0,
+     "false_rejects": 0,
+     "correct": 1,
+     "n": 1,
+     "bal_acc": 0.5
+    }
+   },
+   "test": {
+    "n": 1,
+    "auc": null,
+    "best_ba": {
+     "bal_acc": 0.5,
+     "threshold": 0.2
+    },
+    "at_0.5": {
+     "threshold": 0.5,
+     "accept_rate": 1.0,
+     "false_accepts": 0,
+     "false_rejects": 0,
+     "correct": 1,
+     "n": 1,
+     "bal_acc": 0.5
+    }
+   }
+  },
+  "trace": {
+   "train": {
+    "n": 1,
+    "auc": null,
+    "best_ba": {
+     "bal_acc": 0.5,
+     "threshold": 0.2
+    },
+    "at_0.5": {
+     "threshold": 0.5,
+     "accept_rate": 1.0,
+     "false_accepts": 0,
+     "false_rejects": 0,
+     "correct": 1,
+     "n": 1,
+     "bal_acc": 0.5
+    }
+   },
+   "test": {
+    "n": 1,
+    "auc": null,
+    "best_ba": {
+     "bal_acc": 0.5,
+     "threshold": 0.2
+    },
+    "at_0.5": {
+     "threshold": 0.5,
+     "accept_rate": 1.0,
+     "false_accepts": 0,
+     "false_rejects": 0,
+     "correct": 1,
+     "n": 1,
+     "bal_acc": 0.5
+    }
+   }
+  }
+ },
+ "arms": {
+  "A_single": {
+   "n": 1,
+   "correct": 1,
+   "acc": 1.0,
+   "tokens": 152.0,
+   "tok_per_correct": 152.0
+  },
+  "A_single_all": {
+   "n": 2,
+   "correct": 2,
+   "acc": 1.0,
+   "tokens": 339.0,
+   "tok_per_correct": 169.5
+  },
+  "B_think_hard": {
+   "n": 0,
+   "correct": 0,
+   "acc": 0.0,
+   "tokens": 0.0,
+   "tok_per_correct": 0.0
+  },
+  "B_think_hard_all": {
+   "n": 0,
+   "correct": 0,
+   "acc": 0.0,
+   "tokens": 0.0,
+   "tok_per_correct": 0.0
+  },
+  "C_gated": {
+   "n": 1,
+   "correct": 1,
+   "acc": 1.0,
+   "tokens": 152.0,
+   "tok_per_correct": 152.0,
+   "threshold": 0.3
+  },
+  "C_gated_all": {
+   "n": 2,
+   "correct": 2,
+   "acc": 1.0,
+   "tokens": 339.0,
+   "tok_per_correct": 169.5,
+   "threshold": 0.3
+  },
+  "D_best_of_n": {
+   "n": 1,
+   "correct": 1,
+   "acc": 1.0,
+   "tokens": 152.0,
+   "tok_per_correct": 152.0
+  },
+  "D_best_of_n_all": {
+   "n": 2,
+   "correct": 2,
+   "acc": 1.0,
+   "tokens": 339.0,
+   "tok_per_correct": 169.5
+  },
+  "majority": {
+   "n": 1,
+   "correct": 1,
+   "acc": 1.0,
+   "tokens": 152.0,
+   "tok_per_correct": 152.0
+  },
+  "majority_all": {
+   "n": 2,
+   "correct": 2,
+   "acc": 1.0,
+   "tokens": 339.0,
+   "tok_per_correct": 169.5
+  }
+ },
+ "oracle": {
+  "test": {
+   "correct": 1,
+   "n": 1,
+   "acc": 1.0
+  },
+  "all": {
+   "correct": 2,
+   "n": 2,
+   "acc": 1.0
+  }
+ },
+ "catch": {
+  "indomain": {
+   "first": {
+    "thr_0.5": {
+     "threshold": 0.5,
+     "errors": 0,
+     "caught": 0,
+     "catch_rate": 0.0,
+     "correct_kept": 2,
+     "correct": 2,
+     "keep_rate": 1.0
+    }
+   },
+   "all": {
+    "metrics": {
+     "n": 2,
+     "auc": null,
+     "best_ba": {
+      "bal_acc": 0.5,
+      "threshold": 0.2
+     },
+     "at_0.5": {
+      "threshold": 0.5,
+      "accept_rate": 1.0,
+      "false_accepts": 0,
+      "false_rejects": 0,
+      "correct": 2,
+      "n": 2,
+      "bal_acc": 0.5
+     }
+    },
+    "at_0.5": {
+     "threshold": 0.5,
+     "accept_rate": 1.0,
+     "false_accepts": 0,
+     "false_rejects": 0,
+     "correct": 2,
+     "n": 2,
+     "bal_acc": 0.5
+    }
+   }
+  }
+ }
+}

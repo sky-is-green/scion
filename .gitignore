@@ -9,6 +9,11 @@ decision-heads/
 decision-heads-work/*.npz
 decision-heads-work/states/
 decision-heads-work/states-main/
-decision-heads-work/overnight/
+decision-heads-work/overnight/*.npz
+decision-heads-work/overnight/*-states/
+decision-heads-work/overnight/engine.log
+decision-heads-work/overnight/server.log
 byte-distill/*.bin
 decision-heads-work/states-verdict/
+decision-heads-work/overnight/scion176b-community-states/
+decision-heads-work/overnight/*.npz

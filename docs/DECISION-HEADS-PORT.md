@@ -89,7 +89,7 @@ candidate, and the 176B's head picks the correct one in **97/100 tasks** (test s
 honest cost so far: a judge pass on the 176B is about 3 s in the served config, against 0.2 s on the
 35B; the readout itself is a dot product.
 
-## Stage 3 — the endpoints and the community arms (built; the overnight run is queued)
+## Stage 3 — the endpoints, the sidecar and the community arms (done 2026-10-16)
 
 The method itself is now written down and verified end to end on q36, the reference host:
 `docs/JEV-HEAD-METHOD.md`.  The engine-side sidecar loads the head (`STRATA_Q36_JEV_HEAD`) and EMB
@@ -106,7 +106,7 @@ server (2026-10-15, 176B, the decision-head build): `/apply-template` ends
 `<|im_start|>assistant\n<think>\n\n</think>\n\n` (thinking off), `/embedding` answers a 2560-dim raw vector,
 `/v1/chat/completions` generated `"Hi"` with usage 18/2, and `scion-flashnext` came back `active`.
 
-The overnight run (`decision-heads-work/dh_overnight.sh`, a transient unit, smoke-gated, resumes where it
+The night's run (`decision-heads-work/dh_overnight.sh`, a transient unit, smoke-gated, resumes where it
 stopped, and restarts the service either way):
 
 1. stops `scion-flashnext`, serves the 176B through the decision-head build on 8897 with the study's sampling
@@ -122,9 +122,34 @@ stopped, and restarts the service either way):
 The think-harder arm (B) is left out on purpose: it was dominated by gating in the study and its 2,048-token
 thinking runs on the 176B would add about five hours for an arm already answered.
 
-What the night should produce, for comparison against the study's Scion numbers (single 142/199, majority 154,
-gated 152-154, best-of-3 149-156, veto 161, oracle 169): the 176B's own arm table, its in-domain and frozen
-head AUCs on 1,992 samples, and the honest token costs.  Nothing about those numbers is known yet.
+### The 176B community arms (measured)
+
+The full study protocol on the served 176B (`Scion-FlashNext-176B-A6B-Q6K`, the decision-head build,
+664 tasks, 3 samples/task at temp 0.7 non-thinking, 700-token cap; the smoke, gen, resumable embed and
+eval are logged in `decision-heads-work/overnight/`).  Held-out test split, 199 tasks:
+
+| arm | correct | acc | tokens | tokens/correct |
+| --- | --- | --- | --- | --- |
+| A single | 134/199 | 0.673 | 67,030 | 500 |
+| C gated, in-domain head (thr 0.3) | 141/199 | 0.709 | 95,887 | 680 |
+| majority (charged pick) | 140/199 | 0.704 | 66,217 | 473 |
+| D best-of-3, in-domain head | 151/199 | 0.759 | 192,493 | 1,275 |
+| D best-of-3, J-Bench head | 146/199 | 0.734 | 192,493 | 1,318 |
+| veto, in-domain head (d=0) | **151/199** | 0.759 | pool | 14 fixes / 3 breaks vs majority, p=0.013 |
+| veto, J-Bench head (d=0.01-0.025) | 147-148/199 | 0.74 | pool | 8 fixes / 0-1 breaks, p=.008-.039 |
+| oracle (any of the 3) | 158/199 | 0.794 | | |
+
+Head quality on this body: within-pool AUC **0.965** (how it ranks candidates inside a pool),
+per-sample test AUC 0.852 (in-domain) / 0.841 (J-Bench head, whose own bench is 0.9941).  Verifier on
+test-only first samples: 40 of 65 natural errors caught at 0.5 (61.5%) with 87.3% of correct answers
+kept (the all-sample 88.3%/96.2% figure is in-sample and must not be quoted as the verifier result).
+
+Read against the study's Scion-35B table (single 142, majority 154, gated 152-154, best-of-3 149-156,
+veto 161, oracle 169): the lever transfers.  Best-of-3 recovers 73% of the single-to-oracle headroom;
+the veto over majority is **+11 tasks with 14 fixes and 3 breaks** (their Scion: +7, 9/2).  Unlike the
+study, the in-domain refit beats the J-Bench-frozen head for both selection and veto on this body,
+which is their own caveat in action ("no signal dominates on both models; validate per model").
+Gating is the weakest arm here (+3.6 points at 1.43x tokens).
 
 ## Box notes
 

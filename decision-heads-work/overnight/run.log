@@ -1,0 +1,272 @@
+== 2026-10-15T23:45:33+01:00 start (pid 328895)
+== 2026-10-15T23:45:33+01:00 stopping scion-flashnext
+== 2026-10-15T23:45:36+01:00 starting the decision-head server (exe: /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/strata-dh/build-hip/strata)
+== 2026-10-15T23:46:32+01:00 server up
+== 2026-10-15T23:46:32+01:00 smoke: 2 tasks, 1 sample
+[2/2] samples ok=2/2 20s
+wrote /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/overnight/dh-smoke-samples.jsonl (2 new samples)
+[2/2] 81s
+wrote /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/overnight/dh-smoke-states.npz (2 x 2560)
+in-domain head (answer): test AUC n/a BA 0.500
+in-domain head (trace): test AUC n/a BA 0.500
+wrote /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/overnight/dh-smoke-indomain-head.json (57 KB)
+{
+ "A_single": {
+  "n": 1,
+  "correct": 1,
+  "acc": 1.0,
+  "tokens": 152.0,
+  "tok_per_correct": 152.0
+ },
+ "A_single_all": {
+  "n": 2,
+  "correct": 2,
+  "acc": 1.0,
+  "tokens": 339.0,
+  "tok_per_correct": 169.5
+ },
+ "B_think_hard": {
+  "n": 0,
+  "correct": 0,
+  "acc": 0.0,
+  "tokens": 0.0,
+  "tok_per_correct": 0.0
+ },
+ "B_think_hard_all": {
+  "n": 0,
+  "correct": 0,
+  "acc": 0.0,
+  "tokens": 0.0,
+  "tok_per_correct": 0.0
+ },
+ "C_gated": {
+  "n": 1,
+  "correct": 1,
+  "acc": 1.0,
+  "tokens": 152.0,
+  "tok_per_correct": 152.0,
+  "threshold": 0.3
+ },
+ "C_gated_all": {
+  "n": 2,
+  "correct": 2,
+  "acc": 1.0,
+  "tokens": 339.0,
+  "tok_per_correct": 169.5,
+  "threshold": 0.3
+ },
+ "D_best_of_n": {
+  "n": 1,
+  "correct": 1,
+  "acc": 1.0,
+  "tokens": 152.0,
+  "tok_per_correct": 152.0
+ },
+ "D_best_of_n_all": {
+  "n": 2,
+  "correct": 2,
+  "acc": 1.0,
+  "tokens": 339.0,
+  "tok_per_correct": 169.5
+ },
+ "majority": {
+  "n": 1,
+  "correct": 1,
+  "acc": 1.0,
+  "tokens": 152.0,
+  "tok_per_correct": 152.0
+ },
+ "majority_all": {
+  "n": 2,
+  "correct": 2,
+  "acc": 1.0,
+  "tokens": 339.0,
+  "tok_per_correct": 169.5
+ }
+}
+wrote /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/overnight/dh-smoke-eval.json
+== 2026-10-15T23:48:15+01:00 smoke ok
+== 2026-10-15T23:48:15+01:00 gen: the 664 tasks x 3 samples
+[25/1992] samples ok=20/25 106s
+[50/1992] samples ok=42/50 180s
+[75/1992] samples ok=61/75 262s
+[100/1992] samples ok=82/100 366s
+[125/1992] samples ok=101/125 442s
+[150/1992] samples ok=123/150 514s
+[175/1992] samples ok=141/175 575s
+[200/1992] samples ok=164/200 649s
+[225/1992] samples ok=184/225 735s
+[250/1992] samples ok=206/250 807s
+[275/1992] samples ok=231/275 881s
+[300/1992] samples ok=249/300 970s
+[325/1992] samples ok=267/325 1059s
+[350/1992] samples ok=285/350 1136s
+[375/1992] samples ok=306/375 1208s
+[400/1992] samples ok=328/400 1297s
+[425/1992] samples ok=348/425 1365s
+[450/1992] samples ok=367/450 1432s
+[475/1992] samples ok=389/475 1520s
+[500/1992] samples ok=413/500 1593s
+[525/1992] samples ok=433/525 1688s
+[550/1992] samples ok=457/550 1762s
+[575/1992] samples ok=481/575 1825s
+[600/1992] samples ok=504/600 1912s
+[625/1992] samples ok=524/625 1992s
+[650/1992] samples ok=545/650 2061s
+[675/1992] samples ok=565/675 2144s
+[700/1992] samples ok=584/700 2213s
+[725/1992] samples ok=608/725 2287s
+[750/1992] samples ok=628/750 2355s
+[775/1992] samples ok=647/775 2435s
+[800/1992] samples ok=668/800 2523s
+[825/1992] samples ok=687/825 2599s
+[850/1992] samples ok=708/850 2670s
+[875/1992] samples ok=733/875 2743s
+[900/1992] samples ok=754/900 2818s
+[925/1992] samples ok=763/925 2992s
+[950/1992] samples ok=773/950 3165s
+[975/1992] samples ok=785/975 3329s
+[1000/1992] samples ok=797/1000 3493s
+[1025/1992] samples ok=811/1025 3651s
+[1050/1992] samples ok=823/1050 3830s
+[1075/1992] samples ok=836/1075 4000s
+[1100/1992] samples ok=845/1100 4164s
+[1125/1992] samples ok=855/1125 4316s
+[1150/1992] samples ok=869/1150 4465s
+[1175/1992] samples ok=879/1175 4606s
+[1200/1992] samples ok=890/1200 4765s
+[1225/1992] samples ok=900/1225 4939s
+[1250/1992] samples ok=907/1250 5095s
+[1275/1992] samples ok=913/1275 5270s
+[1300/1992] samples ok=926/1300 5426s
+[1325/1992] samples ok=932/1325 5613s
+[1350/1992] samples ok=942/1350 5767s
+[1375/1992] samples ok=949/1375 5940s
+[1400/1992] samples ok=961/1400 6094s
+[1425/1992] samples ok=971/1425 6246s
+[1450/1992] samples ok=981/1450 6408s
+[1475/1992] samples ok=996/1475 6546s
+[1500/1992] samples ok=1005/1500 6712s
+[1525/1992] samples ok=1021/1525 6773s
+[1550/1992] samples ok=1040/1550 6820s
+[1575/1992] samples ok=1060/1575 6873s
+[1600/1992] samples ok=1077/1600 6934s
+[1625/1992] samples ok=1093/1625 6996s
+[1650/1992] samples ok=1105/1650 7043s
+[1675/1992] samples ok=1124/1675 7107s
+[1700/1992] samples ok=1144/1700 7162s
+[1725/1992] samples ok=1157/1725 7245s
+[1750/1992] samples ok=1170/1750 7302s
+[1775/1992] samples ok=1187/1775 7354s
+[1800/1992] samples ok=1201/1800 7416s
+[1825/1992] samples ok=1214/1825 7482s
+[1850/1992] samples ok=1232/1850 7535s
+[1875/1992] samples ok=1248/1875 7601s
+[1900/1992] samples ok=1265/1900 7666s
+[1925/1992] samples ok=1286/1925 7725s
+[1950/1992] samples ok=1304/1950 7777s
+[1975/1992] samples ok=1325/1975 7819s
+[1992/1992] samples ok=1335/1992 7849s
+wrote /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/overnight/scion176b-community-samples.jsonl (1992 new samples)
+== 2026-10-16T01:59:04+01:00 embed (resumable)
+dh_embed: [25/1992] 25 new, 139s
+dh_embed: [50/1992] 50 new, 285s
+dh_embed: [75/1992] 75 new, 430s
+dh_embed: [100/1992] 100 new, 586s
+dh_embed: [125/1992] 125 new, 730s
+dh_embed: [150/1992] 150 new, 874s
+dh_embed: [175/1992] 175 new, 1011s
+dh_embed: [200/1992] 200 new, 1153s
+dh_embed: [225/1992] 225 new, 1305s
+dh_embed: [250/1992] 250 new, 1448s
+dh_embed: [275/1992] 275 new, 1595s
+dh_embed: [300/1992] 300 new, 1748s
+dh_embed: [325/1992] 325 new, 1894s
+dh_embed: [350/1992] 350 new, 2039s
+dh_embed: [375/1992] 375 new, 2182s
+dh_embed: [400/1992] 400 new, 2334s
+dh_embed: [425/1992] 425 new, 2474s
+dh_embed: [450/1992] 450 new, 2617s
+dh_embed: [475/1992] 475 new, 2771s
+dh_embed: [500/1992] 500 new, 2914s
+dh_embed: [525/1992] 525 new, 3073s
+dh_embed: [550/1992] 550 new, 3217s
+dh_embed: [575/1992] 575 new, 3356s
+dh_embed: [600/1992] 600 new, 3512s
+dh_embed: [625/1992] 625 new, 3660s
+dh_embed: [650/1992] 650 new, 3804s
+dh_embed: [675/1992] 675 new, 3952s
+dh_embed: [700/1992] 700 new, 4090s
+dh_embed: [725/1992] 725 new, 4237s
+dh_embed: [750/1992] 750 new, 4379s
+dh_embed: [775/1992] 775 new, 4524s
+dh_embed: [800/1992] 800 new, 4680s
+dh_embed: [825/1992] 825 new, 4827s
+dh_embed: [850/1992] 850 new, 4970s
+dh_embed: [875/1992] 875 new, 5116s
+dh_embed: [900/1992] 900 new, 5261s
+dh_embed: [925/1992] 925 new, 5453s
+dh_embed: [950/1992] 950 new, 5652s
+dh_embed: [975/1992] 975 new, 5841s
+dh_embed: [1000/1992] 1000 new, 6027s
+dh_embed: [1025/1992] 1025 new, 6210s
+dh_embed: [1050/1992] 1050 new, 6402s
+dh_embed: [1075/1992] 1075 new, 6596s
+dh_embed: [1100/1992] 1100 new, 6780s
+dh_embed: [1125/1992] 1125 new, 6964s
+dh_embed: [1150/1992] 1150 new, 7138s
+dh_embed: [1175/1992] 1175 new, 7314s
+dh_embed: [1200/1992] 1200 new, 7504s
+dh_embed: [1225/1992] 1225 new, 7697s
+dh_embed: [1250/1992] 1250 new, 7881s
+dh_embed: [1275/1992] 1275 new, 8087s
+dh_embed: [1300/1992] 1300 new, 8266s
+dh_embed: [1325/1992] 1325 new, 8464s
+dh_embed: [1350/1992] 1350 new, 8651s
+dh_embed: [1375/1992] 1375 new, 8846s
+dh_embed: [1400/1992] 1400 new, 9028s
+dh_embed: [1425/1992] 1425 new, 9212s
+dh_embed: [1450/1992] 1450 new, 9399s
+dh_embed: [1475/1992] 1475 new, 9577s
+dh_embed: [1500/1992] 1500 new, 9764s
+dh_embed: [1525/1992] 1525 new, 9917s
+dh_embed: [1550/1992] 1550 new, 10059s
+dh_embed: [1575/1992] 1575 new, 10209s
+dh_embed: [1600/1992] 1600 new, 10363s
+dh_embed: [1625/1992] 1625 new, 10517s
+dh_embed: [1650/1992] 1650 new, 10661s
+dh_embed: [1675/1992] 1675 new, 10815s
+dh_embed: [1700/1992] 1700 new, 10969s
+dh_embed: [1725/1992] 1725 new, 11110s
+dh_embed: [1750/1992] 1750 new, 11254s
+dh_embed: [1775/1992] 1775 new, 11399s
+dh_embed: [1800/1992] 1800 new, 11546s
+dh_embed: [1825/1992] 1825 new, 11699s
+dh_embed: [1850/1992] 1850 new, 11879s
+dh_embed: [1875/1992] 1875 new, 12041s
+dh_embed: [1900/1992] 1900 new, 12187s
+dh_embed: [1925/1992] 1925 new, 12334s
+dh_embed: [1950/1992] 1950 new, 12474s
+dh_embed: [1975/1992] 1975 new, 12612s
+dh_embed: [1992/1992] 1992 new, 12709s
+dh_embed: wrote /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/decision-heads-work/overnight/scion176b-community-states.npz (1992 x 2560) in 12711s
+== 2026-10-16T05:30:55+01:00 eval
+in-domain head (answer): test AUC 0.852 BA 0.795
+in-domain head (trace): test AUC 0.852 BA 0.795
+Traceback (most recent call last):
+  File "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/hivebench/experiments/cascade/community_eval.py", line 565, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/hivebench/experiments/cascade/community_eval.py", line 560, in main
+    phase_eval(args, tasks, args.prefix)
+  File "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/hivebench/experiments/cascade/community_eval.py", line 446, in phase_eval
+    Xj = zj["L1"].astype(np.float64)
+         ~~^^^^^^
+  File "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/hivebench/.venv/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 243, in __getitem__
+    raise KeyError(f"{key} is not a file in the archive") from None
+KeyError: 'L1 is not a file in the archive'
+== eval FAILED
+== 2026-10-16T05:30:56+01:00 stopping the decision-head server
+== 2026-10-16T05:30:57+01:00 restarting scion-flashnext
+active
+== 2026-10-16T05:31:02+01:00 done

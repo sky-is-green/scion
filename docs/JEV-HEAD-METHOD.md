@@ -57,10 +57,18 @@ Both live above the engine (the harness or the server); the engine's job is only
 For the cascade suite the natural client is the validator adapter: one call to the resident engine, no
 separate judge model.
 
+**Measured on the 176B** (2026-10-16 night, the full 664-task community protocol, held-out 199):
+within-pool AUC **0.965**; veto over majority **+11 tasks (14 fixes / 3 breaks, p=0.013)** with the
+in-domain head; best-of-3 151/199 recovers 73% of the single-to-oracle headroom; gating the weakest arm
+(+3.6 points at 1.43x tokens).  On this body the in-domain refit beats the J-Bench-frozen head for both
+selection and veto, so the study's "validate per model" caveat is the rule.  Full table:
+`docs/DECISION-HEADS-PORT.md`, "The 176B community arms".
+
 ## What is not done
 
-- The 176B's sidecar readout (the main engine's `head_mixed_` path behind the same protocol); its head
-  exists and scores 0.9941.
-- The policy numbers on the 176B pool arms (the overnight community run, ready to launch).
+- The 176B's engine-side sidecar readout (the main engine's `head_mixed_` behind the same protocol);
+  the vector path (`emb=`) is in and the head exists, the in-engine verdict on the main path is not.
 - In-stream scoring (the engine running the judge readout on the trace it just produced) is a product
   option; the reference path scores a judge prompt the client sends.
+- The think-harder arm (B) on the 176B: left out of the night on purpose (dominated by gating in the
+  study; about five hours of 2,048-token thinking for an arm already answered).
