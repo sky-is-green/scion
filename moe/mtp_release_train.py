@@ -246,8 +246,10 @@ def main() -> None:
                           "accept_fineweb": None if af is None else round(af, 4),
                           "accept_train": None if at is None else round(at, 4)})
             if best is None or a > best[0]:
-                best = (a, {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
-                            "_mtp_head.fc2.weight": fc2.detach().cpu().float()})
+                # .clone(): on CPU, detach().cpu().float() returns the live tensor, so without the copy the
+                # "best" snapshot tracks fc1/fc2 and the file that ships is the last step, not the best one.
+                best = (a, {"_mtp_head.fc1.weight": fc1.detach().cpu().float().clone(),
+                            "_mtp_head.fc2.weight": fc2.detach().cpu().float().clone()})
                 best_step_best = step
             print(f"  [eval] step {step} release acceptance {a:.4f}"
                   + ("" if af is None else f" (fineweb-heldout {af:.4f})")
@@ -258,8 +260,8 @@ def main() -> None:
     # The held-out acceptance is the number that matters, and it can peak before the last step (the train windows
     # saturate long before), so the checkpoint that goes out is the best eval one, not the last one.
     if best is None or final > best[0]:
-        sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float(),
-              "_mtp_head.fc2.weight": fc2.detach().cpu().float()}
+        sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float().clone(),
+              "_mtp_head.fc2.weight": fc2.detach().cpu().float().clone()}
         best_step = args.steps
         final_sd = final
     else:
