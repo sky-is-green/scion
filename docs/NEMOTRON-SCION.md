@@ -87,7 +87,42 @@ expert cache (today only 55% fits at 17.05 GB of experts).
 - **Super (BF16 120B) is the bigger, cleaner target**: no QAT to fight, and UD-IQ2_XXS is 51 GB untuned -
   a ternary/pruned Scion Super would be the release, not a re-quant of a re-quant.
 
-## Recommended cheap measurements (next)
+## Measured (2026-10-16)
+
+**An expert re-quant to IQ1_M, on the real Bolt.**
+- `llama-imatrix` works: a GGUF imatrix over 64 wiki chunks, and the **expert entries are present** (~99.7%
+  coverage; the `no preceding-layer tensor` warnings are for the non-expert tensors only).
+- A plain `--tensor-type-file` pin + base `IQ1_M` picks **Q2_K for the down experts** (llama.cpp's own
+  IQ1_M recipe), which Strata cannot decode; forcing `--tensor-type ffn_up_exps=iq1_m
+  --tensor-type ffn_down_exps=iq1_m` gives a uniform IQ1_M file.  Bolt **22.01 -> 19.43 GB** (-2.58 GB,
+  2.38 -> 2.10 BPW) in ~11 min.
+- **Engine drift (teacher-forced, first prompt token): top-1 unchanged (`6993` " Paris"), top-5 4/5,
+  top-20 18/20, top-100 76/100, KL(bolt||exp) over the top-100 = 0.0161 nats.**  The greedy text diverges
+  at token 2 (a low-confidence near-tie), so a Scion release would want corrections, but the distribution
+  barely moves.
+
+**The routing-map prune probe, and a keep-list simulation.**
+- The engine gains `STRATA_Q36_NEM_ROUTE=<file>` (per MoE block per token it appends the chosen ids and
+  weights) and `STRATA_Q36_NEM_KEEP=<file>` (a per-block keep-list; a pruned expert is never selected - the
+  weights stay, so the file is not rewritten and the *routing* quality is what is measured).
+- Routing over 6 wiki prompts (1328 tokens): the mass is spread - **90% of the routed mass is 49% of the
+  experts (6810 of 13824), 99% is 78% (10775); 50% is 12%.**  Bolt's per-layer counts (240..496) are
+  already Star-Elastic-compressed from Super's uniform 512.
+- **Engine drift of the simulated prune:**
+
+  | change | size | top-1 | top-5 | top-20 | KL |
+  |---|---|---|---|---|---|
+  | keep 78% (`keep99`) | ~18.3 GB (-3.7) | same | 4/5 | 19/20 | **0.0029** |
+  | keep 49% (`keep90`) | ~13.4 GB (-8.6) | same | 3/5 | 15/20 | **0.0132** |
+
+  keep99 matches Bolt's greedy for 5 of 6 tokens and only diverges at the 6th.  Both are far inside a
+  correctable budget, so a pruned (and/or re-quanted) Bolt is a real path - and the same probe applies to
+  Super, where the 512-expert uniform recipe has more to give.
+
+**How far losslessly: still nil** (the pack is bit-exact; no tied tensors); these are the cheap *lossy*
+gains, measured.
+
+## Recommended next steps
 
 1. **Output-drift of an expert re-quant, measured on the engine we already have.**  Needs an imatrix first
    (see above); then re-quant the experts (IQ2_XXS -> IQ1_M / PTQ1_0) into a copy of the file and run the
