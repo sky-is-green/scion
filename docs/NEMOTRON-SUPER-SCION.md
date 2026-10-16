@@ -108,3 +108,36 @@ The imatrix, the re-quant and the drift all ran **locally**: 51.1 -> 35.71 GB (-
 imatrix-guided, with a 128-token calibration (~22 min) and the CachyLLama-derived host residency.  See
 "Measured: imatrix-guided re-quant" above.  The pod is only for corrections **training** throughput.
 
+## UPDATE 2026-10-16 (b): chunked calibration, and the metric was lying
+
+A single long calibration costs ~10 s/token (a 51 GB file inside 30 GB of RAM: measured **0.69-0.91 GB of
+expert reads per token**, so it is RAM-bound, not policy-bound - see the residency note above; at
+256 experts/block the policy wants ~29 GB of hot expert pages and the kernel evicts them anyway).
+Calibrating as **many short 32-token sequences in separate processes, merging the per-entry
+`sums`/`ncall`** runs 1024 tokens in **~40 min against ~6 h** for one long sequence
+(`tools/nemotron/calib_chunks.sh` + `merge_imatrix.py`).
+
+The first reading said the merged 1024-token imatrix was *worse* (KL 0.1808 vs 0.1018) - but that was a
+**single-token** KL (one prompt, one distribution).  Teacher-forcing 32 tokens (`--force`, which dumps
+K+1 full rows; `tools/nemotron/drift.sh`) reverses it:
+
+| imatrix | KL p50 | KL p90 | steps > 1 nat | top-1 |
+|---|---|---|---|---|
+| 128 tokens, one sequence | 0.0935 | 0.99 | 4/33 | 84.8% |
+| **1024 tokens, 32-token chunks** | **0.0569** | 0.80 | 3/33 | 78.8% |
+
+Both are good; the mean is dominated by 3-4 **confident token flips** (the reference entropy there is
+0.1-0.2, so it is a different-but-plausible argmax, not a blurred distribution).  Lesson: **the
+single-token drift is not a usable metric - teacher-force >= 32 steps.**  The 32-token resets do distort
+the deep (`ffn_down_exps`) statistics (cosine 0.60-0.84 against the 128-token run; the latent-driven
+`ffn_up_exps` correlate 0.96-0.99), so the gain is from the extra tokens, not from the chunking as such.
+
+## Next: ternary experts (PTQ1_0, ggml type 143)
+
+`scion/moe/ptq1_0.py` is the container (**28 bytes / 128 = 1.75 bpw**, `qs[24] | qh[2] | fp16 d[2]`), and
+`scion/moe/qwen4exp_export.py` already writes it - `--experts ptq1_0` via a patched `gguf` that defines
+`GGMLQuantizationType.PTQ1_0` and `LlamaFileType.MOSTLY_PTQ1_0` - so a Super exporter is an adaptation,
+not new ground.  The engine reads type 143 (`vec_dot_ptq1_0_q8_1_multi` + the CPU kernels), so the drift
+harness above applies unchanged.  Both expert roles qualify at 128 wide (up: 1024 % 128 == 0, down:
+2688 % 128 == 0 - the reason IQ1_M could only take the ups).
+
