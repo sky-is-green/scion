@@ -65,6 +65,12 @@ build support for NVIDIA Nemotron 3.5 via **Strata first** (not the fork), then 
   rel 1.1e-7, IQ2_XXS mm rel 3.2e-5.  Serve (one token at a time, experts gathered per layer): load 0.8 s,
   prompt ~16 tok/s, decode ~12.5 tok/s at ctx 512.  The decode is PCIe-bound on the expert gathers; a
   resident/grouped expert path (or the second card) is the optimization.
+- **A resident expert cache lifts decode.** `1203513d`: each MoE layer keeps as many experts in VRAM as its
+  share of the free memory allows (LRU; at least `nem_used` slots so a token's experts never evict each
+  other), and only the misses are gathered from the mapped file.  Bolt: 8.70 of 15.88 GiB resident (55%),
+  decode **31.0 tok/s** at ctx 512 (was 12.5-18.4).  The reserve matters - at ~1 GiB free the run fell to
+  0.3 tok/s (poor VRAM headroom, not the copies); 4 GiB (`STRATA_Q36_NEM_CACHE_RESERVE_GIB`) is fast.
+  `STRATA_Q36_NEM_NO_CACHE=1` keeps the gather-every-step path.
 - **The model is on disk.** `/home/penis/models/nemotron-bolt/` (NVIDIA's own GGUF repo):
   `NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf` 22.0 GB (74.0B params: IQ2_XXS experts 17.5 GB,
   **NVFP4 type-40** SSM weights 2.47 GB, Q8_0 attention/latent/embed 1.8 GB, F32 0.24 GB) plus the
