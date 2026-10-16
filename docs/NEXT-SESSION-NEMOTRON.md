@@ -71,6 +71,24 @@ build support for NVIDIA Nemotron 3.5 via **Strata first** (not the fork), then 
   decode **31.0 tok/s** at ctx 512 (was 12.5-18.4).  The reserve matters - at ~1 GiB free the run fell to
   0.3 tok/s (poor VRAM headroom, not the copies); 4 GiB (`STRATA_Q36_NEM_CACHE_RESERVE_GIB`) is fast.
   `STRATA_Q36_NEM_NO_CACHE=1` keeps the gather-every-step path.
+- **Super runs too.** `e80134fd` + `3006c03c`: Super (120B-A12B) is the same family but a different recipe -
+  89 blocks = 88 trunk (the same 40 mamba + 8 attn + 40 moe) + 1 NextN/MTP block, `expert_count` 512,
+  **uniform scalars** `expert_used_count` 22 / `expert_feed_forward_length` 2688, and **no NVFP4**: the SSM
+  weights are Q6_K (so no `.scale` tensors), the experts a UD mix (IQ2_XXS / IQ2_S / IQ3_XXS up, Q2_0 /
+  IQ4_NL down), shexp Q5_K/Q6_K.  The block kind is the dense `feed_forward_length` array (0 off a MoE
+  block), the guard accepts the scalar recipe, the NextN block is in the layout (`post_attention_norm` +
+  `nextn.eh_proj/enorm/hnorm/shared_head_norm`), and `nem_mm_iq` picks the kernel by type (Q6_K needs the
+  native MMVQ - the `iq_mmvq` dispatch has no Q6_K).  **`"The capital of France is"` -> `gen: 6993 2613`
+  (" Paris."), the same greedy path as Bolt.**  It is heavy: 512 experts, top-k 22, 38.5 GB of experts, so
+  only ~17% stay resident on a 19 GiB card and a decode step gathers ~880 experts - correct but ~100x slower
+  than Bolt (cold page cache dominates; `--expert-vram`/a second card is the fix).
+- **The DavidAU Bolt turbo-brilliance file is weight-identical to Bolt**: same 843 tensors, same types, and
+  the same greedy `6993 2613 2409 1395 1261 2925`; its "Turbo Brilliance 50x" is a prompt/template layer,
+  not a finetune.  It also ships NVIDIA's **LiLiCorr** spec-decoder draft (1 GB) - the plan's wanted draft.
+- **Scion map**: `work/scion/docs/NEMOTRON-SCION.md` - lossless is nil (experts 77.5% of Bolt; no tied
+  tensors; the pack is bit-exact), the levers are expert re-quant (ternary -2.58 GB, IQ1_S -4.13 GB, but a
+  sub-IQ2_XXS re-quant **needs an imatrix** - measured) and pruning (25% -4.26 GB, needs a routing map;
+  `exp_probs_b` is near-constant and gives no signal), both needing corrections.
 - **The model is on disk.** `/home/penis/models/nemotron-bolt/` (NVIDIA's own GGUF repo):
   `NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf` 22.0 GB (74.0B params: IQ2_XXS experts 17.5 GB,
   **NVFP4 type-40** SSM weights 2.47 GB, Q8_0 attention/latent/embed 1.8 GB, F32 0.24 GB) plus the
