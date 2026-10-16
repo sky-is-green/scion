@@ -62,9 +62,49 @@ on quality.  That is the opposite of Bolt, where the QAT body was already close 
 - `/tmp/opencode/{super_types.txt, lg-super-orig.f32, lg-super-q2.f32}` - the pin list and the two logit dumps.
 - Bolt was deleted (22 GB + the 19 GB exp); 94 GB free.
 
+## Measured: imatrix-guided re-quant (local, no pod)
+
+Two engine hooks make this local: `STRATA_Q36_NEM_IMATRIX=<file>` accumulates, per MoE block, the latent
+energy (the `ffn_up_exps` input) and the squared-ReLU FF energy (the `ffn_down_exps` input) and writes the
+legacy `.dat` imatrix `llama-quantize` reads; `STRATA_Q36_NEM_RESIDENT=N` is a host-side page-cache
+residency policy (below).  A 128-token wiki calibration costs ~22 min on this box.
+
+`llama-quantize --imatrix` with the non-experts pinned and **`ffn_up_exps=iq1_m`,
+`ffn_down_exps=q2_0`** (IQ1_M needs `n_in % 256 == 0`, and Super's FF 2688 is not a multiple of 256, so the
+down experts take the 64-block Q2_0) rewrote Super **51.1 -> 35.71 GB** (2.31 BPW) in ~11 min.
+
+| container | size | top-1 | top-5 | top-20 | KL(super‖exp) |
+|---|---|---|---|---|---|
+| blind Q2_0 (no imatrix) | 39.3 GB | same | 3/5 | 14/20 | 0.3521 |
+| **IQ1_M / Q2_0, imatrix** | **35.7 GB (-15.4, -30%)** | same | 4/5 | 16/20 | **0.1018** |
+
+The imatrix buys 3.5x on the divergence **and** 3.6 GB (the mixed IQ1_M ups).  Top-1 is unchanged
+(" Paris.") in every case.  A fuller calibration (more tokens) and corrections would push 0.10 lower.
+
+## Host-side expert residency (CachyLLama's `--moe-expert-residency`, adapted)
+
+Super overflows RAM as well as VRAM, so every expert gather was a **disk fault** - the calibration ran at
+~10 s/token.  CachyLLama's MoE residency is the fix: keep the hot experts' **mmap pages** in RAM with
+`madvise(MADV_WILLNEED)` and release the cold ones with `MADV_COLD` (non-destructive; `MADV_DONTNEED` is
+destructive on a file mapping and `MADV_FREE` is `EINVAL` on `MAP_SHARED|PROT_READ`), steered by a
+per-layer recency+frequency cache.  `STRATA_Q36_NEM_RESIDENT=N` implements exactly that in `forward_nem`
+(slot cache + the two `madvise` hints on the experts' `src_u`/`src_d` ranges); it sits **under** the VRAM
+expert cache, so it only pays for the gathers the VRAM cache misses.
+
+Measured at 64 experts/block: policy hit rate **58.6%** (112,640 touches, 44,056 evictions).  CachyLLama
+reports 83-95.5% on 256-expert/top-8 models; Super is 512 experts / **top-k 22**, so its working set is
+much larger - a higher `--moe-resident-per-layer` (RAM budget ~10-15 GB) is the knob.
+
 ## Bottom line
 
 Super has the headroom Scion wants (**-37% to ternary**), but reaching it needs the imatrix (a >= 48 GB
 card / pod) and corrections; the local blind re-quant overshoots the quality budget (0.35 nats).  Next:
 either the pod imatrix + ternary + a first corrections pass, or a local warm routing-map prune (cheap, but
 slow) to stack with it.
+
+## UPDATE 2026-10-16 (the pod was not needed)
+
+The imatrix, the re-quant and the drift all ran **locally**: 51.1 -> 35.71 GB (-30%) at KL **0.1018**,
+imatrix-guided, with a 128-token calibration (~22 min) and the CachyLLama-derived host residency.  See
+"Measured: imatrix-guided re-quant" above.  The pod is only for corrections **training** throughput.
+
