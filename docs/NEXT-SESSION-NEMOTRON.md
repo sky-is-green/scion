@@ -48,6 +48,23 @@ build support for NVIDIA Nemotron 3.5 via **Strata first** (not the fork), then 
   against a double host reference, GPU vs host rel 4e-7) and `tools/nemotron/mamba_parity.py` (an
   independent numpy reference GPU vs numpy rel 3.3e-7).  The ssm_in / ssm_out projections stay the
   caller's (the iq kernels'): step 3 wires the mm around `nem_mamba2_block`.
+- **The q36 forward runs Nemotron end to end.** `2ca98a75`: `forward_nem` (one token at a time) with the
+  three block drivers - mamba-2 (ssm_in NVFP4 iq_mmvq -> `nem_mamba2_block` -> ssm_out), NoPE attention
+  (no rope / no q/k norm / no gate, `nem_attn_one`), and the latent MoE (router on the pre-latent input,
+  host gating: sigmoid + exp_probs_b for the top-k selection, the unbiased probs as weights, renormalised
+  and x5; experts on the latent through the iq path; shared expert relu^2).  The routed experts are
+  **gathered per layer from the mapped file** into device staging (a 22 GB model on a 19 GiB card) - the
+  qwen hybrid machinery cannot reuse this because its native grouped path has no IQ2_XXS `down` kernel.
+  `run()` skips `place_experts`/graphs/warmup; `forward()` dispatches here.
+  **The reference caught a stream bug**: the MoE gating read the router logits with a null-stream
+  `cudaMemcpy` right after the non-blocking-stream `f32mm`, so it routed on the previous layer's logits.
+- **Parity (step 4) is there.** Teacher-forced, teacher = llama.cpp CPU: `"The capital of France is"` ->
+  " Paris." and `"The capital of Germany is"` -> " Berlin.</think>" both **exactly** (greedy ids match);
+  the first step's top-6 logprobs match to 0.002-0.05 nats (Paris -0.027 vs -0.025) and top-5 overlap is
+  5/5 at every teacher-forced step.  GPU vs numpy: mamba-2 rel 3.3e-7, attention rel 1.8e-7, NVFP4 mm
+  rel 1.1e-7, IQ2_XXS mm rel 3.2e-5.  Serve (one token at a time, experts gathered per layer): load 0.8 s,
+  prompt ~16 tok/s, decode ~12.5 tok/s at ctx 512.  The decode is PCIe-bound on the expert gathers; a
+  resident/grouped expert path (or the second card) is the optimization.
 - **The model is on disk.** `/home/penis/models/nemotron-bolt/` (NVIDIA's own GGUF repo):
   `NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf` 22.0 GB (74.0B params: IQ2_XXS experts 17.5 GB,
   **NVFP4 type-40** SSM weights 2.47 GB, Q8_0 attention/latent/embed 1.8 GB, F32 0.24 GB) plus the
@@ -98,10 +115,16 @@ build support for NVIDIA Nemotron 3.5 via **Strata first** (not the fork), then 
    `scale = 5.0`, shared expert from the pre-latent input, add both).  The engine's kernels already
    decode IQ2_XXS and NVFP4 (type 40) on gfx1100 (`src/kernels/cuda/iq_kernels.cu`); the grouped
    MoE kernels are `native_moe.cu` / `s2_expert_grouped.cu` / `shared_expert.cu`.
+   **DONE** (`2ca98a75`): all three block kinds run in `forward_nem`; the experts are gathered per layer
+   from the mapped file (the qwen hybrid cannot reuse this: no IQ2_XXS `down` in the native grouped path).
 4. **Full-forward parity**, teacher-forced top-k logprobs against the captured reference (and/or a
    fast GPU reference if one is built).  Then **serve with the hybrid expert mode** (Bolt's 22 GB
    does not fit one 20 GB card resident; q36's hybrid slots + CPU pool is the path), measure tok/s
    and the VRAM/RAM split - the batched DMA should make loading minutes, not the stock's 15.
+   **DONE** (`2ca98a75`): greedy ids match the CPU reference exactly on two prompts; teacher-forced
+   top-5 overlap 5/5, logprob deltas 0.002-0.05 nats; load 0.8 s, decode ~12.5 tok/s at ctx 512 (the
+   per-layer expert gather is the next optimization).  The qwen hybrid slots/CPU pool were **not**
+   reused (IQ2_XXS `down` has no grouped-native kernel); the gather is the current expert path.
 5. **Scion stages**: keep NVIDIA's QAT quant as the body (post-hoc re-quant is the known-bad path);
    corrections/adapters only where measured; the **LiLiCorr draft** (NVIDIA ships it as a separate
    GGUF; upstream supports a draft model for this arch) versus our MTP sidecar; then the JEV head
