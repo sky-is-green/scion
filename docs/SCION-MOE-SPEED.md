@@ -1028,6 +1028,20 @@ speed), but **no set regresses**, so op7-250 passes the round's gate.
 `mtp-sidecar-op7-250.gguf` in the lane directory.  The optional decision-head section that another lane
 added to the same 35B card today is untouched.
 
+## Round 8 probe: width-1.5 capacity (op7w15), flat - capacity does not bind (2026-10-17)
+
+The round-4 note above left one open lever: more data vs more width for the drafter head.  The width probe ran the
+hypothetical away: the **width-1.5 head** (zero-padded to 512 -> 768, `moe/mtp_pad_head.py` recipe), trained by the
+same round-7 script (`round7-train-w15.sh`, separate lane files `head-op7w15.pt` / `train-op7w15.json` / the
+`mtp-sidecar-op7-250.gguf`-shaped sidecar kept in the lane directory):
+
+- best step 250 held-out **0.5445** vs op7's 0.5442 - **flat** (inside step-to-step text noise by 0.7 points).
+- op6's 0.5442 baseline unchanged; nothing downstream re-tunes.
+
+Capacity does not bind at the current data set, so the width lever stays unused; the binding constraint is the
+training mix (round 5's planned data refresh), not the head.  Files: `mtp-lane/head-op7w15.pt`,
+`train-op7w15.json`, `round7-train-w15.sh`.  The op7-250 sidecar shipped in round 7 remains the published head.
+
 ## Next steps (session queue)
 
 The continuation for these was `NEXT-SESSION-SCION-MOE-SPEED-2.md` (state + the copy-paste prompt); all three
