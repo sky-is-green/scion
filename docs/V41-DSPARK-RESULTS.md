@@ -83,9 +83,10 @@ is running; no training or export should happen until it is verified.
 ## 2026-10-25 — valid 250k capture: held-out gate failed
 
 The corrected capture completed with 2,048 windows / 263,744 records. The
-four prompt splits have unique prompts and distinct chunk hashes; there are 639
-unique token windows because the generated text is repetitive, but the taps are
-distinct per window.
+four prompt splits have unique prompts and distinct chunk hashes. There are
+639 unique token windows because the generated text is repetitive. A full hash
+audit found **2,033 unique tap windows** (15 duplicate pairs, maximum 2); the
+corpus is still highly repetitive at the token level.
 
 Training used the tap-projection head, 1,536 train windows (code/math/prose)
 and 512 held-out windows (systems), 1,500 steps, batch 1.
