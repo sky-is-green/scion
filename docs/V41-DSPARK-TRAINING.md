@@ -1,8 +1,9 @@
 # V4.1 DSpark training lane
 
-**Status: scaffold / CPU-first.** This is the working plan for a
-custom-trained drafter for DeepSeek-V4.1-Flash on the local AMD box. It does
-not add a serving path for another vendor.
+**Status: first local training attempt complete; held-out gate failed.** See
+[`V41-DSPARK-RESULTS.md`](V41-DSPARK-RESULTS.md) for the measured result. This
+is the working plan for a custom-trained drafter for DeepSeek-V4.1-Flash on the
+local AMD box. It does not add a serving path for another vendor.
 
 ## Scope
 
