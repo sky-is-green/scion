@@ -59,3 +59,23 @@ The next attempt needs, in order:
 
 No OOM occurred. The limiting factor is data and representation, not local
 memory.
+
+## 2026-10-25 — 250k-token tap-projection attempt: invalid corpus, retracted
+
+The first 250k-token capture (32 chunks × 8,192 tokens, four prompts) produced
+2,048 windows, but all 2,048 windows were the same code-review window. The
+token file and the taps had identical hashes in every prompt split. The
+capture converter read one chunk for every append; this was a corpus-construction
+bug, not a model result.
+
+The apparent held-out result (0.632 / 0.468 / 0.377, ideal 2.039 tokens/pass)
+is therefore **same-sequence leakage and is retracted**. Do not use that head
+or that probe. The head was deleted; the invalid probe was deleted after its
+hashes were recorded.
+
+Replacement capture: `v41-long2/capture_taps.py` passes each chunk path
+explicitly, verifies the chunk's first `min(128, len(prompt)-1)` tokens against
+the selected prompt tail, rejects duplicate token streams, and records a
+per-chunk manifest. A four-prompt validation capture produced five windows
+with five unique token and tap hashes. The full 32-chunk replacement capture
+is running; no training or export should happen until it is verified.
