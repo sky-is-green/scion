@@ -79,3 +79,30 @@ the selected prompt tail, rejects duplicate token streams, and records a
 per-chunk manifest. A four-prompt validation capture produced five windows
 with five unique token and tap hashes. The full 32-chunk replacement capture
 is running; no training or export should happen until it is verified.
+
+## 2026-10-25 — valid 250k capture: held-out gate failed
+
+The corrected capture completed with 2,048 windows / 263,744 records. The
+four prompt splits have unique prompts and distinct chunk hashes; there are 639
+unique token windows because the generated text is repetitive, but the taps are
+distinct per window.
+
+Training used the tap-projection head, 1,536 train windows (code/math/prose)
+and 512 held-out windows (systems), 1,500 steps, batch 1.
+
+| run | held-out chained acceptance | ideal tokens/pass |
+|---|---:|---:|
+| step 500 | 0.0000 / 0.0019 / 0.0000 | 1.000 |
+| step 1,000 | 0.0926 / 0.0027 / 0.0041 | 1.093 |
+| step 1,500 | 0.0362 / 0.0049 / 0.0104 | 1.036 |
+
+Training loss fell to near zero on the training windows while held-out
+acceptance stayed near no-spec. This is overfitting, not a useful drafter. Do
+not export this head or wire it into the engine; the `.pt` remains only as
+failure evidence.
+
+The valid capture also shows the real bottleneck: 2,048 windows from four
+prompts still collapse to 639 distinct token windows. The next branch needs
+more prompt/session diversity, window-level dedup, and a held-out prompt that
+is not a repeated generation of one prompt. More chips at the same four
+prompts will not fix this.
