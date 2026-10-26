@@ -183,62 +183,48 @@ def fig_quality_ab():
     q = DATA["quality_ab"]
     fig, axes = plt.subplots(1, 3, figsize=(14, 5.2), layout="constrained")
     labels = ["Scion\n60.17 GB", "ISTA Q2_0\n66.4 GB"]
-    colors = [BLUE, GREY]
     x = np.arange(2)
 
-    # PPL
-    ax = axes[0]
-    vals = [q["scion"]["ppl"], q["ista"]["ppl"]]
-    errs = [q["scion"]["ppl_err"], q["ista"]["ppl_err"]]
-    ax.bar(x, vals, color=colors, width=0.55, yerr=errs, capsize=5,
-           error_kw=dict(ecolor="#333333", lw=1.0))
-    for i, v in enumerate(vals):
-        ax.text(i, v + 0.012, f"{v:.3f}", ha="center", va="bottom", fontsize=10)
-    ax.set_ylim(5.0, 5.6)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels)
-    ax.set_ylabel("PPL (lower is better)")
-    ax.set_title("Wikitext-2 PPL", loc="left")
-    ax.text(0.5, 0.93, f"+{q['ppl_delta_pct']:.1f}% for Scion", transform=ax.transAxes,
-            ha="center", fontsize=10, color=RED, fontweight="bold")
-
-    # HellaSwag
-    ax = axes[1]
-    vals = [q["scion"]["hellaswag"], q["ista"]["hellaswag"]]
-    ax.bar(x, vals, color=colors, width=0.55)
-    for i, v in enumerate(vals):
-        ax.text(i, v + 0.08, f"{v:.2f}", ha="center", va="bottom", fontsize=10)
-    ax.set_ylim(79.0, 83.2)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels)
-    ax.set_ylabel("HellaSwag % (higher is better)")
-    ax.set_title("HellaSwag 400", loc="left")
-    ax.text(0.5, 0.93, f"tie, paired p = {q['hellaswag_p']:.2f}", transform=ax.transAxes,
-            ha="center", fontsize=10, color="#555555")
-
-    # Winogrande
-    ax = axes[2]
-    vals = [q["scion"]["winogrande"], q["ista"]["winogrande"]]
-    errs = [q["scion"]["winogrande_err"], q["ista"]["winogrande_err"]]
-    ax.bar(x, vals, color=colors, width=0.55, yerr=errs, capsize=5,
-           error_kw=dict(ecolor="#333333", lw=1.0))
-    for i, v in enumerate(vals):
-        ax.text(i, v + 0.35, f"{v:.2f}", ha="center", va="bottom", fontsize=10)
-    ax.set_ylim(71.0, 81.0)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels)
-    ax.set_ylabel("Winogrande % (higher is better)")
-    ax.set_title("Winogrande 400", loc="left")
-    ax.text(0.5, 0.93, f"+{q['winogrande_delta']:.2f} pts, p = {q['winogrande_p']:.2f} (not conclusive)",
-            transform=ax.transAxes, ha="center", fontsize=9.5, color=BLUE, fontweight="bold")
-
-    for ax in axes:
+    def panel(ax, vals, errs, ylim, ylabel, title, note, note_color):
+        ax.plot(x, vals, color="#cccccc", lw=1.2, zorder=1)
+        for i, (v, e) in enumerate(zip(vals, errs)):
+            ax.errorbar([i], [v], yerr=[e] if e is not None else None,
+                        fmt="o", ms=10, color=[BLUE, GREY][i], capsize=6,
+                        elinewidth=1.2, markeredgecolor="white", markeredgewidth=0.8,
+                        zorder=3)
+            fmt = f"{v:.3f}" if isinstance(v, float) and v < 10 else f"{v:.2f}"
+            ax.annotate(fmt, (i, v), textcoords="offset points", xytext=(0, 11),
+                        ha="center", va="bottom", fontsize=10)
+        ax.set_xlim(-0.45, 1.45)
+        ax.set_ylim(*ylim)
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title, loc="left")
+        ax.text(0.5, 0.05, note, transform=ax.transAxes, ha="center", va="bottom",
+                fontsize=10, color=note_color, fontweight="bold")
         clean(ax, "y")
+
+    panel(axes[0], [q["scion"]["ppl"], q["ista"]["ppl"]],
+          [q["scion"]["ppl_err"], q["ista"]["ppl_err"]], (0, 6.0),
+          "PPL (lower is better)", "Wikitext-2 PPL",
+          f"+{q['ppl_delta_pct']:.1f}% PPL (Scion worse)", RED)
+
+    panel(axes[1], [q["scion"]["hellaswag"], q["ista"]["hellaswag"]],
+          [None, None], (0, 110),
+          "HellaSwag % (higher is better)", "HellaSwag 400",
+          f"+{q['hellaswag_delta']:.2f} pts, paired p = {q['hellaswag_p']:.2f} (tie)", "#555555")
+
+    panel(axes[2], [q["scion"]["winogrande"], q["ista"]["winogrande"]],
+          [q["scion"]["winogrande_err"], q["ista"]["winogrande_err"]], (0, 100),
+          "Winogrande % (higher is better)", "Winogrande 400",
+          f"+{q['winogrande_delta']:.2f} pts, p = {q['winogrande_p']:.2f} (not conclusive)", BLUE)
+
     header(fig,
            "Scion vs ISTA GSQ-RCO Q2_0: same harness, same 400 tasks",
-           "Scion 60.17 GB vs ISTA 66.4 GB  |  PPL is wikitext-2; error bars are the published CIs",
+           "blue = Scion, grey = ISTA  |  whiskers = published CI (HellaSwag has no published CI)  |  axes start at 0",
            top=0.84)
-    source(fig, "Source: model card community benchmark (2026-10-06 A100 session). HellaSwag has no published CI; the PPL axis starts at 5.0.")
+    source(fig, "Source: model card community benchmark (2026-10-06 A100 session). PPL CI ±0.032/±0.033; Winogrande CI ±2.09/±2.18; HS/WG p-values are paired McNemar.")
     save(fig, "flashnext-quality-ab.png")
 
 
@@ -300,7 +286,7 @@ def fig_664():
     headline = [t["gen"]["pass1"], t["think_hard"]["pass1"]]
     finished = [t["gen"]["finished_acc"], t["think_hard"]["finished_acc"]]
     ax.bar(x - w / 2, headline, width=w, color=LIGHT_BLUE, label="headline (floor)")
-    ax.bar(x + w / 2, finished, width=w, color=BLUE, label="records that finished")
+    ax.bar(x + w / 2, finished, width=w, color=BLUE, label="completed inside the cap")
     for i, (a, b) in enumerate(zip(headline, finished)):
         ax.text(i - w / 2, a + 1.2, f"{a:.1f}%", ha="center", va="bottom", fontsize=9.5)
         ax.text(i + w / 2, b + 1.2, f"{b:.1f}%", ha="center", va="bottom", fontsize=9.5)
@@ -308,7 +294,7 @@ def fig_664():
     ax.set_xticklabels(groups)
     ax.set_ylim(0, 105)
     ax.set_ylabel("Accuracy (%)")
-    ax.set_title("Headline vs records that finished", loc="left")
+    ax.set_title("Headline vs records that completed inside the cap", loc="left")
     ax.legend(loc="upper left", frameon=False)
     clean(ax, "y")
 
@@ -316,16 +302,18 @@ def fig_664():
     ax = axes[1]
     cap = [t["gen"]["cap_pct"], t["think_hard"]["cap_pct"]]
     noans = [t["gen"]["no_answer_pct"], t["think_hard"]["no_answer_pct"]]
-    ax.bar(x - w / 2, cap, width=w, color=GREY, label="hit the cap")
+    ax.bar(x - w / 2, cap, width=w, color=GREY, label="hit the token cap")
     ax.bar(x + w / 2, noans, width=w, color=RED, label="no answer at all")
     for i, (a, b) in enumerate(zip(cap, noans)):
         ax.text(i - w / 2, a + 0.7, f"{a:.0f}%", ha="center", va="bottom", fontsize=9.5)
         ax.text(i + w / 2, b + 0.7, f"{b:.0f}%", ha="center", va="bottom", fontsize=9.5)
+    ax.text(0, 18.5, "0/324 no answer", ha="center", fontsize=8.5, color="#555555")
+    ax.text(1, 29.5, "175/178 no answer", ha="center", fontsize=8.5, color="#555555")
     ax.set_xticks(x)
     ax.set_xticklabels(["Gen\n1,992 records", "Think-harder\n664 tasks"])
     ax.set_ylim(0, 33)
     ax.set_ylabel("% of records")
-    ax.set_title("Truncation at the protocol caps", loc="left")
+    ax.set_title("Why the headline is low", loc="left")
     ax.legend(loc="upper left", frameon=False)
     clean(ax, "y")
 
@@ -334,7 +322,7 @@ def fig_664():
            f"gen pass@1 {t['gen']['pass1']:.1f}% / pass@3 {t['gen']['pass3']:.1f}%  |  "
            f"think-harder {t['think_hard']['pass1']:.1f}%  |  majority arm {t['majority']:.1f}%",
            top=0.84)
-    source(fig, "Source: model card decision-arm benchmark (2026-10-09). 664 tasks = GSM8K-300 + MATH-200 + HumanEval-164.")
+    source(fig, "Source: model card decision-arm benchmark (2026-10-09). 'Completed' means did not hit the token cap; no-answer records are counted in the headline.")
     save(fig, "flashnext-664-truncation.png")
 
 

@@ -347,9 +347,11 @@ context, not an A/B result.
 
 ![Scion vs ISTA GSQ-RCO Q2_0 on the same 400 tasks](./figures/flashnext-quality-ab.png)
 
-*Same harness, same 400 tasks: Scion trails ISTA on PPL by 4.2%, ties on
-HellaSwag, and leads on Winogrande by 2.75 points (p = 0.22, not conclusive).
-The size difference is 6.2 GB, or 8.8 GB with the Q4X160 table.*
+*Same harness, same 400 tasks. Blue = Scion, grey = ISTA; whiskers are the
+published CIs (PPL ±0.032/±0.033, Winogrande ±2.09/±2.18; HellaSwag has no
+published CI). Scion trails ISTA on PPL by 4.2%, ties on HellaSwag (paired
+p = 0.83), and leads on Winogrande by 2.75 points (paired p = 0.22, not
+conclusive). The size difference is 6.2 GB, or 8.8 GB with the Q4X160 table.*
 
 ### Decision-arm benchmark: 664-task reasoning/code suite (2026-10-09)
 
@@ -410,9 +412,14 @@ truncation effect at its worst.
 
 ![664-task accuracy and truncation at the protocol caps](./figures/flashnext-664-truncation.png)
 
-*The headline is a floor: 69.4% gen pass@1 and 67.6% think-harder, against
-82.6% and 91.8% on records that finished. 26% of think-harder records emitted
-no answer at the 2048-token cap; the gen arm had no no-answer records.*
+*The headline is a floor, not a capability number. "Completed" means the record
+finished inside the fixed token cap; it is not the model choosing to answer. On
+think-harder, 175 of the 178 cap-hit records emitted no final answer because the
+2048-token cap stopped the thinking trace before the answer; the gen arm hit the
+700-token cap on 16% of records but left no record without an answer. Scoring
+only records that completed inside the cap gives 82.6% / 91.8%; including
+cap-hit records gives the 69.4% / 67.6% floor. A fair capability number needs a
+larger thinking budget.*
 
 Two fork-side fixes were needed to run the suite end-to-end: the server's
 prompt cache disabled (`--cache-ram 0`, its eviction path faults with the
