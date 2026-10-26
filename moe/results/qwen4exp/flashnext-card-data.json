@@ -1,0 +1,140 @@
+{
+  "model": {
+    "name": "Scion-FlashNext-176B-A6B",
+    "base": "Qwen/Qwen3.8-Flash-Next-FP8",
+    "total_params_b": 177.283638144,
+    "lm_params_b": 125.0,
+    "table_params_b": 51.20024576,
+    "file_gb": 57.615045408,
+    "payload_gb": 57.60400896,
+    "bpw": 2.60,
+    "context": 262144
+  },
+  "performance": {
+    "tok_s": [80.5, 80.8],
+    "ms_per_token": 12.4,
+    "tokens_per_window": [2.3, 2.4],
+    "pipeline_windows": 2,
+    "pipeline_gain_pct": [62, 68],
+    "context": 4096,
+    "hardware": "2x RX 7900 XT 20 GB, layers 26/22, 32 GB host RAM",
+    "engine": "Strata",
+    "file_gb": 60.17,
+    "file": "Q4_0-table file"
+  },
+  "composition": [
+    {"label": "PTQ1_0 experts", "gb": 26.424, "pct": 45.9, "color": "#1f77b4"},
+    {"label": "Q4X160 n-gram table", "gb": 26.240, "pct": 45.6, "color": "#17becf"},
+    {"label": "Q6_K body", "gb": 3.663, "pct": 6.4, "color": "#264653"},
+    {"label": "F16 corrections", "gb": 0.845, "pct": 1.5, "color": "#ff7f0e"},
+    {"label": "Q8_0 body", "gb": 0.421, "pct": 0.7, "color": "#8c8c8c"},
+    {"label": "F32 + headers", "gb": 0.021, "pct": 0.04, "color": "#c7c7c7"}
+  ],
+  "sizes": [
+    {"label": "FP8 release", "gb": 185.6, "group": "fp8"},
+    {"label": "ggml-org IQ4_NL", "gb": 102.0, "group": "community"},
+    {"label": "Mooney PQ2_0", "gb": 92.0, "group": "community"},
+    {"label": "GSQ-RCO IQ3_S", "gb": 83.6, "group": "community"},
+    {"label": "GSQ-RCO IQ3_XXS", "gb": 75.8, "group": "community"},
+    {"label": "GSQ-RCO IQ2_XS", "gb": 68.0, "group": "community"},
+    {"label": "GSQ-RCO Q2_0", "gb": 66.4, "group": "community"},
+    {"label": "Scion F16 body", "gb": 65.80, "group": "scion"},
+    {"label": "Scion Q4_0 table", "gb": 60.17, "group": "scion"},
+    {"label": "Pruned coder IQ1_M", "gb": 58.4, "group": "pruned"},
+    {"label": "Scion default", "gb": 57.62, "group": "release"}
+  ],
+  "quality_ab": {
+    "scion": {
+      "ppl": 5.4571,
+      "ppl_err": 0.0324,
+      "hellaswag": 82.00,
+      "winogrande": 77.50,
+      "winogrande_err": 2.09,
+      "size_gb": 60.17
+    },
+    "ista": {
+      "ppl": 5.2396,
+      "ppl_err": 0.0326,
+      "hellaswag": 81.50,
+      "winogrande": 74.75,
+      "winogrande_err": 2.18,
+      "size_gb": 66.4
+    },
+    "ppl_delta_pct": 4.15,
+    "hellaswag_delta": 0.50,
+    "winogrande_delta": 2.75,
+    "hellaswag_p": 0.83,
+    "winogrande_p": 0.22
+  },
+  "kld_gate": {
+    "released": {
+      "mean": 0.5800,
+      "p50": 0.2322,
+      "p90": 1.5632,
+      "p99": 4.4584,
+      "p999": 7.9719,
+      "max": 13.0014,
+      "top1": 0.7236
+    },
+    "step4000": {
+      "mean": 0.5880,
+      "p50": 0.2371,
+      "p90": 1.6008,
+      "p99": 4.8389,
+      "p999": 8.0912,
+      "max": 13.3137,
+      "top1": 0.7231
+    },
+    "split": [
+      {"label": "support", "value": 0.5387, "pct": 92.9, "color": "#1f77b4"},
+      {"label": "marginal", "value": 0.0270, "pct": 4.7, "color": "#17becf"},
+      {"label": "tail", "value": 0.0143, "pct": 2.5, "color": "#ff7f0e"}
+    ]
+  },
+  "task664": {
+    "n_tasks": 664,
+    "n_gen_records": 1992,
+    "gen": {
+      "pass1": 69.4,
+      "pass3": 80.1,
+      "cap_pct": 16,
+      "no_answer_pct": 0,
+      "finished_acc": 82.6,
+      "cap": 700
+    },
+    "think_hard": {
+      "pass1": 67.6,
+      "cap_pct": 27,
+      "no_answer_pct": 26,
+      "finished_acc": 91.8,
+      "cap": 2048
+    },
+    "majority": 71.7
+  },
+  "q4x160": {
+    "q4_0": {"label": "Q4_0 table", "file_gb": 60.17, "ppl_pct": 0.0, "kld": 0.0, "hs": 0.0, "wg": 0.0},
+    "q4x160": {"label": "Q4X160", "file_gb": 57.62, "ppl_pct": 0.41, "kld": -0.0001, "hs": 0.00, "wg": 0.25},
+    "q3x32": {"label": "Q3X32", "file_gb": 53.76, "ppl_pct": 1.30, "kld": 0.0108, "hs": -0.25, "wg": -0.25}
+  },
+  "capability": {
+    "categories": [
+      {"label": "factual", "max": 5},
+      {"label": "math", "max": 5},
+      {"label": "instruction", "max": 4},
+      {"label": "code", "max": 3},
+      {"label": "logic", "max": 3}
+    ],
+    "q6k": [5, 5, 3, 1, 1],
+    "f16": [5, 4, 3, 1, 1],
+    "q6k_total": "15/20",
+    "f16_total": "14/20"
+  },
+  "sources": {
+    "card": "docs/RELEASE-FLASHNEXT-176B-A6B-MODEL-CARD.md",
+    "tensor_inventory": "moe/artifacts/qwen4exp/release-header.json",
+    "kld_step3000": "hivebench/artifacts/ternary/moe/qwen4exp/pod/remote-w1w2/qwen4exp-eval-kld-48l-step3000.json",
+    "kld_step4000": "hivebench/artifacts/ternary/moe/qwen4exp/pod/remote-gate4000/qwen4exp-eval-kld-48l-step4000.json",
+    "q4x160_gate": "docs/NEXT-SESSION-Q4X160-GATE.md; docs/PLE-TABLE-TYPES.md",
+    "task664": "docs/RELEASE-FLASHNEXT-176B-A6B-MODEL-CARD.md#decision-arm-benchmark-664-task-reasoningcode-suite-2026-10-09"
+  }
+}

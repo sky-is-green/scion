@@ -43,6 +43,13 @@ file at 60.17 GB and the F16-body file at 65.80 GB.
 The name comes from grafting. A scion is the shoot grafted onto a rootstock, and
 here the trained corrections are grafted onto a 1.75 bpw ternary expert body.
 
+![Where the 57.62 GB goes and how it compares with the published builds](./figures/flashnext-at-a-glance.png)
+
+*The default file is 57.62 GB: 26.42 GB of PTQ1_0 experts, 26.24 GB of Q4X160
+n-gram table, and 4.95 GB of body, corrections and headers. It is 3.2x smaller
+than the 185.6 GB FP8 release and smaller than every published community quant
+below, including the expert-pruned coder IQ1_M.*
+
 ## Performance
 
 Measured with **Strata**, this project's own inference engine (a separate runtime from the
@@ -59,6 +66,12 @@ the expert caches across both cards:
 - Protocol: four requests of one fixed prompt, run 1 warms and runs 2-4 report, `temperature=0`,
   timings from the engine's own record.  The embedded corrections are applied; the file is unmodified.
 
+![Measured generation performance on the local two-card box](./figures/flashnext-performance.png)
+
+*Measured on the local two-card box: 80.5-80.8 tok/s generation, 12.4 ms/token,
+2.3-2.4 tokens per pipeline window. This is the 60.17 GB Q4_0-table file; the
+57.62 GB default is not measured on this box yet.*
+
 ## Highlights
 
 - **One 57.62 GB file at 2.60 bpw, the smallest of three shipped containers.** The official FP8 release of the same model is 185.6 GB; the published community quants are 102 GB (ggml-org IQ4_NL), 92 GB (the only other ternary build, Mooney PQ2_0), 83.6 GB (GSQ-RCO IQ3_S), 75.8 GB (IQ3_XXS), 68.0 GB (IQ2_XS) and 66.4 GB (GSQ-RCO Q2_0). This is the smallest build of this model on the Hub we can see, **pruned or not**: the next smallest file is ISTA's **expert-pruned** coder IQ1_M at 58.4 GB, and the other two Scion files are 60.17 GB (Q4_0 table) and 65.80 GB (F16 body).
@@ -74,6 +87,9 @@ the expert caches across both cards:
 - **[GitHub `sky-is-green/scion`](https://github.com/sky-is-green/scion)**: the source of truth for this work — the harness that produced the file, the port decisions, the measured traps and the negative register.
 - **Runtime**: [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp/tree/qwen4exp-proto), branch `qwen4exp-proto`, a fork of Prism ML's llama.cpp with the PQ2_0/PTQ1_0 expert containers and the Q4X160/Q4_0 PLE tables, the qwen4exp architecture, the `ffn_moe_out` virtual target, embedded-adapter support and PLE table handling.
 - **[Discussions](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B/discussions)**: questions, test reports and failures are all welcome.
+- **Figures**: the plots in this card are generated from
+  `moe/results/qwen4exp/flashnext-card-data.json` by
+  `moe/plot_flashnext_card.py` in the GitHub repo.
 
 ## Model Overview
 
@@ -172,6 +188,13 @@ The published artifact: `Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf`,
 `658d56d6447cc63efdcb845ad503cd0485381f6a4aaa867973bf71753dfda0a3`
 (experts untouched; the table stream in it is the prebuilt
 `work/tmp-export/q4x160-table.bin`, sha256 `915bae37…3015`).
+
+![PLE table container trade: Q4X160 vs Q3X32 vs Q4_0](./figures/flashnext-q4x160-trade.png)
+
+*Q4X160 cuts the table from 28.8 GB to 26.24 GB and the file from 60.17 GB to
+57.62 GB, at +0.41% PPL, -0.0001 KLD, 0.00 HellaSwag and +0.25 Winogrande.
+Q3X32 is 6.41 GB smaller but costs +1.30% PPL and +0.0108 KLD, so it stays a
+fallback and is not shipped.*
 
 ## Best Practices
 
@@ -290,6 +313,12 @@ split of the mean: **support 0.5387 (92.9%)**, marginal 0.0270 (4.7%), tail
 teacher mass), so the support fit is what was trained; the tail is nearly
 inert by design.
 
+![48-layer KLD gate: step-3000 vs step-4000](./figures/flashnext-kld-gate.png)
+
+*The released step-3000 has mean KLD 0.5800; the step-4000 extension is
+flat/worse at 0.5880 and is not shipped. 92.9% of the mean is the top-512
+support fit, 4.7% marginal and 2.5% tail.*
+
 ### Community benchmark: released Q6K vs ISTA GSQ-RCO Q2_0
 
 Measured 2026-10-06 in one A100-SXM4-80GB session (US-WA-1) with
@@ -315,6 +344,12 @@ ISTA's published reasoning suite (AIME25 96.67, GPQA-Diamond 89.39,
 LiveCodeBench v6 81.14; task average 89.07, zero-shot average 78.00) is from
 their model card, uses a different suite, and was **not measured here** — it is
 context, not an A/B result.
+
+![Scion vs ISTA GSQ-RCO Q2_0 on the same 400 tasks](./figures/flashnext-quality-ab.png)
+
+*Same harness, same 400 tasks: Scion trails ISTA on PPL by 4.2%, ties on
+HellaSwag, and leads on Winogrande by 2.75 points (p = 0.22, not conclusive).
+The size difference is 6.2 GB, or 8.8 GB with the Q4X160 table.*
 
 ### Decision-arm benchmark: 664-task reasoning/code suite (2026-10-09)
 
@@ -373,6 +408,12 @@ long thinking budgets). The judge heads are unaffected (prompt embeddings, no
 generation), and the train-code think-harder drop (53.9%) is the same
 truncation effect at its worst.
 
+![664-task accuracy and truncation at the protocol caps](./figures/flashnext-664-truncation.png)
+
+*The headline is a floor: 69.4% gen pass@1 and 67.6% think-harder, against
+82.6% and 91.8% on records that finished. 26% of think-harder records emitted
+no answer at the 2048-token cap; the gen arm had no no-answer records.*
+
 Two fork-side fixes were needed to run the suite end-to-end: the server's
 prompt cache disabled (`--cache-ram 0`, its eviction path faults with the
 hybrid GDN KV) and the embedding read width corrected. The measurements ran on
@@ -390,6 +431,12 @@ statistical run.
 Both with 0 harness errors. The Q6_K body requantises only the body (experts,
 table and corrections are byte-identical to the F16-body file), and the two
 scores are within the suite's noise band.
+
+![Capability screen: Q6_K body vs F16 body](./figures/flashnext-capability.png)
+
+*Q6_K scores 15/20 and F16 14/20; code and logic are 1/3 each in both. The
+Q6_K body requantises only the body; the experts, table and corrections are
+byte-identical to the F16-body file.*
 
 ### Generation proof (temperature 0, 32 tokens)
 
