@@ -35,6 +35,7 @@ copied from `retention-grid.json`.
 | `35b-task-retention.png` | Task Retention | HellaSwag / Winogrande deltas vs BF16 and the ±2-point band |
 | `35b-additional-tasks.png` | Additional tasks | ARC, MMLU and TruthfulQA |
 | `35b-reasoning-code.png` | Reasoning and code | GSM8K, MATH and HumanEval |
+| `retention-grid.png` | Full Grid | all community quants plus BF16; rendered by `moe/plot_bench.py` |
 
 Regenerate:
 

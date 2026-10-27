@@ -594,7 +594,7 @@ nearly inert, and the retrain ties this release on every task while PPL regresse
 
 ### Full Grid
 
-![Scion-35B-A3B against every community quant of the same model, plus BF16](./retention-grid.png)
+![Scion-35B-A3B against every community quant of the same model, plus BF16](./figures/retention-grid.png)
 
 All ten community quants plus BF16; up is better, left is smaller. Full table
 and method notes:
