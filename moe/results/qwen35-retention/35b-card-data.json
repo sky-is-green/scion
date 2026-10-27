@@ -1,0 +1,83 @@
+{
+  "model": {
+    "name": "Scion-35B-A3B",
+    "base": "empero-ai/Qwen3.8-35B-A3B-Distill",
+    "total_params_b": 34.9,
+    "active_params_b": 3.0,
+    "bpw": 2.61,
+    "file_gb": 11.337,
+    "context": 262144
+  },
+  "sizes": [
+    {"label": "BF16 reference", "gb": 71.067, "group": "bf16"},
+    {"label": "Q8_0", "gb": 37.802, "group": "community"},
+    {"label": "Q4_K_M", "gb": 21.713, "group": "q4"},
+    {"label": "Q2_K", "gb": 13.839, "group": "community"},
+    {"label": "IQ2_M", "gb": 12.558, "group": "iq2"},
+    {"label": "Scion-35B-A3B", "gb": 11.337, "group": "release"}
+  ],
+  "performance": {
+    "tok_s": [118.0, 118.2],
+    "ms_per_token": 8.5,
+    "ms_per_token_400": 8.51,
+    "prompt_tok_s": [480, 482],
+    "drafter_tok_s": [141.5, 142.3],
+    "drafter_gain_pct": 20,
+    "drafter_accept_pct": 76,
+    "context": 4096,
+    "hardware": "one RX 7900 XT 20 GB",
+    "engine": "Strata",
+    "file_gb": 11.34
+  },
+  "retention": {
+    "bf16": {"hellaswag": 81.25, "winogrande": 76.00},
+    "q4": {"hellaswag": 80.00, "winogrande": 76.00},
+    "iq2": {"hellaswag": 79.00, "winogrande": 75.75},
+    "q2k": {"hellaswag": 76.50, "winogrande": 73.25},
+    "release": {"hellaswag": 79.00, "winogrande": 76.25}
+  },
+  "reasoning": [
+    {"label": "GSM8K-300", "thinking": 88.7, "thinking_err": 1.8, "no_thinking": 86.3, "no_thinking_err": 2.0, "pass3": 95.3, "pass3_err": 1.2},
+    {"label": "MATH-200", "thinking": 60.0, "thinking_err": 3.5, "no_thinking": 50.5, "no_thinking_err": 3.5, "pass3": 70.5, "pass3_err": 3.2},
+    {"label": "HumanEval-164", "thinking": 84.1, "thinking_err": 2.9, "no_thinking": 79.3, "no_thinking_err": 3.2, "pass3": 91.5, "pass3_err": 2.2}
+  ],
+  "additional": [
+    {"label": "ARC-Challenge", "score": 57.19, "err": 2.87, "n": 299},
+    {"label": "ARC-Easy", "score": 80.00, "err": 1.68, "n": 570},
+    {"label": "MMLU", "score": 40.15, "err": 1.10, "n": 2000},
+    {"label": "TruthfulQA", "score": 32.56, "err": 1.64, "n": 817}
+  ],
+  "drafter": {
+    "workloads": [
+      {"label": "Fixed prompt (128)", "plain": 117.9, "draft": 141.5, "accept": "76%", "gain": "+20%"},
+      {"label": "Technical (400)", "plain": 117.3, "draft": 155.1, "accept": "94%", "gain": "+32%"},
+      {"label": "Structured (8)", "plain": 117.3, "draft": 126.7, "accept": "59%", "gain": "+8%"},
+      {"label": "Out-of-mix (17)", "plain": 117.1, "draft": 125.9, "accept": "56-61%", "gain": "+7%"},
+      {"label": "Repetitive (800)", "plain": 116.8, "draft": 155.6, "accept": "96%", "gain": "+33%"}
+    ],
+    "accept_by_length": [
+      {"tokens": 64, "accept": 83},
+      {"tokens": 128, "accept": 76},
+      {"tokens": 256, "accept": 71},
+      {"tokens": 400, "accept": 70},
+      {"tokens": 800, "accept": 67}
+    ]
+  },
+  "decision_head": {
+    "auc_head": 0.999,
+    "auc_self": 0.903,
+    "caught": 23,
+    "wrong_total": 28,
+    "false_rejects": 0,
+    "tasks_over_majority": 7
+  },
+  "sources": {
+    "card": "docs/RELEASE-35B-MODEL-CARD.md",
+    "retention": "moe/results/qwen35-retention/retention-grid.json",
+    "strata": "docs/RELEASE-35B-MODEL-CARD.md#performance",
+    "drafter": "docs/RELEASE-35B-MODEL-CARD.md#performance and #speculative-decoding-k1-drafter",
+    "reasoning": "docs/RELEASE-35B-MODEL-CARD.md#reasoning-and-code-tasks-2026-10-07",
+    "additional": "docs/RELEASE-35B-MODEL-CARD.md#additional-tasks-re-measured-2026-09-30",
+    "decision_head": "docs/RELEASE-35B-MODEL-CARD.md#decision-head-optional-a-correctness-readout"
+  }
+}

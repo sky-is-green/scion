@@ -46,6 +46,12 @@ small trained corrections, with no full-precision masters and no full-model QAT.
 The name comes from grafting. A scion is the shoot grafted onto a rootstock, and
 here the trained corrections are grafted onto a 2.125 bpw ternary body.
 
+![Scion-35B-A3B at a glance: file size and key numbers](./figures/35b-at-a-glance.png)
+
+*The release is 11.34 GB at 2.61 bpw: 6.3x smaller than the BF16 reference,
+1.9x smaller than Q4_K_M and 1.1x smaller than IQ2_M. The 118 tok/s is one RX
+7900 XT in Strata; 88.7% is GSM8K pass@1 with thinking.*
+
 ## Performance
 
 Measured with **Strata**, this project's own inference engine (a separate runtime from the
@@ -114,6 +120,13 @@ protocol as the row above:
   51.2% -> 52.4%, a fresh nine-prompt set 47.9% -> 49.4%), with round-4 prose (55.1% -> 56.2%), fresh
   structured (59.5% -> 60.3%) and technical (94.0% -> 94.5%) rising too and no set giving way.  The rows
   above are within rounding of the updated head's.
+
+![MTP drafter speed by workload and acceptance by generation length](./figures/35b-drafter.png)
+
+*The Strata MTP drafter is +7-33% depending on the workload; acceptance is
+56-96%. The fixed 128-token prompt goes from 117.9-118.3 to 141.5-142.3 tok/s
+(+20%, 76% acceptance). Acceptance falls from 83% at 64 tokens to 67% at 800.
+The drafter is a speed option, not bit-exact.*
 
 ## Contents
 
@@ -269,6 +282,9 @@ Optional speedup: -md Scion-35B-A3B-mtp-drafter.gguf (drafter auto-detected, sam
 - **[Bonsai 2 ternary forensics](https://github.com/sky-is-green/bonsai2-ternary-forensics)**: the dense-model study this method grew out of (format recovery, the trained-weight residual, the calibration-artifact result).
 - **Runtime**: [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp/tree/moe-corr-runtime), branch `moe-corr-runtime`, a fork of Prism ML's llama.cpp with the PQ2_0 container, the `ffn_moe_out` virtual target and embedded-adapter support.
 - **[Retention grid](https://github.com/sky-is-green/scion/blob/main/retention-grid.png)**: this release against every community quant of the same model, same protocol.
+- **Figures**: the plots in this card are generated from
+  `moe/results/qwen35-retention/35b-card-data.json` by `moe/plot_35b_card.py`
+  in the GitHub repo.
 - **[Discussions](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B/discussions)**: questions, test reports and failures are all welcome.
 
 ## Model Overview
@@ -349,6 +365,13 @@ half the pool cost (gating) and +7 tasks over majority on the held-out community
 through the Strata engine, the same head reads Strata's states at AUC 0.9996 against 0.9988 where it
 was fit, and a refit in Strata's serving format is 1.0000, engine-vs-client parity 5.0e-7 over 378
 judge passes.
+
+![Decision head: judge AUC and wrong answers caught](./figures/35b-decision-head.png)
+
+*The 66 KB head scores AUC 0.999 on the frozen judge bench against 0.903 for
+the prompted self-judge, and catches 23 of this model's 28 wrong answers at zero
+false rejects. It is a correctness readout over the model's own hidden state,
+not a second model.*
 
 **Files.**  [`decision-head/`](./decision-head) carries the fitted head: the `.json` is the exchange
 form (the study's schema), the `.bin` is the engine's runtime form for the Strata sidecar.
@@ -490,6 +513,13 @@ against the pod (IQ2_M KLD local vs pod: 0.2%).
 Within +/-2% noise of Q4_K_M and BF16; tied with IQ2_M on HellaSwag and ahead of
 it on Winogrande at 1.2 GB less. Treat sub-1% differences as ties.
 
+![Task retention vs BF16 on HellaSwag and Winogrande](./figures/35b-task-retention.png)
+
+*Delta vs BF16 on the same 400 tasks. The shaded band is the ±2-point noise
+band; Scion is -2.25 on HellaSwag and +0.25 on Winogrande, Q4_K_M is
+-1.25 / 0.00, and Q2_K is the only build clearly outside on both. The full grid
+is at the bottom of the card.*
+
 ### Additional tasks (re-measured 2026-09-30)
 
 The 2026-09-27 grid covered HellaSwag and Winogrande. A later local run added
@@ -506,6 +536,12 @@ fork build (one RX 7900 XT, `llama-perplexity --multiple-choice`, same seed):
 
 The fresh PPL uses `--no-warmup` and `-np 8`, so its level sits ~1% below the
 grid's 8.3539; the model is unchanged.
+
+![Additional multiple-choice tasks: ARC, MMLU and TruthfulQA](./figures/35b-additional-tasks.png)
+
+*ARC-Easy 80.00, ARC-Challenge 57.19, MMLU 40.15 and TruthfulQA 32.56 on the
+same release and fork build; error bars are 1σ binomial. This is a capability
+screen, not a leaderboard suite.*
 
 ### Reasoning and code tasks (2026-10-07)
 
@@ -528,6 +564,12 @@ for code); single sample at `--temp 0.7 --top-p 0.95 --top-k 20`.
   thinking (the base is a reasoning distill).
 - These are sampled-set numbers under the stated protocol, not official
   full-set leaderboard figures.  Uncertainties are 1σ binomial.
+
+![Reasoning and code: GSM8K, MATH and HumanEval](./figures/35b-reasoning-code.png)
+
+*GSM8K 88.7, MATH 60.0 and HumanEval 84.1 with thinking; no-thinking is
+86.3 / 50.5 / 79.3, and pass@3 no-thinking is 95.3 / 70.5 / 91.5. Sampled sets;
+the 2048/700-token caps are conservative against the recommended 16k.*
 
 ### Distributional Fidelity: the known gap
 
