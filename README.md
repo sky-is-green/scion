@@ -8,6 +8,12 @@ split out of
 so the harness, the port decisions and the release docs can be cloned and run on
 their own. The dense-model forensics (Bonsai 2 27B) stayed in that repository.
 
+<p align="center">
+  <a href="https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B"><img src="docs/figures/scion-35b.webp" alt="Scion-35B-A3B animated pixel hero" width="250"></a>
+  <a href="https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B"><img src="docs/figures/scion-176b.webp" alt="Scion-FlashNext-176B-A6B animated pixel hero" width="250"></a>
+  <a href="https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter"><img src="docs/figures/scion-drafter.webp" alt="Scion-35B-A3B MTP drafter animated pixel hero" width="250"></a>
+</p>
+
 **The idea.** Ternarise the expert banks of a pretrained MoE in place, then
 recover the routing damage with small trained corrections on the residual
 stream. No full-precision masters and no full-model QAT. The frozen body ships
