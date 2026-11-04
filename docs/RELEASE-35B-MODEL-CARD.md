@@ -161,7 +161,7 @@ do not need to compile anything.
 
 | Your machine | Use this | Notes |
 | :--- | :--- | :--- |
-| **Windows x64 + NVIDIA** | [`llama-v0.4.2-bin-win-cuda-12.4-x64.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/llama-v0.4.2-bin-win-cuda-12.4-x64.zip) **+** [`cudart-llama-bin-win-cuda-12.4-x64.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/cudart-llama-bin-win-cuda-12.4-x64.zip) | Preferred for most drivers. CUDA 13.3 build also available if your driver is very new. |
+| **Windows x64 + NVIDIA** | [`llama-v0.4.2-bin-win-cuda-12.4-x64.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/llama-v0.4.2-bin-win-cuda-12.4-x64.zip) **+** [`cudart-llama-bin-win-cuda-12.4-x64.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/cudart-llama-bin-win-cuda-12.4-x64.zip) | Published, but the CUDA path is runtime-unverified. Use only if you can test it; ROCm/CPU are the verified paths. |
 | **Windows x64, no GPU** | [`windows-x64-cpu.zip`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/windows-x64-cpu.zip) | Slower, works everywhere. MTP still works. |
 | **Linux x64 + NVIDIA** | [`linux-x64-cuda.tar.gz`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/linux-x64-cuda.tar.gz) | |
 | **Linux x64, no GPU** | [`linux-x64-cpu.tar.gz`](https://github.com/sky-is-green/prism-ml-llama.cpp/releases/download/v0.4.2/linux-x64-cpu.tar.gz) | |
