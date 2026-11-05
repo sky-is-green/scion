@@ -459,6 +459,31 @@ byte-identical to the F16-body file.*
 | `def fibonacci(n):` | a correct recursive implementation |
 | `The opposite of hot is` | ` cold.` |
 
+### Strata v0.2.10 serving and constrained-hardware cross-check (2026-11-05)
+
+The Scion Strata fork now serves the direct **Q6_K/Q4_0** release on 2× RX 7900 XT
+(20 GB each): 96 embedded correction branches validated, 8192-token context. The same 30-task
+Hive test split, one sample, temperature 0.1, `max_tokens=4096`, `thinking_budget_tokens=3072`
+and `answer_room` on:
+
+| Arm | File | Accuracy | Truncations | Median |
+| :--- | ---: | ---: | ---: | ---: |
+| **Direct Q6_K** | **60.17 GB** | **27/30 (90.0%)** | 0 | 16.3 s |
+| Q2 bridge* | 74.28 GB | 28/30 (93.3%) | 0 | 12.9 s |
+| Unsloth UD-Q2_K_XL (same base) | 79.6 GB | 30/30 (100%) | 0 | 28.6 s |
+
+\* A Strata-compatible repack of the Q6_K release, **not** an official Scion Q2 and not ISTA's
+GSQ-RCO Q2_0.
+
+This is not the 400-task protocol above and is not a public ranking. The Unsloth quant is three
+tasks ahead on this small suite at 15–20 GB more file size; the 60.17 GB Scion Q6_K is about four
+times the throughput (42 vs 10 effective tok/s). The Q2 bridge is the closest size/accuracy point.
+The Unsloth arm ran without MTP/speculation while the Scion arms used spec 4 + MTP, and the 30-task
+suite is cache-sensitive; the 400-task/PPL table above remains the public quality data.
+
+The direct Scion Q6_K is the smaller/faster constrained-hardware point, not the absolute-accuracy
+winner on these 30 tasks.
+
 ## Use Cases
 
 - **A 125B-A6B-class model on a 48 GB card + a big host**: 57.6 GB of weights in
