@@ -10,6 +10,7 @@ pipeline_tag: text-generation
 tags:
 - ternary
 - 2-bit
+- tq1_0_g128
 - ptq1_0
 - ple
 - ngram
@@ -21,6 +22,10 @@ tags:
 - quantized
 - scion
 ---
+
+> **Container names.** The expert container is **`TQ1_0_g128`** (formerly `PTQ1_0`):
+> TQ1_0's base-3 packing at group size 128, GGUF type 143.  File names and type ids are unchanged;
+> `PTQ1_0` remains a valid alias.  See [`CONTAINER-NAMES.md`](CONTAINER-NAMES.md).
 
 <p align="center">
   <a href="https://github.com/sky-is-green/scion"><b>GitHub: Build-scripts and docs</b></a> &nbsp;|&nbsp;

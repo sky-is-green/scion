@@ -12,7 +12,7 @@ carry.
 | Linux x64 + NVIDIA CUDA | prebuilt binaries published; runtime-unverified |
 | Windows x64 (CPU, CUDA) | prebuilt binaries published; runtime-unverified |
 | macOS Metal | kernels present; untested |
-| Vulkan | unsupported: no PQ2_0 kernels |
+| Vulkan | unsupported: no Q2_0_g128 (formerly PQ2_0) kernels |
 
 "Verified" means the release files were run on that path.
 

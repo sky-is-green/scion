@@ -10,7 +10,8 @@ write-up), [`RELEASE-35B-MODEL-CARD.md`](RELEASE-35B-MODEL-CARD.md),
 ## 1. The method in one paragraph
 
 Take a pretrained MoE (Qwen3.x/Llama-4-class): quantize the **expert banks** to
-a ternary/2-bit container (`PQ2_0` = ggml type 142, g128 groups, Lloyd codes)
+a ternary/2-bit container (`Q2_0_g128`, formerly `PQ2_0` = ggml type 142, g128
+groups, Lloyd codes)
 and train a small set of **low-rank correction branches (rank 512) on the MoE
 output and the attention output**, plus per-expert router balancing, by
 **distilling the frozen full-precision teacher's logits** (top-512 + a sampled

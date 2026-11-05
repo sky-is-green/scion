@@ -22,6 +22,7 @@ only), so an image slice could not exercise any expert path.
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import re
 import sys
@@ -30,8 +31,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-FP8_MODEL = Path("/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/"
-                 "models/qwen38-flashnext-fp8")
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", HERE.parent.parent))
+MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
+FP8_MODEL = Path(os.environ.get("SCION_Q4_MODEL_DIR", MODELS / "qwen38-flashnext-fp8"))
 
 
 def chat(tok, messages: list[dict], gen: bool) -> str:

@@ -18,6 +18,7 @@ uploaded to a pod.
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import struct
 import sys
@@ -29,10 +30,10 @@ import torch
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-FP8_MODEL = Path("/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/"
-                 "models/qwen38-flashnext-fp8")
-TCACHE = Path("/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/"
-              "hivebench/artifacts/ternary/moe/qwen4exp/pod/remote-w1w2/tcache-48l")
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", HERE.parent.parent))
+MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
+FP8_MODEL = Path(os.environ.get("SCION_Q4_MODEL_DIR", MODELS / "qwen38-flashnext-fp8"))
+TCACHE = Path(os.environ.get("SCION_TCACHE", WORKSPACE / "hivebench" / "artifacts" / "ternary" / "moe" / "qwen4exp" / "pod" / "remote-w1w2" / "tcache-48l"))
 
 
 def main() -> None:

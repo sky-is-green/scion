@@ -1,7 +1,12 @@
-"""PTQ1_0 base-3 repacking of ternary expert banks (Tier 1, free, local).
+"""TQ1_0_g128 (formerly PTQ1_0) base-3 repacking of ternary expert banks (Tier 1, free, local).
+
+The canonical display name is ``TQ1_0_g128``: TQ1_0's base-3 packing at group
+size 128.  The module, constants and C++ symbols keep the legacy
+``PTQ1_0`` name so existing callers and artifacts keep working; the GGUF
+type id is unchanged (143).
 
 The training container (:class:`CompactBank`) holds 2-bit codes + one fp16
-scale per 128-group (PQ2_0-equivalent, 2.125 bpw).  The release container packs
+scale per 128-group (``Q2_0_g128``, formerly ``PQ2_0``; 2.125 bpw).  The release container packs
 the SAME trits base-3 in the fork's ``PTQ1_0`` block layout (``block_ptq1_0``
 in ``ggml-common.h``)::
 

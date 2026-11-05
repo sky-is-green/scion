@@ -24,7 +24,7 @@ Apache-2.0 (both Clef and Qwen lineage) requires:
 2. **Attribution** — credit Cloudflare (Clef-Flash) and the Qwen team
    (Qwen3.5-9B), link both cards.
 3. **State changes** (§4b) — this is a modified derivative.  Write down:
-   - quantized the text backbone to `PQ2_0` (`GGML_PQ2_0_LLOYD=1`, 2.90 BPW,
+   - quantized the text backbone to `Q2_0_g128` (formerly `PQ2_0`; `GGML_PQ2_0_LLOYD=1`, 2.90 BPW,
      3.26 GB); vision tower and MTP head not converted (text-only body);
    - trained rank-512 residual corrections (attn output, MLP output; all
      merged into the body, 3.10 GiB, `adapter.embedded=true`);

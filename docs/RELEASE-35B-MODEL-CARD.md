@@ -10,6 +10,7 @@ pipeline_tag: text-generation
 tags:
 - ternary
 - 2-bit
+- q2_0_g128
 - pq2_0
 - gguf
 - llama-cpp
@@ -21,6 +22,12 @@ tags:
 - draft-model
 - mtp
 ---
+
+> **Container names.** The expert container is **`Q2_0_g128`** (formerly `PQ2_0`):
+> Q2_0's 2-bit codec at group size 128, GGUF type 142.  It is not standard g256 `TQ2_0`, and it is
+> not the same bitstream as `TQ2_T` even though that container also uses 34 bytes per 128 values.
+> File names and type ids are unchanged; `PQ2_0` remains a valid alias.
+> See [`CONTAINER-NAMES.md`](CONTAINER-NAMES.md).
 
 > **Snapshot note.** This is the model card as published on
 > [Hugging Face](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B), kept here

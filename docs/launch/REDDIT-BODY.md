@@ -50,5 +50,5 @@ The attached chart is the retention grid: ten community quants plus BF16 under o
 
 **Serving notes**, from two 7900 XT cards and a 7800X3D: threads should equal physical cores (SMT siblings halve CPU expert throughput); do not layer-split when one card fits (40% generation loss in the proxy runs); `-ncmoe` is the VRAM dial; the ternary container roughly halves the CPU-offload penalty versus an f16 expert bank. Negative result: a hot-expert GPU cache gave no throughput gain, because `mul_mat_id` computes k experts per token regardless of the weights, so it would need sparse per-token dispatch to be worth building.
 
-**The Hub chip.** The file shows a `Q2_0` chip; that is the Hub's filename parser, not upstream's g64 `Q2_0`. The container is Prism's `PQ2_0`, and the file is a mix of container types. The card explains it.
+**The Hub chip.** The file shows a `Q2_0` chip; that is the Hub's filename parser, not upstream's g64 `Q2_0`. The container is `Q2_0_g128` (formerly `PQ2_0`, type 142), and the file is a mix of container types. The card explains it.
 ```

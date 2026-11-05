@@ -12,7 +12,7 @@ Thanks for the distill. I quantized `Qwen3.8-35B-A3B-Distill` down to **2.61 bpw
 - Task retention (400 tasks each): HellaSwag **79.00** and Winogrande **76.25** against BF16's 81.25 and 76.00, inside the ±2% noise band; best PPL of the 2-bit class (8.354 versus IQ2_M's 8.413).
 - The gap: full-vocabulary KLD against BF16 is still 2-bit-class (0.269 mean versus Q4_K_M's 0.031). Tail-aware training is my next step.
 
-Apache-2.0, inherited, with attribution to empero-ai and Qwen (and the community BF16 GGUF conversion). It needs my llama.cpp fork (`PQ2_0` plus embedded adapters, default branch `moe-corr-runtime`; stock llama.cpp cannot load the tensor types, and the fork ships a one-second check for that). I built it to serve a local assistant stack on a single 20 GB card.
+Apache-2.0, inherited, with attribution to empero-ai and Qwen (and the community BF16 GGUF conversion). It needs my llama.cpp fork (`Q2_0_g128`, formerly `PQ2_0`, plus embedded adapters, default branch `moe-corr-runtime`; stock llama.cpp cannot load the tensor types, and the fork ships a one-second check for that). I built it to serve a local assistant stack on a single 20 GB card.
 
 Card and weights: https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B
 Harness, write-up and failed routes: https://github.com/sky-is-green/scion

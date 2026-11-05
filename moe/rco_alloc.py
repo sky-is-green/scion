@@ -36,7 +36,7 @@ from moe_proxy import ternary_lloyd
 
 # Bit cost: b-bit codes + one fp16 scale per 128-weight group.
 SCALE_OVERHEAD = 16.0 / 128.0
-TERNARY_BPW = 2.0 + SCALE_OVERHEAD        # 2.125 -- the PQ2_0 container rate
+TERNARY_BPW = 2.0 + SCALE_OVERHEAD        # 2.125 -- the Q2_0_g128 (formerly PQ2_0) container rate
 SUPPORTED_BITS = (2, 4, 6, 8)
 
 

@@ -150,7 +150,7 @@ def test_ternary_option_reproduces_deployed_rule():
     got = dequant_option(opt)
     want = ternary_lloyd(w, 128)
     assert torch.allclose(got.float(), want.float(), atol=2e-3, rtol=2e-2)
-    # the container rate is the PQ2_0 rate
+    # the container rate is the Q2_0_g128 (formerly PQ2_0) rate
     assert abs(opt["bits"] + SCALE_OVERHEAD - TERNARY_BPW) < 1e-9
 
 

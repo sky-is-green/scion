@@ -52,7 +52,7 @@ Every panel is "up = better, left = smaller".  There are two metric families:
   remaining gap and the next lever.
 
 The method is also the only non-imatrix point on the chart: ternary experts
-(PQ2_0) + trained low-rank corrections, not calibration.
+(`Q2_0_g128`, formerly `PQ2_0`) + trained low-rank corrections, not calibration.
 
 ## Findings
 

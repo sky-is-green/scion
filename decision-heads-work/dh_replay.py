@@ -26,32 +26,35 @@ import sys
 import time
 from pathlib import Path
 
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", Path(__file__).resolve().parents[2].parent))
+MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
+
 import numpy as np
 
 WORK = Path(__file__).resolve().parents[2]
 DH = WORK / "scion" / "decision-heads"
 WT = WORK / "strata-dh"
 HIVE = WORK / "hivebench" / "experiments" / "cascade"
-PACK35 = Path("/home/penis/models/scion-strata/pack-35b/tokenizer")
-GGUF35 = Path("/home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf")
+PACK35 = Path(os.environ.get("SCION_35B_PACK", MODELS / "scion-strata" / "pack-35b" / "tokenizer"))
+GGUF35 = Path(os.environ.get("SCION_35B_GGUF", MODELS / "scion-strata" / "Scion-35B-A3B-PQ2_0-corr.gguf"))
 EXE = WT / "build-hip" / "strata-q36"
 OUT = WORK / "scion" / "decision-heads-work"
 
 # the 176B: the served pack + model (strata-q6k-176b.json) through the main engine
-PACK176 = Path("/home/penis/models/scion-strata/pack-q6k/tokenizer")
-GGUF176 = Path("/home/penis/models/scion-strata/Scion-FlashNext-176B-A6B-Q6K.gguf")
+PACK176 = Path(os.environ.get("SCION_176B_PACK", MODELS / "scion-strata" / "pack-q6k" / "tokenizer"))
+GGUF176 = Path(os.environ.get("SCION_176B_GGUF", MODELS / "scion-strata" / "Scion-FlashNext-176B-A6B-Q6K.gguf"))
 EXE_MAIN = WT / "build-hip" / "strata"
 ARGS176 = [
-    "--pack", "/home/penis/models/scion-strata/pack-q6k",
+    "--pack", str(PACK176.parent),
     "--native", str(GGUF176),
     "--ple-gguf", str(GGUF176),
-    "--embd-gguf", "/home/penis/models/scion-strata/scion-embd-bf16.gguf",
-    "--expert-profile", "/home/penis/Desktop/work/strata/data/expert-profile.bin",
+    "--embd-gguf", os.environ.get("SCION_176B_EMBD", str(MODELS / "scion-strata" / "scion-embd-bf16.gguf")),
+    "--expert-profile", os.environ.get("SCION_EXPERT_PROFILE", str(WORKSPACE / "strata" / "data" / "expert-profile.bin")),
     "--expert-cache", "auto",
     "--prefill", "8192",
     "--spec", "4",
     "--spec-min-p", "0.5",
-    "--mtp", "/home/penis/Desktop/work/strata-data/mtp/rt",
+    "--mtp", os.environ.get("SCION_MTP_DIR", str(WORKSPACE / "strata-data" / "mtp" / "rt")),
     "--max-context", "4096",
     "--ple-io", "direct",
     "--mmap-experts",

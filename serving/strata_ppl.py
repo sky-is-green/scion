@@ -24,6 +24,7 @@ Usage (from the repo root, with its venv so `regex` is present):
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import math
 import pathlib
@@ -35,7 +36,12 @@ REPO = pathlib.Path(__file__).resolve().parents[2] / "strata"
 sys.path.insert(0, str(REPO / "tools"))
 from strata_tokenizer import Tokenizer  # noqa: E402
 
-DEFAULT_GGUF = "/home/penis/models/scion-strata/Scion-FlashNext-176B-A6B-Q6K.gguf"
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", pathlib.Path(__file__).resolve().parents[2].parent))
+MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
+DEFAULT_GGUF = Path(os.environ.get("SCION_FLASHNEXT_GGUF", MODELS / "scion-strata" / "Scion-FlashNext-176B-A6B-Q6K.gguf"))
+DEFAULT_CORPUS = Path(os.environ.get("SCION_CORPUS", WORKSPACE / "ternary-serve" / "wiki.test.raw"))
+DEFAULT_LOGPOS = Path(os.environ.get("SCION_PPL_LOGPOS", pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "opencode" / "ppl" / "logpos_serve.txt"))
+DEFAULT_OUT = Path(os.environ.get("SCION_PPL_OUT", pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "opencode" / "ppl" / "strata-ppl.jsonl"))
 
 
 def post_chat(server: str, text: str, timeout: float, assistant_role: bool) -> dict:
@@ -58,11 +64,11 @@ def post_chat(server: str, text: str, timeout: float, assistant_role: bool) -> d
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--corpus", default="/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/ternary-serve/wiki.test.raw")
-    ap.add_argument("--gguf", default=DEFAULT_GGUF)
+    ap.add_argument("--corpus", default=str(DEFAULT_CORPUS))
+    ap.add_argument("--gguf", default=os.environ.get("SCION_FLASHNEXT_GGUF", str(DEFAULT_GGUF)))
     ap.add_argument("--server", default="http://127.0.0.1:8081")
-    ap.add_argument("--logpos", default="/tmp/opencode/ppl/logpos_serve.txt")
-    ap.add_argument("--out", default="/tmp/opencode/ppl/strata-ppl.jsonl")
+    ap.add_argument("--logpos", default=str(DEFAULT_LOGPOS))
+    ap.add_argument("--out", default=str(DEFAULT_OUT))
     ap.add_argument("--chunk", type=int, default=512)
     ap.add_argument("--start", type=int, default=0, help="first chunk index")
     ap.add_argument("--limit", type=int, default=0, help="0 = all")

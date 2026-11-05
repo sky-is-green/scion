@@ -1,7 +1,8 @@
 """N-layer qwen4exp GGUF export (closing-work item 3).
 
 Writes a loadable ``qwen4exp`` GGUF for the N-layer prefix (default 2) from
-the official FP8 mirror: dequantized body + ternary experts (PQ2_0/PTQ1_0 via
+the official FP8 mirror: dequantized body + ternary experts (Q2_0_g128/TQ1_0_g128,
+formerly PQ2_0/PTQ1_0 via
 :mod:`ptq1_0`) + tokenizer + arch KV.  PLE is optional: the default (``--ple
 none``) omits the ``ple.*`` key group and n-gram table (the calibration-floor
 prototype); ``--ple q4_0`` writes the 6 small PLE tensors, the PLE KV group
@@ -597,6 +598,9 @@ class Exporter:
             # gguf-py reads the last dim as nblocks*type_size: flatten the
             # (ngroups, blockbytes) axes or the file gains a phantom dim.
             raw = raw.reshape(*raw.shape[:-2], raw.shape[-2] * raw.shape[-1])
+            # The gguf-py enum keeps the legacy names; type 143 is TQ1_0_g128
+            # (TQ1_0 packing at g128) and type 142 is Q2_0_g128 (Q2_0 codec
+            # at g128).  The numeric ids are what the file carries.
             qt = (gguf.GGMLQuantizationType.PTQ1_0 if kind == "ptq1_0"
                   else gguf.GGMLQuantizationType.PQ2_0)
             gguf_key = {"gate": "FFN_GATE_EXP", "up": "FFN_UP_EXP",
@@ -737,6 +741,8 @@ class Exporter:
         w = writer
         w.add_type(gguf.GGUFType.MODEL)
         w.add_name(f"qwen4exp {L}-layer export prototype ({self.args.experts})")
+        # gguf-py's file-type enum also keeps the legacy names; the numeric
+        # container ids are unchanged (MOSTLY_PTQ1_0/PQ2_0 map to 143/142).
         ftype = {"ptq1_0": gguf.LlamaFileType.MOSTLY_PTQ1_0,
                  "pq2_0": gguf.LlamaFileType.MOSTLY_PQ2_0}[self.args.experts]
         w.add_file_type(ftype.value if hasattr(ftype, "value") else int(ftype))

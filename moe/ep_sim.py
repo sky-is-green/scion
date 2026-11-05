@@ -8,9 +8,11 @@ splits, on (a) the routed mass resident (cache hit rate) and (b) the per-card lo
 share (imbalance), with a per-token split distribution under the marginal counts.
 """
 import json
+import os
 import sys
+from pathlib import Path
 
-STATS = '/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/moe/artifacts/qwen4exp/router-stats-coder.json'
+STATS = Path(os.environ.get('SCION_ROUTER_STATS', Path(__file__).resolve().parents[1] / 'moe' / 'artifacts' / 'qwen4exp' / 'router-stats-coder.json'))
 SLOTS0, SLOTS1 = 12007, 10690
 SPLIT_LAYER = 26  # card0 = layers 0..25, card1 = 26..47
 

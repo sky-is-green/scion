@@ -22,8 +22,17 @@ GGML_TYPES = {
     24: "I8", 25: "I16", 26: "I32", 27: "I64", 28: "F64", 29: "IQ1_M",
     30: "BF16", 31: "Q4_0_4_4", 32: "Q4_0_4_8", 33: "Q4_0_8_8",
     34: "TQ1_0", 35: "TQ2_0", 39: "MXFP4", 40: "NVFP4",
-    142: "PQ2_0", 143: "PTQ1_0",
+    142: "Q2_0_g128", 143: "TQ1_0_g128",
 }
+
+# Legacy Scion names stay valid aliases.  They are not the standard g256 TQ
+# formats; the g128 suffix is part of the container identity.
+TYPE_ALIASES = {"PQ2_0": "Q2_0_g128", "PTQ1_0": "TQ1_0_g128"}
+
+
+def canonical_type(name):
+    return TYPE_ALIASES.get(name, name)
+
 
 # bytes per weight for block formats of interest
 BPW = {
@@ -32,7 +41,10 @@ BPW = {
     "Q4_0": 4.5, "Q3_K": 3.4375, "Q2_K": 2.625, "IQ4_NL": 4.5,
     "IQ4_XS": 4.25, "IQ3_S": 3.44, "IQ3_XXS": 3.06, "IQ2_S": 2.5,
     "IQ2_XS": 2.31, "IQ2_XXS": 2.06, "IQ1_S": 1.56, "IQ1_M": 1.75,
-    "TQ1_0": 1.6875, "TQ2_0": 2.0625, "PQ2_0": 2.125, "PTQ1_0": 1.75,
+    "TQ1_0": 1.6875, "TQ2_0": 2.0625,
+    "Q2_0_g128": 2.125, "TQ1_0_g128": 1.75,
+    # Legacy aliases.
+    "PQ2_0": 2.125, "PTQ1_0": 1.75,
     "MXFP4": 4.25, "NVFP4": 4.5,
 }
 

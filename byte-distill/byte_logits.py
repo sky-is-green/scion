@@ -17,9 +17,14 @@ per text position, and that file is what a distillation run trains against.
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import sys
 from pathlib import Path
+
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", Path(__file__).resolve().parents[2].parent))
+MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
+DEFAULT_PACK = MODELS / "scion-strata" / "pack-q6k" / "tokenizer"
 
 import numpy as np
 
@@ -236,7 +241,7 @@ def cmd_convert(args) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pack", type=Path, default=Path("/home/penis/models/scion-strata/pack-q6k/tokenizer"))
+    ap.add_argument("--pack", type=Path, default=Path(os.environ.get("SCION_PACK_DIR", DEFAULT_PACK)))
     ap.add_argument("--text", default=None, help="a file for --stats (default: a repeated sentence)")
     ap.add_argument("--topk", type=int, default=600, help="token top-k to compare against (the paper's k)")
     ap.add_argument("--support", type=int, default=4000, help="--convert: tokens with probability mass")

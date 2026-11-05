@@ -288,7 +288,7 @@ for ax, (key, title, ylab, logy, higher_better) in zip(axes.ravel(), panels):
 
 handles = [
     Line2D([], [], marker="^", color="w", markerfacecolor=blue, markeredgecolor="black",
-           markersize=13, label="release: ternary PQ2_0 + trained corrections (2.61 bpw)"),
+           markersize=13, label="release: ternary Q2_0_g128 (formerly PQ2_0) + trained corrections (2.61 bpw)"),
     Line2D([], [], marker="D", color="w", markerfacecolor=red, markeredgecolor="black",
            markersize=8, label="Q4_K_M (competitor)"),
     Line2D([], [], marker="o", color="w", markerfacecolor=green, markeredgecolor="black",

@@ -19,13 +19,16 @@ import sys
 import time
 from pathlib import Path
 
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", Path(__file__).resolve().parents[2].parent))
+MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
+
 import numpy as np
 
 WORK = Path(__file__).resolve().parents[2]
 OUT = WORK / "scion" / "decision-heads-work"
 WT = WORK / "strata-dh"
-PACK35 = Path("/home/penis/models/scion-strata/pack-35b/tokenizer")
-GGUF35 = Path("/home/penis/models/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf")
+PACK35 = Path(os.environ.get("SCION_35B_PACK", MODELS / "scion-strata" / "pack-35b" / "tokenizer"))
+GGUF35 = Path(os.environ.get("SCION_35B_GGUF", MODELS / "scion-strata" / "Scion-35B-A3B-PQ2_0-corr.gguf"))
 EXE = WT / "build-hip" / "strata-q36"
 
 sys.path.insert(0, str(OUT))

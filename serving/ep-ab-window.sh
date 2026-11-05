@@ -7,9 +7,9 @@
 # and one 128-token greedy request saved for the output comparison.
 # Prereq: the box is free (stop scion-flashnext / other engines first); restores nothing itself.
 set -u
-ROOT=/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work
+ROOT=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 PY=$ROOT/strata/.venv/bin/python
-EP=$ROOT/strata-ep
+EP=${SCION_STRATA_EP:-$ROOT/strata-ep}
 PROMPT='You are helping tune a local model. Write a detailed, factual paragraph about the history of computing. Begin now and do not stop early.'
 OUT=/tmp/opencode
 

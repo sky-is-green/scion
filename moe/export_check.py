@@ -2,7 +2,7 @@
 
 Usage: python moe/export_check.py <file.gguf>
 Compares tensor names/shapes/types against the ISTA reference conventions
-(experts [cols, ff, E] PTQ1_0/PQ2_0; the PLE group is optional -- when the
+(experts [cols, ff, E] TQ1_0_g128/Q2_0_g128; the PLE group is optional -- when the
 ple.layers KV is present the 6 blk.N.ple_* tensors and the
 per_layer_token_embd table are required, otherwise absent) and fails loudly
 on any mismatch the loader would reject.
@@ -110,7 +110,7 @@ def main(path: str):
                 errs.append(f"missing blk.{il}.{suffix}")
     for t in tensors:
         if t["name"].endswith("_exps.weight") and t["type"] not in (
-                "PTQ1_0", "PQ2_0"):
+                "TQ1_0_g128", "Q2_0_g128", "PTQ1_0", "PQ2_0"):
             errs.append(f"{t['name']} has type {t['type']}")
     if meta.get("adapter.embedded", False):
         if meta.get("adapter.type") != "lora":

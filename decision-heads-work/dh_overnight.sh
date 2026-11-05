@@ -7,11 +7,22 @@
 # the study's community protocol (gen 3 samples/task, then the resumable embed, then the eval and
 # the veto arms) and puts the user's service back whichever way it ends.
 set -u
-W=/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work
+WORKSPACE=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
+SCION_MODELS=${SCION_MODELS:-$WORKSPACE/models}
+SCION_REPO=${SCION_REPO:-$WORKSPACE/scion}
+STRATA_DH=${STRATA_DH_ROOT:-$WORKSPACE/strata-dh}
+STRATA_DATA=${SCION_STRATA_DATA:-$WORKSPACE/strata-data}
+PACK176=${SCION_176B_PACK:-$SCION_MODELS/scion-strata/pack-q6k}
+GGUF176=${SCION_176B_GGUF:-$SCION_MODELS/scion-strata/Scion-FlashNext-176B-A6B-Q6K.gguf}
+EMB176=${SCION_176B_EMBD:-$SCION_MODELS/scion-strata/scion-embd-bf16.gguf}
+PROFILE=${SCION_EXPERT_PROFILE:-$WORKSPACE/strata/data/expert-profile.bin}
+MTP=${SCION_MTP_DIR:-$STRATA_DATA/mtp/rt}
+W=$WORKSPACE
 PY=$W/hivebench/.venv/bin/python
-OUT=$W/scion/decision-heads-work/overnight
-TASKS=$W/hivebench/experiments/cascade/tasks-community.json
-CASC=$W/hivebench/experiments/cascade
+OUT=${SCION_DH_OUT:-$SCION_REPO/decision-heads-work/overnight}
+HIVE_EXP=${SCION_HIVEBENCH:-$WORKSPACE/hivebench}/experiments/cascade
+TASKS=${SCION_TASKS:-$HIVE_EXP/tasks-community.json}
+CASC=$HIVE_EXP
 R=$CASC/results/jev-readout-20261006
 PREFIX=scion176b-community
 SERVICE=scion-flashnext
@@ -40,18 +51,18 @@ sleep 3
 
 cat > "$OUT/dh-server.json" <<EOF
 {
- "exe": "$W/strata-dh/build-hip/strata",
+ "exe": "$STRATA_DH/build-hip/strata",
  "args": [
-  "--pack", "/home/penis/models/scion-strata/pack-q6k",
-  "--native", "/home/penis/models/scion-strata/Scion-FlashNext-176B-A6B-Q6K.gguf",
-  "--ple-gguf", "/home/penis/models/scion-strata/Scion-FlashNext-176B-A6B-Q6K.gguf",
-  "--embd-gguf", "/home/penis/models/scion-strata/scion-embd-bf16.gguf",
-  "--expert-profile", "/home/penis/Desktop/work/strata/data/expert-profile.bin",
+  "--pack", "$PACK176",
+  "--native", "$GGUF176",
+  "--ple-gguf", "$GGUF176",
+  "--embd-gguf", "$EMB176",
+  "--expert-profile", "$PROFILE",
   "--expert-cache", "auto",
   "--prefill", "8192",
   "--spec", "4",
   "--spec-min-p", "0.5",
-  "--mtp", "/home/penis/Desktop/work/strata-data/mtp/rt",
+  "--mtp", "$MTP",
   "--max-context", "4096",
   "--ple-io", "direct",
   "--mmap-experts",
@@ -60,8 +71,8 @@ cat > "$OUT/dh-server.json" <<EOF
   "--pcie-frac", "0",
   "--pipeline-windows", "2"
  ],
- "cwd": "$W/strata-dh",
- "tokenizer": "/home/penis/models/scion-strata/pack-q6k/tokenizer",
+ "cwd": "$STRATA_DH",
+ "tokenizer": "$PACK176/tokenizer",
  "model_name": "scion-flashnext-176b-a6b-q6k-dh",
  "log": "$OUT/engine.log",
  "lib_dirs": ["/opt/rocm/lib"],
@@ -76,7 +87,7 @@ cat > "$OUT/dh-server.json" <<EOF
 EOF
 
 echo "== $(date -Is) starting the decision-head server (exe: $W/strata-dh/build-hip/strata)"
-"$PY" "$W/strata-dh/serve/server.py" --engine strata --config "$OUT/dh-server.json" --port 8897 \
+"$PY" "$STRATA_DH/serve/server.py" --engine strata --config "$OUT/dh-server.json" --port 8897 \
     > "$OUT/server.log" 2>&1 &
 SRV=$!
 up=0

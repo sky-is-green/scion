@@ -110,7 +110,7 @@ def main() -> None:
                      "apex_type": apex.get(t["name"], apex.get(t["name"][:-7], ""))})
 
     # --- ternary projection -------------------------------------------------
-    q_bpw = 2.125          # PQ2_0: 34 bytes / 128 weights
+    q_bpw = 2.125          # Q2_0_g128 (formerly PQ2_0): 34 bytes / 128 weights
     fp16_bpw = 16.0
     f32_bpw = 32.0
     proj = Counter()

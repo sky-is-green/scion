@@ -3,8 +3,8 @@
 The Nemotron lane is closed — not because the engineering failed (the engine reached exact greedy parity and the
 calibration/drift harnesses work), but because **the base isn't worth it**: Super's published 2-bit tier already
 sits where Unsloth's own docs say agentic use breaks, NVIDIA's BF16 numbers show it trails Qwen3.8-Flash-Next on
-the agentic/coding axis *before* any quantization, and the only source we can legally quantize from locally is
-itself an already-quantized file. That is community-scale work we don't want to own.
+the agentic/coding axis *before* any quantization, and the only source available locally is itself an
+already-quantized file. That is community-scale work we don't want to own.
 
 Nothing here is Super-specific. Two things transfer, and one earlier recommendation turned out to be wrong —
 recorded below so nobody repeats it.

@@ -3,9 +3,9 @@
 # fixed bench (4 requests) then 8 more of the same prompt, storing traj md5s.
 # Used to separate engine changes from restart-path nondeterminism.
 set -eu
-W=/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work
+W=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 TAG=$1
-D=/tmp/opencode/scion-moe-exact
+D=${SCION_OUT:-${TMPDIR:-/tmp}/opencode/scion-moe-exact}
 mkdir -p "$D"
 systemctl --user restart scion-flashnext
 for i in $(seq 1 80); do

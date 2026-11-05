@@ -30,9 +30,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import struct
 import sys
 from pathlib import Path
+
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", Path(__file__).resolve().parents[2].parent))
+MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
+DEFAULT_PACK = MODELS / "scion-strata" / "pack-q6k" / "tokenizer"
 
 import numpy as np
 
@@ -152,7 +157,7 @@ def selftest(pack: Path, table_path: Path) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pack", type=Path, default=Path("/home/penis/models/scion-strata/pack-q6k/tokenizer"))
+    ap.add_argument("--pack", type=Path, default=Path(os.environ.get("SCION_PACK_DIR", DEFAULT_PACK)))
     ap.add_argument("--out", type=Path, default=Path("byte-table.bin"))
     ap.add_argument("--no-eot", action="store_true")
     ap.add_argument("--verify", type=Path, default=None, help="a logit dump to check")

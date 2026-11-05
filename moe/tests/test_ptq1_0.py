@@ -1,4 +1,4 @@
-"""Tests for the PTQ1_0 base-3 repack (``moe/ptq1_0.py``, Tier 1).
+"""Tests for the TQ1_0_g128 (formerly PTQ1_0) base-3 repack (``moe/ptq1_0.py``, Tier 1).
 
 What is pinned here:
   - the byte codec replicates ``quantize_row_ptq1_0_ref`` exactly (stage

@@ -3,10 +3,11 @@
 # (the fixed expert tier, the documented exactness setting), run in a serve-down window on 8081.
 # Protocol: the fixed bench warm-up (4 requests) then 8 stored bodies, same as moe-cycle.sh.
 set -eu
-W=/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/strata
+W=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}/strata
 VENV=$W/.venv/bin/python
 TAG=$1
-D=/tmp/opencode/scion-moe-exact
+SCION_REPO=${SCION_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
+D=${SCION_OUT:-${TMPDIR:-/tmp}/opencode/scion-moe-exact}
 mkdir -p "$D"
 systemctl --user stop scion-flashnext
 sleep 3
@@ -19,8 +20,8 @@ for i in $(seq 1 100); do
   sleep 3
 done
 echo "== $TAG: pinned serve ready at $(date +%H:%M:%S)"
-bash /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/serving/bench_strata.sh "$TAG-bench" | tee "$D/$TAG-bench.txt"
-bash /run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/scion/serving/moe-exact.sh "$TAG" 2>&1 | sed "s/^/  /"
+bash "$SCION_REPO/serving/bench_strata.sh" "$TAG-bench" | tee "$D/$TAG-bench.txt"
+bash "$SCION_REPO/serving/moe-exact.sh" "$TAG" 2>&1 | sed "s/^/  /"
 systemctl --user stop scion-flashnext-pin
 systemctl --user start scion-flashnext
 python3 - "$D" "$TAG" <<'PY'

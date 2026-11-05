@@ -3,7 +3,7 @@
 # rewrite the non-expert body tensor types to k-quants/Q8_0 while copying the
 # already-deployed containers VERBATIM (same-type overrides make llama-quantize
 # take the copy path, ~src/llama-quant.cpp "quantize = cur_type != new_type"):
-#   - experts  ffn_{gate,up,down}_exps.weight : PTQ1_0 (1.75 bpw, bit-copied)
+#   - experts  ffn_{gate,up,down}_exps.weight : TQ1_0_g128 (formerly PTQ1_0; 1.75 bpw, bit-copied)
 #   - PLE table per_layer_token_embd.weight   : Q4_0   (bit-copied)
 #   - adapters *.lora_a / *.lora_b            : F16    (bit-copied)
 # Everything else takes <body-type> (default Q8_0; Q6_K / Q5_K_M / Q4_K_M
