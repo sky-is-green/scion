@@ -16,8 +16,9 @@ their own. The dense-model forensics (Bonsai 2 27B) stayed in that repository.
 
 **The idea.** Ternarise the expert banks of a pretrained MoE in place, then
 recover the routing damage with small trained corrections on the residual
-stream. No full-precision masters and no full-model QAT. The frozen body ships
-at 2.125 bpw (`Q1_0_g128` / `PQ2_0` ternary experts, Q8_0 for the rest); the
+stream. No full-precision masters and no full-model QAT. The frozen 35B body
+ships at 2.125 bpw (`Q2_0_g128` ternary experts, formerly `PQ2_0`; Q8_0 for
+the rest); the 176B ships `TQ1_0_g128` (formerly `PTQ1_0`). The
 corrections are rank-512 branches on the attention output and the MoE block
 output, plus router deltas, trained by output-KD **with the deployed quantizer
 in the loop**.
@@ -27,12 +28,20 @@ in the loop**.
 | lane | status |
 |---|---|
 | **Scion-35B-A3B** | **released**: 11.34 GB / 2.61 bpw ternary experts + embedded corrections, plus an optional k=1 MTP drafter. Runtime `v0.4.2`. CPU and ROCm verified; CUDA/Windows binaries published but runtime-unverified (see [platform scope](docs/PLATFORM-SCOPE.md)). |
-| **Scion-FlashNext-176B-A6B** | **released** (2026-10-05): the 125B MoE (6B activated) + the 51.2B-parameter n-gram table in one 60.17 GB file at 2.72 bpw; PTQ1_0 ternary experts + embedded corrections. CUDA, ROCm and CPU verified; runtime branch `qwen4exp-proto`. |
+| **Scion-FlashNext-176B-A6B** | **released** (2026-10-05): the 125B MoE (6B activated) + the 51.2B-parameter n-gram table in one 60.17 GB file at 2.72 bpw; `TQ1_0_g128` ternary experts (formerly `PTQ1_0`) + embedded corrections. CUDA, ROCm and CPU verified; runtime branch `qwen4exp-proto`. |
 | **Dense (Clef-Flash)** | **in progress, not released**: the rotated-basis + GPTQ + QAT ladder reaches 23.25 PPL / 5.52 GiB, but free generation still degrades and a plain Q2_K (13.06 PPL, 3.56 GiB) beats it. The 2026-10-06 derisk run (0.8B, 1500 steps, mixed corpus + logits KD) plateaus at 42.4 PPL with generation still broken, so scaling the same recipe is not justified and the lane is on hold. See [`dense/README.md`](dense/README.md). |
 
 Negative results are kept in [`FAILURES.md`](FAILURES.md); runtime support
 boundaries and what a backend report must carry are in
 [`docs/PLATFORM-SCOPE.md`](docs/PLATFORM-SCOPE.md).
+
+## Runtime boundary
+
+Scion owns the model, the training, the codecs and the export. It does not depend on a serving
+engine. The reference loader is the Prism `qwen4exp` llama.cpp fork; Strata is one optional
+runtime, and its scripts live under [`integrations/strata/`](integrations/strata/). The container
+types and correction contract are in [`SCION_RUNTIME.md`](SCION_RUNTIME.md); core tests run without
+a Strata checkout.
 
 ## Reference release: Scion-35B-A3B
 

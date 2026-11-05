@@ -7,7 +7,7 @@
 # the study's community protocol (gen 3 samples/task, then the resumable embed, then the eval and
 # the veto arms) and puts the user's service back whichever way it ends.
 set -u
-WORKSPACE=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
+WORKSPACE=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}
 SCION_MODELS=${SCION_MODELS:-$WORKSPACE/models}
 SCION_REPO=${SCION_REPO:-$WORKSPACE/scion}
 STRATA_DH=${STRATA_DH_ROOT:-$WORKSPACE/strata-dh}
@@ -115,7 +115,7 @@ echo "== $(date -Is) smoke ok"
 
 # the frozen J-Bench states of this body (the eval's J-Bench arm)
 # the frozen J-Bench states of this body, for the eval's J-Bench arm: the study's npz key (L1), not ours (X)
-"$PY" - "$W/scion/decision-heads-work/dh-probe-states-main.npz" "$OUT/probe-states-main176b.npz" <<'PYEOF'
+"$PY" - "$SCION_REPO/decision-heads-work/dh-probe-states-main.npz" "$OUT/probe-states-main176b.npz" <<'PYEOF'
 import sys, numpy as np
 z = np.load(sys.argv[1], allow_pickle=False)
 np.savez_compressed(sys.argv[2], L1=z['X'], labels=z['labels'], splits=z['splits'], item_ids=z['item_ids'])
@@ -126,7 +126,7 @@ PYEOF
 echo "== $(date -Is) gen: the 664 tasks x 3 samples"
 ce --prefix "$PREFIX" --phase gen || { echo "== gen FAILED"; exit 1; }
 echo "== $(date -Is) embed (resumable)"
-"$PY" "$W/scion/decision-heads-work/dh_embed.py" --prefix "$PREFIX" --out-dir "$OUT" \
+"$PY" "$SCION_REPO/decision-heads-work/dh_embed.py" --prefix "$PREFIX" --out-dir "$OUT" \
     || { echo "== embed FAILED"; exit 1; }
 echo "== $(date -Is) eval"
 ce --prefix "$PREFIX" --phase eval || { echo "== eval FAILED"; exit 1; }
@@ -139,7 +139,7 @@ echo "== $(date -Is) veto: in-domain head"
     --out "$OUT/veto-indomain.json" || echo "== veto (in-domain) FAILED"
 echo "== $(date -Is) veto: the frozen J-Bench head"
 "$PY" "$CASC/veto_eval.py" --prefix "$PREFIX" --states "$OUT/$PREFIX-states.npz" --tasks "$TASKS" \
-    --head-json "$W/scion/decision-heads-work/scion-176b-a6b-decision-head.json" \
+    --head-json "$SCION_REPO/decision-heads-work/scion-176b-a6b-decision-head.json" \
     --out "$OUT/veto-frozen.json" || echo "== veto (frozen) FAILED"
 
 echo "== $(date -Is) all phases finished"

@@ -7,7 +7,7 @@
 # and one 128-token greedy request saved for the output comparison.
 # Prereq: the box is free (stop scion-flashnext / other engines first); restores nothing itself.
 set -u
-ROOT=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
+ROOT=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}
 PY=$ROOT/strata/.venv/bin/python
 EP=${SCION_STRATA_EP:-$ROOT/strata-ep}
 PROMPT='You are helping tune a local model. Write a detailed, factual paragraph about the history of computing. Begin now and do not stop early.'
@@ -46,7 +46,7 @@ run_arm() {
     $PY serve/server.py --engine strata --config "$cfg" --port 8081 >/dev/null 2>&1
   wait_ready || { systemctl --user stop "ab-$name"; return 1; }
   echo "--- fixed bench (4 requests) ---"
-  (cd $ROOT/scion && bash serving/bench_strata.sh "ab-$name" 8081) 2>&1
+  (cd $ROOT/scion && bash integrations/strata/serving/bench_strata.sh "ab-$name" 8081) 2>&1
   echo "--- 400-token decode + card busy ---"
   ( curl -s --max-time 300 "http://127.0.0.1:8081/v1/chat/completions" -H 'Content-Type: application/json' \
       -d '{"messages":[{"role":"user","content":"Write a detailed, factual essay about the history of computing from the abacus to the GPU. Do not stop early."}],"max_tokens":400,"temperature":0}' \

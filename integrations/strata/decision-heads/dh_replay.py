@@ -26,12 +26,12 @@ import sys
 import time
 from pathlib import Path
 
-WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", Path(__file__).resolve().parents[2].parent))
+WORKSPACE = Path(os.environ.get("SCION_WORKSPACE", Path(__file__).resolve().parents[4]))
 MODELS = Path(os.environ.get("SCION_MODELS", WORKSPACE / "models"))
 
 import numpy as np
 
-WORK = Path(__file__).resolve().parents[2]
+WORK = Path(__file__).resolve().parents[4]
 DH = WORK / "scion" / "decision-heads"
 WT = WORK / "strata-dh"
 HIVE = WORK / "hivebench" / "experiments" / "cascade"

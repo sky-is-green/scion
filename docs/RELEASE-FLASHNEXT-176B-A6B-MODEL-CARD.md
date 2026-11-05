@@ -186,7 +186,7 @@ wikitext slices, paired): **+0.017% PPL, not significant**. The body/corrections
 companions (~-1.6 GB) are unbuilt. Construction:
 `repack_experts_q2_0.py --preserve-experts --table-type q4x160
 --table-bytes <prebuilt stream>` (docs/PLE-TABLE-TYPES.md,
-docs/P4-STRATA-FIT.md).
+integrations/strata/docs/P4-STRATA-FIT.md).
 
 The published artifact: `Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf`,
 **57,615,045,408 bytes**, sha256

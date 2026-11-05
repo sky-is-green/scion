@@ -207,7 +207,7 @@ Policy (applies to any card count):
   a 2560 MiB reserve still ended at 1781 MiB free after the desktop grew
   during load).
 
-Tool: `work/scion/serving/vram_reserve.py` reads per-card VRAM and connected
+Tool: `work/scion/integrations/strata/serving/vram_reserve.py` reads per-card VRAM and connected
 connectors, prints the table, and `--apply` writes the recommendation into a
 serve config (or `--check` for monitoring). The live server now runs with
 `--vram-reserve-mib 3072`.
@@ -234,7 +234,7 @@ land at (first token of each slice unscored, the llama.cpp convention):
 against the fork's wikitext-2 PPL of **5.4561** (llama-perplexity, 580 x 512,
 chunk-reset) - in the expected band (the assistant conditioning is slightly
 lighter than raw LM, so landing at or just below is expected). Scorer:
-`work/scion/serving/strata_ppl.py`; the full 581-slice run is the
+`work/scion/integrations/strata/serving/strata_ppl.py`; the full 581-slice run is the
 `p4-ppl-full` unit, results to `/tmp/opencode/ppl/ppl-full.jsonl`.
 
 **Full run complete (2026-10-13): PPL 7.5728 over 296,636 tokens in 581

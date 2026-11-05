@@ -3,7 +3,7 @@
 # fixed bench (4 requests) then 8 more of the same prompt, storing traj md5s.
 # Used to separate engine changes from restart-path nondeterminism.
 set -eu
-W=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
+W=${SCION_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}
 TAG=$1
 D=${SCION_OUT:-${TMPDIR:-/tmp}/opencode/scion-moe-exact}
 mkdir -p "$D"
@@ -15,8 +15,8 @@ for i in $(seq 1 80); do
 done
 [ "$c" = "200" ] || { echo "serve did not come up"; exit 1; }
 echo "== $TAG: serve ready at $(date +%H:%M:%S)"
-bash "$W/scion/serving/bench_strata.sh" "$TAG-bench" | tee "$D/$TAG-bench.txt"
-bash "$W/scion/serving/moe-exact.sh" "$TAG" 2>&1 | sed "s/^/  /"
+bash "$W/scion/integrations/strata/serving/bench_strata.sh" "$TAG-bench" | tee "$D/$TAG-bench.txt"
+bash "$W/scion/integrations/strata/serving/moe-exact.sh" "$TAG" 2>&1 | sed "s/^/  /"
 python3 - "$D" "$TAG" <<'PY'
 import json, sys, os, hashlib
 d, tag = sys.argv[1:3]
