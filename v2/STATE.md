@@ -1,6 +1,9 @@
 # Project state - 2026-11-11
 
-Status: **planning complete, ready for a fresh start after audit.**
+Status: **audit passed; section 13 started.**  Export gate found a 3,661 ppm
+v1 training/deployment code mismatch and the seed-from-GGUF fix is in;
+external baselines and rollouts are partly done; pilot training is blocked on
+runpod GPU stock.  See [PROGRESS.md](PROGRESS.md).
 
 ## Repository
 
@@ -25,6 +28,12 @@ Status: **planning complete, ready for a fresh start after audit.**
   at `models-p310/scion-strata/`.
 - Scion-FlashNext-176B-A6B Q6_K, 60.2 GB, at
   `c10e404b-.../ab-models/Scion-FlashNext-176B-A6B-Q6_K.gguf` (v2 teacher).
+- BF16 body source for the export audit, 69.4 GB, sha256 `ecbe9e21...666660`
+  at `models-p310/bf16/Qwen3.8-35B-A3B-Distill-BF16.gguf`.
+- Ternary Nemotron 30B-A3B, 9.47 GB, at
+  `models-p310/nemotron/Ternary-Nemotron-3.5-Lightning-30B-A3B-GGUF.gguf`.
+- `empero-prefix/empero-hf` holds the first three HF shards for the 4-layer
+  local pipeline smoke (not a full model copy).
 - The partial empero bf16 teacher (13 GB) was deleted in the cleanup; it is
   public and re-fetchable.
 
@@ -54,23 +63,33 @@ Status: **planning complete, ready for a fresh start after audit.**
   12:08 reboot; re-clone before the next eval.
 - `/tmp/opencode/scion35b-strata.json` is preserved in `v2/configs/`.
 
-## Ready-to-start checklist (from PLAN section 13)
+## Section 13 checklist
 
-1. Export audit on the current 11.3 GB artifact (gate).
-2. External baselines: Ternary-Flint and ternary Nemotron on the 30-item
-   subset.
-3. Failure rollouts from the current body (tools, coding, long items).
-4. Pilot: traces vs rollouts vs steered data; closed-form ATC at rank 64/512;
-   rank sweep.
-5. Scale-only distillation on the current body.
-6. PTQ1_0 single-tensor transcode and q36 kernel parity check.
+1. **Done, gate failed for v1 / fixed for v2.** 3,661 ppm code mismatch vs the
+   Python rule; the artifact is faithful C++ Lloyd output; seed the training
+   body from the deployed GGUF (0 ppm after re-quantisation).  See
+   [export-audit/README.md](export-audit/README.md).
+2. **Partial.** Nemotron running on the 30-item subset; Flint blocked (Metal-
+   only `flint` runtime, no Linux/ROCm arch, only the NonaCore file on the
+   Hub).  See [BASELINES.md](BASELINES.md) / [PROGRESS.md](PROGRESS.md).
+3. **Pilot sample done.** 360-prompt corpus (hard-90/easy-30 excluded), 12
+   on-policy rollouts, 3 long reasoning loops at coverage 1.0.  See
+   [PROGRESS.md](PROGRESS.md).
+4. **Blocked on runpod stock.**  Runbook ready: `moe/runpod-pilot.sh`;
+   4-layer local pipeline smoke passed ([PREFIX-SMOKE.md](PREFIX-SMOKE.md)).
+5. **Not run** (same pod path).  Scale-only needs the full HF student.
+6. **Done, prototype.** 1.51 GB saving, lossless trits/scales, HIP parity
+   PASS, KLD 0.0030 cross-type.  See [PTQ1_0.md](PTQ1_0.md).
 
 ## Known gaps / risks
 
 - The two result files do not carry seed/T fields (the runner patch applies to
   future runs); the values are recorded in `v2/EVAL.md`.
-- The q36 HIP expert kernels are Q2_0-specific; PTQ1_0 remains a kernel
-  prototype, not a promised size win.
-- Export code fidelity has not been audited yet.
+- v1 correction training did not see exactly the deployed codes (3,661 ppm);
+  the v2 pipeline must use `--bank-gguf`.  Re-audit the first v2 export.
+- PTQ1_0 is not a free repack: cross-type KLD is 0.0030, so it needs a
+  hard-subset A/B before release.
 - `reasoning_loop_recovery` is inert for non-streaming requests; the harness
   must stream, or the server needs the check in its non-streaming path.
+- Runpod had no 80/96 GB capacity during this session; the full teacher-trace,
+  corrections and scale-only runs are still pending.

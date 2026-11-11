@@ -28,6 +28,16 @@
   - 32k: `fb579b5d31c8fdd6f1b486bef6710279a19e2130b65ec9770e89037f22816f81`
   - 32k-t01: `8c9475cf1fd7bbbeb89fa070672d39b1d0c607c3d577db89bbb500051dd7144d`
 
+## 30-item subset (external-baseline protocol)
+
+- Definition: `v2/eval/subset30.json` - first 10 per family by the harness
+  `stable_order` (sha256 of item id), then interleaved.
+- Scion's saved T=0.6 rows on those items:
+  `v2/eval/hard-subset30-scion/` - **3/30 = 10.0%** (R 0/10, C 0/10, T 3/10),
+  7 truncations, median 291 s, 77.1 tok/s.
+- Runner: `v2/scripts/hard_subset.py` (same harness/protocol; resumable).
+- Ternary Nemotron run: `v2/eval/hard-subset30-nemotron/`.
+
 ## Protocol caveats
 
 - 12/30 coding items truncated at 32k; 9 of those were lost to an unclosed

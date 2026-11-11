@@ -1,14 +1,15 @@
 2750561c2e30f646493d02782a35c03ffab865c800fb09bd8a2b4d0ac313233b  ./AUDIT-2026-11-11.md
+36e447e8011671fc0a700f4404704bab9a2716f03bdb782d999d8d7013377038  ./BASELINES.md
 eb6166472768d06113cf9ee50b9c7d98714c0c1fc11216befa82c9ea99218870  ./configs/scion35b-strata.json
 f4d1c6f55bc78b8f6b2f73c962a8b517359fe67f6f84825a223036067b6a385e  ./corpus/rollout-prompts.jsonl
 fb579b5d31c8fdd6f1b486bef6710279a19e2130b65ec9770e89037f22816f81  ./eval/hard90-scion-32k/results.jsonl
 1752fd66a4a585a1abac3c8fa09ad8a22342c0494024c343dc2b34623ca5ba69  ./eval/hard90-scion-32k/summary.json
 8c9475cf1fd7bbbeb89fa070672d39b1d0c607c3d577db89bbb500051dd7144d  ./eval/hard90-scion-32k-t01/results.jsonl
 da44aa0d694a1fb6a5b58a5ad2f4b86a1f4b0d9c27a0e8263b4c34e50ab6dd1a  ./eval/hard90-scion-32k-t01/summary.json
-3ccc29a1c8a34aeebc534e009c83025c1f3f70d62afcd79fc253a11b50b2a32c  ./eval/hard-subset30-nemotron/results.jsonl
+a7e48a749d233668cdc4077759d4cfc5fd564259bfe92290d9b4021782d711ce  ./eval/hard-subset30-nemotron/results.jsonl
 c3d1b42df91af1da36a7f52b84fc480a7d10f40e91a385f6ff08b3f533752f08  ./eval/hard-subset30-scion/results.jsonl
 8c8153a92a32e57596c85da95d46e7895b894734e1b445a039c3e4b94c95cfe3  ./eval/hard-subset30-scion/summary.json
-ccbc4ecf8cb2400dae955a4b01beee2208fc990731e7126df39621683ff7d787  ./EVAL.md
+7e4ef51eae73fca43bb8d3e778037e7ec0e5e830de6c5ad74fa174914d12b32d  ./EVAL.md
 4fb2e2759b562088b1e201d988fa395aad23e102985e4c484f4a74b8a574a9f7  ./eval/subset30.json
 800e32446577d4c4206df74da17c87b6075c35fef3f8aa1fea3e98dc8c9fb1f3  ./export-audit/audit.csv
 443bcd286ad84a14c512788e8b76d249c2b23001e8d73e39351af76296adaeb6  ./export-audit/audit.json
@@ -32,6 +33,7 @@ ae7df08ba924fb7bda60e97715c012fffeb964f1ea577445d6bf45d7bbfa79f5  ./prior-art-an
 8abde48e9dd50e2f394dba6ba0d29f21a6ca8408ed55b3b81ee35992dbd8f69a  ./prior-art-analysis/011-ternary-nemotron.md
 52085db5d04dc788fbc9b5736904a936d5683e7fed09908424ab2e1a02debda1  ./prior-art-analysis/README.md
 1291dea197d9aedf0632fb41157bc4ce54bfb1626da26c1248ab80f6cfd7862f  ./prior-art-analysis/SURVEY-2026-11-11.md
+622daae823eb15a105441f398239903821b8c20a06a714049e6dd29eb0075cd0  ./PROGRESS.md
 1c5e36b4398484b7f700ba242579c28115b75c8a619b6964e40bb486ed09ef96  ./PTQ1_0.md
 fba84ca2b80a4dd6a58cd4be2bf17e700576de080f6245b04564a8bf2c076833  ./README.md
 6b819ed8b786981a6380bb7df81348fbc6c803584bf4ebf71e20f56579e3dc69  ./rollout-corpus-manifest.json
@@ -57,4 +59,4 @@ bd6674575a699c79d33d104f5ad686a79dc4e1136f43b5d7dc35c26a3b28121a  ./scripts/expo
 3ba0c83bfc60ae356516e2f99a68bfad4020a9faad8b3f9df180f459553a37be  ./scripts/hard_subset.py
 6a7c5499a94e6875822e9913259b10fe03c06e805e14de399c849ef9d339a9f7  ./scripts/make_ptq1_0_parity_gguf.py
 d865d3571b513a3f1b58e57d731efe637fdb3c980217c07d9fc17c54441ef110  ./scripts/transcode_experts_ptq1_0.py
-8f22e15f526bfd4b2547a307587573cac50f29c211b9375af11a1fe45e03c32d  ./STATE.md
+c169160d191e20fe60accf16378bdc7b4e8d1238a579950f6aadddaf2581a087  ./STATE.md
