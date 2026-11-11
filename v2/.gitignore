@@ -10,3 +10,7 @@ corrections/*.safetensors
 export/*.gguf
 export/*.bin
 eval/tmp/
+
+# python bytecode
+__pycache__/
+*.pyc

@@ -13,7 +13,7 @@ ccbc4ecf8cb2400dae955a4b01beee2208fc990731e7126df39621683ff7d787  ./EVAL.md
 9d5318d37b2ebb1cee2cc01bc5a2494904b6473a667aa14114297dbe0cac017b  ./export-audit/cpp-parity.json
 e8d320ed51331366c703a8b616d65982adb80fc673a5a08bef746a0b391cdff5  ./export-audit/README.md
 49eac398f0588040b191da2e532be340dcc494ba26e45c63307c56cf37c57585  ./export-audit/selfcheck.json
-69f95491a6175eaf21c8f9f91f81e2ab3ce6b913bd250b1a85977d051830e6ae  ./.gitignore
+71b57a96e0331b157ad24aefa0df36fd1af43060968b27ac8e87eb372edef50b  ./.gitignore
 4c24a9c3f0fef3b4e1643ee2967cb39d2a5cc0074c633d6bb7d3ac00100b9e0f  ./LESSONS.md
 6604849536a747849759504b68657efa4b626a5dddcc0caddef9b2b2c6662696  ./PLAN.md
 d7ced98430a64cbc2e854a55868fcf7dbbab3ebfeb662e36fb54c79189a83fd0  ./prior-art-analysis/001-right-on-q.md
@@ -34,6 +34,4 @@ fba84ca2b80a4dd6a58cd4be2bf17e700576de080f6245b04564a8bf2c076833  ./README.md
 bd6674575a699c79d33d104f5ad686a79dc4e1136f43b5d7dc35c26a3b28121a  ./scripts/export_audit.py
 9bb41524bc0555ab47becf58b536123a1f406a955c209c3e3516a043b4268787  ./scripts/hard90_scion.py
 3ba0c83bfc60ae356516e2f99a68bfad4020a9faad8b3f9df180f459553a37be  ./scripts/hard_subset.py
-ce9eb09633aee8d80c69d890eb6fbdd806675880398918e361e56937170d0e8f  ./scripts/__pycache__/export_audit.cpython-312.pyc
-aedde2215039427bfc3d36dbcbc4a4f8579a55b026570820e5dcaee808af2db9  ./scripts/__pycache__/export_audit.cpython-314.pyc
 8f22e15f526bfd4b2547a307587573cac50f29c211b9375af11a1fe45e03c32d  ./STATE.md
