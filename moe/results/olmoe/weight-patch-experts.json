@@ -1,0 +1,301 @@
+{
+  "teacher_ppl": 11.0236,
+  "ternary_ppl": 795.6194,
+  "ternary_agree": 0.6915,
+  "targets": {
+    "both": [
+      {
+        "layer": 0,
+        "ppl": 124.5666,
+        "recovery": 0.85528,
+        "router_agree": 0.7736
+      },
+      {
+        "layer": 1,
+        "ppl": 195.8575,
+        "recovery": 0.76442,
+        "router_agree": 0.761
+      },
+      {
+        "layer": 2,
+        "ppl": 120.7687,
+        "recovery": 0.86013,
+        "router_agree": 0.774
+      },
+      {
+        "layer": 3,
+        "ppl": 127.2106,
+        "recovery": 0.85191,
+        "router_agree": 0.7631
+      },
+      {
+        "layer": 4,
+        "ppl": 248.1793,
+        "recovery": 0.69774,
+        "router_agree": 0.7415
+      },
+      {
+        "layer": 5,
+        "ppl": 370.6995,
+        "recovery": 0.54158,
+        "router_agree": 0.7287
+      },
+      {
+        "layer": 6,
+        "ppl": 397.8766,
+        "recovery": 0.50694,
+        "router_agree": 0.7364
+      },
+      {
+        "layer": 7,
+        "ppl": 293.9435,
+        "recovery": 0.63941,
+        "router_agree": 0.7328
+      },
+      {
+        "layer": 8,
+        "ppl": 166.7039,
+        "recovery": 0.80158,
+        "router_agree": 0.7352
+      },
+      {
+        "layer": 9,
+        "ppl": 219.215,
+        "recovery": 0.73465,
+        "router_agree": 0.732
+      },
+      {
+        "layer": 10,
+        "ppl": 300.3492,
+        "recovery": 0.63124,
+        "router_agree": 0.7182
+      },
+      {
+        "layer": 11,
+        "ppl": 335.6312,
+        "recovery": 0.58627,
+        "router_agree": 0.7099
+      },
+      {
+        "layer": 12,
+        "ppl": 515.7023,
+        "recovery": 0.35677,
+        "router_agree": 0.6996
+      },
+      {
+        "layer": 13,
+        "ppl": 509.0446,
+        "recovery": 0.36525,
+        "router_agree": 0.7009
+      },
+      {
+        "layer": 14,
+        "ppl": 460.9718,
+        "recovery": 0.42652,
+        "router_agree": 0.6968
+      },
+      {
+        "layer": 15,
+        "ppl": 607.338,
+        "recovery": 0.23997,
+        "router_agree": 0.6915
+      }
+    ],
+    "gate_up": [
+      {
+        "layer": 0,
+        "ppl": 234.2248,
+        "recovery": 0.71552,
+        "router_agree": 0.7475
+      },
+      {
+        "layer": 1,
+        "ppl": 491.9333,
+        "recovery": 0.38706,
+        "router_agree": 0.7223
+      },
+      {
+        "layer": 2,
+        "ppl": 171.9335,
+        "recovery": 0.79491,
+        "router_agree": 0.7547
+      },
+      {
+        "layer": 3,
+        "ppl": 162.1221,
+        "recovery": 0.80742,
+        "router_agree": 0.7474
+      },
+      {
+        "layer": 4,
+        "ppl": 359.5511,
+        "recovery": 0.55579,
+        "router_agree": 0.7252
+      },
+      {
+        "layer": 5,
+        "ppl": 504.6055,
+        "recovery": 0.37091,
+        "router_agree": 0.7145
+      },
+      {
+        "layer": 6,
+        "ppl": 472.7514,
+        "recovery": 0.41151,
+        "router_agree": 0.7213
+      },
+      {
+        "layer": 7,
+        "ppl": 416.9742,
+        "recovery": 0.4826,
+        "router_agree": 0.7162
+      },
+      {
+        "layer": 8,
+        "ppl": 250.6427,
+        "recovery": 0.6946,
+        "router_agree": 0.7245
+      },
+      {
+        "layer": 9,
+        "ppl": 377.5087,
+        "recovery": 0.5329,
+        "router_agree": 0.7169
+      },
+      {
+        "layer": 10,
+        "ppl": 446.7574,
+        "recovery": 0.44464,
+        "router_agree": 0.709
+      },
+      {
+        "layer": 11,
+        "ppl": 414.4427,
+        "recovery": 0.48583,
+        "router_agree": 0.7062
+      },
+      {
+        "layer": 12,
+        "ppl": 642.0536,
+        "recovery": 0.19573,
+        "router_agree": 0.696
+      },
+      {
+        "layer": 13,
+        "ppl": 590.735,
+        "recovery": 0.26113,
+        "router_agree": 0.6984
+      },
+      {
+        "layer": 14,
+        "ppl": 529.2401,
+        "recovery": 0.33951,
+        "router_agree": 0.6956
+      },
+      {
+        "layer": 15,
+        "ppl": 527.2947,
+        "recovery": 0.34199,
+        "router_agree": 0.6915
+      }
+    ],
+    "down": [
+      {
+        "layer": 0,
+        "ppl": 615.99,
+        "recovery": 0.22895,
+        "router_agree": 0.7085
+      },
+      {
+        "layer": 1,
+        "ppl": 239.086,
+        "recovery": 0.70932,
+        "router_agree": 0.7389
+      },
+      {
+        "layer": 2,
+        "ppl": 561.5823,
+        "recovery": 0.29829,
+        "router_agree": 0.7088
+      },
+      {
+        "layer": 3,
+        "ppl": 681.7047,
+        "recovery": 0.14519,
+        "router_agree": 0.7013
+      },
+      {
+        "layer": 4,
+        "ppl": 641.2762,
+        "recovery": 0.19672,
+        "router_agree": 0.7006
+      },
+      {
+        "layer": 5,
+        "ppl": 624.1139,
+        "recovery": 0.21859,
+        "router_agree": 0.7007
+      },
+      {
+        "layer": 6,
+        "ppl": 666.2689,
+        "recovery": 0.16486,
+        "router_agree": 0.6998
+      },
+      {
+        "layer": 7,
+        "ppl": 621.7147,
+        "recovery": 0.22165,
+        "router_agree": 0.7014
+      },
+      {
+        "layer": 8,
+        "ppl": 658.9851,
+        "recovery": 0.17415,
+        "router_agree": 0.6975
+      },
+      {
+        "layer": 9,
+        "ppl": 588.0799,
+        "recovery": 0.26452,
+        "router_agree": 0.7013
+      },
+      {
+        "layer": 10,
+        "ppl": 582.4335,
+        "recovery": 0.27171,
+        "router_agree": 0.6991
+      },
+      {
+        "layer": 11,
+        "ppl": 679.4113,
+        "recovery": 0.14811,
+        "router_agree": 0.6959
+      },
+      {
+        "layer": 12,
+        "ppl": 698.1294,
+        "recovery": 0.12426,
+        "router_agree": 0.694
+      },
+      {
+        "layer": 13,
+        "ppl": 727.9973,
+        "recovery": 0.08619,
+        "router_agree": 0.6928
+      },
+      {
+        "layer": 14,
+        "ppl": 698.714,
+        "recovery": 0.12351,
+        "router_agree": 0.6926
+      },
+      {
+        "layer": 15,
+        "ppl": 626.5268,
+        "recovery": 0.21552,
+        "router_agree": 0.6915
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "ppl": 369165.8865,
+  "checkpoint": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/hivebench/artifacts/ternary/moe/qwen4exp/pod/remote-p2b/qwen4exp-corr-r512-g128-step3000-cur05.pt",
+  "rank": 512,
+  "branch_quant": "g128",
+  "tag": "screen-g32"
+}

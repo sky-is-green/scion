@@ -5,10 +5,14 @@
 | [../README.md](../README.md) | start here: the idea, the reference release, quickstart |
 | [MOE-EXTENSION.md](MOE-EXTENSION.md) | the full MoE write-up: routing drift, the placement rule, AUTOGRID, sidecar formats, deployment routes |
 | [SCION-RECIPE.md](SCION-RECIPE.md) | **the training recipe, consolidated and model-agnostic** — objective/flags, stages/gates, failure modes, drafter lane, Qwen-4.0 port checklist |
+| [../v2/PLAN.md](../v2/PLAN.md) | v2 plan: FlashNext distill into the 35B, frozen body, corrections only (planning) |
+| [../v2/LESSONS.md](../v2/LESSONS.md) | v2 lessons digest: negative register + hard-90 findings |
 | [QUANT-RETENTION-35B.md](QUANT-RETENTION-35B.md) | the 35B release measured against every community quant (protocol + table) |
 | [RELEASE-35B-MODEL-CARD.md](RELEASE-35B-MODEL-CARD.md) | the published card for Scion-35B-A3B |
 | [QWEN35-PORT-DECISION.md](QWEN35-PORT-DECISION.md) | the `qwen3_5_moe` (Qwen3.5/3.8) port decision record |
 | [TAIL-EXPERIMENT-PLAN.md](TAIL-EXPERIMENT-PLAN.md) | tail-conditioned KD: **resolved (negative)** — the prefix tail terms did not transfer to the full body |
+| [ROUTER-FREEZE.md](ROUTER-FREEZE.md) | fixed-router vs joint-router corrections: the MiMo-V2.6 §5.4 motivation, existing evidence, and the matched A/B |
+| [WEIGHT-PATCHING.md](WEIGHT-PATCHING.md) | weight patching / weight-space programming: what is real, the OLMoE layer/expert sensitivity map, and the Scion adaptation |
 | [PLATFORM-SCOPE.md](PLATFORM-SCOPE.md) | verified runtime paths and what a backend-specific report must carry |
 | [QUANT-METHODS-PLAN.md](QUANT-METHODS-PLAN.md) | CAT-Q / AYOT / SignRoundV2 / TernaryQuench adoption: CPU side landed, GPU queue |
 | [../FAILURES.md](../FAILURES.md) | negative register for this track (D1–D8) |

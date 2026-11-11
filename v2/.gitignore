@@ -1,0 +1,12 @@
+# working data for v2; never commit these
+corpus/
+traces/
+runs/
+logs/
+artifacts/
+corrections/*.pt
+corrections/*.bin
+corrections/*.safetensors
+export/*.gguf
+export/*.bin
+eval/tmp/

@@ -1,0 +1,103 @@
+{
+  "teacher_ppl": 11.0236,
+  "ternary_ppl": 795.6194,
+  "ternary_agree": 0.6915,
+  "layers": [
+    {
+      "layer": 0,
+      "ppl": 124.5666,
+      "recovery": 0.85528,
+      "router_agree": 0.7736
+    },
+    {
+      "layer": 1,
+      "ppl": 195.8575,
+      "recovery": 0.76442,
+      "router_agree": 0.761
+    },
+    {
+      "layer": 2,
+      "ppl": 120.7687,
+      "recovery": 0.86013,
+      "router_agree": 0.774
+    },
+    {
+      "layer": 3,
+      "ppl": 127.2106,
+      "recovery": 0.85191,
+      "router_agree": 0.7631
+    },
+    {
+      "layer": 4,
+      "ppl": 248.1793,
+      "recovery": 0.69774,
+      "router_agree": 0.7415
+    },
+    {
+      "layer": 5,
+      "ppl": 370.6995,
+      "recovery": 0.54158,
+      "router_agree": 0.7287
+    },
+    {
+      "layer": 6,
+      "ppl": 397.8766,
+      "recovery": 0.50694,
+      "router_agree": 0.7364
+    },
+    {
+      "layer": 7,
+      "ppl": 293.9435,
+      "recovery": 0.63941,
+      "router_agree": 0.7328
+    },
+    {
+      "layer": 8,
+      "ppl": 166.7039,
+      "recovery": 0.80158,
+      "router_agree": 0.7352
+    },
+    {
+      "layer": 9,
+      "ppl": 219.215,
+      "recovery": 0.73465,
+      "router_agree": 0.732
+    },
+    {
+      "layer": 10,
+      "ppl": 300.3492,
+      "recovery": 0.63124,
+      "router_agree": 0.7182
+    },
+    {
+      "layer": 11,
+      "ppl": 335.6312,
+      "recovery": 0.58627,
+      "router_agree": 0.7099
+    },
+    {
+      "layer": 12,
+      "ppl": 515.7023,
+      "recovery": 0.35677,
+      "router_agree": 0.6996
+    },
+    {
+      "layer": 13,
+      "ppl": 509.0446,
+      "recovery": 0.36525,
+      "router_agree": 0.7009
+    },
+    {
+      "layer": 14,
+      "ppl": 460.9718,
+      "recovery": 0.42652,
+      "router_agree": 0.6968
+    },
+    {
+      "layer": 15,
+      "ppl": 607.338,
+      "recovery": 0.23997,
+      "router_agree": 0.6915
+    }
+  ]
+}
