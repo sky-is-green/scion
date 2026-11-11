@@ -57,6 +57,7 @@ from mtp import (MTPHead, chunked_ce, chunked_kl, draft_acceptance,  # noqa: E40
                  self_target_main)
 from router_bias import (balance_update, balance_z_loss,  # noqa: E402
                          patch_router_balance)
+from router_metrics import load_stats  # noqa: E402
 
 ART = Path(os.environ.get("MOE_ARTIFACTS", HERE / "artifacts"))
 MODEL = ART / "empero-hf"          # full or partial qwen3_5_moe checkpoint
@@ -207,7 +208,12 @@ def quick_eval(model, data, args, ref=None):
     """In-run eval (qwen35-aware: text prefix or full conditional wrapper)."""
     model.eval()
     total, ntok, agree = 0.0, 0, []
+    loads = {}
     layers = text_layers(model)
+    cfg = getattr(model, "config", None)
+    if cfg is not None and hasattr(cfg, "text_config"):
+        cfg = cfg.text_config
+    n_experts = int(getattr(cfg, "num_experts", 0) or 0)
     for i in range(len(data)):
         ids = data[i:i + 1].to(args.device)
         store = {}
@@ -219,14 +225,23 @@ def quick_eval(model, data, args, ref=None):
         total += F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
                                  ids[:, 1:].reshape(-1), reduction="sum").item()
         ntok += ids[:, 1:].numel()
-        if ref is not None:
-            for j in store:
+        for j in store:
+            if n_experts:
+                loads.setdefault(j, []).append(load_stats(store[j][2], n_experts))
+            if ref is not None:
                 a = ref[i][j].to(store[j][2].device)
                 b = store[j][2]
                 agree.append(float((a.unsqueeze(-1) == b.unsqueeze(-2)).any(-1).float().mean()))
     model.train()
     ppl = math.exp(total / ntok)
-    return ppl, (sum(agree) / len(agree) if agree else None)
+    diag = None
+    if loads:
+        def _mean(key):
+            vals = [d[key] for ds in loads.values() for d in ds]
+            return sum(vals) / len(vals)
+        diag = {"load_cv": _mean("cv"), "load_peak": _mean("peak"),
+                "load_cold": _mean("cold"), "load_dead": _mean("dead")}
+    return ppl, (sum(agree) / len(agree) if agree else None), diag
 
 
 # ---------------------------------------------------------------- prefix -----
@@ -352,9 +367,13 @@ def smoke(args):
     for layer in model.layers:
         layer.mlp = MoEWithCorrection(layer.mlp, hidden, args.rank, args.branch_quant).to(args.device)
     for name, p in model.named_parameters():
-        p.requires_grad_((".branch." in name) or ("mlp.gate." in name))
+        p.requires_grad_((".branch." in name)
+                         or ("mlp.gate." in name
+                             and not getattr(args, "freeze_router", False)))
     n_tr = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"trainable {n_tr/1e6:.2f}M (branches + routers)", flush=True)
+    arm = "frozen" if getattr(args, "freeze_router", False) else "trained"
+    print(f"trainable {n_tr/1e6:.2f}M (branches + routers, {arm} router)",
+          flush=True)
 
     params = [p for p in model.parameters() if p.requires_grad]
     opt = torch.optim.Adafactor(params, lr=args.lr, weight_decay=0.0)
@@ -526,7 +545,13 @@ def attach_branches(model, args) -> int:
         # by construction.
         print(f"branch gates: {gate} (identity at init)", flush=True)
     for name, p in model.named_parameters():
-        p.requires_grad_(".branch." in name or ".gate." in name)
+        p.requires_grad_(".branch." in name
+                         or (".gate." in name
+                             and not getattr(args, "freeze_router", False)))
+    n_router = sum(p.numel() for name, p in model.named_parameters()
+                   if ".gate." in name and p.requires_grad)
+    print(f"router arm: {'frozen' if getattr(args, 'freeze_router', False) else 'trained'} "
+          f"({n_router/1e6:.2f}M trainable router weights)", flush=True)
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
@@ -748,9 +773,16 @@ def stage_train(args):
                       f"tail {0.0 if tail is None else tail.item():.4f} "
                       f"total {loss.item():.4f}{extra}", flush=True)
             if args.eval_every and step % args.eval_every == 0 and ev is not None:
-                ppl, ag = quick_eval(model, ev, args, ref)
-                print(f"  [eval] step {step} ppl {ppl:.2f} router_agree {ag:.4f}",
-                      flush=True)
+                ppl, ag, ld = quick_eval(model, ev, args, ref)
+                msg = f"  [eval] step {step} ppl {ppl:.2f}"
+                if ag is not None:
+                    msg += f" router_agree {ag:.4f}"
+                if ld is not None:
+                    msg += (f" load_cv {ld['load_cv']:.3f}"
+                            f" peak {ld['load_peak']:.2f}"
+                            f" cold {100*ld['load_cold']:.1f}%"
+                            f" dead {ld['load_dead']:.1f}")
+                print(msg, flush=True)
                 if head is not None:
                     acc = mtp_acceptance(model, head, ev, args)
                     print(f"  [eval] step {step} mtp_accept {acc:.4f}", flush=True)
@@ -852,6 +884,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--catq-gamma", type=float, default=0.8)
     ap.add_argument("--catq-s0", type=float, default=30.0)
     ap.add_argument("--rank", type=int, default=512)
+    ap.add_argument("--freeze-router", action="store_true",
+                    help="fixed-router arm: train only the correction branches; "
+                         "the pretrained router weights stay untouched")
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"], default="fp32")
     ap.add_argument("--branch-target", choices=["moe_out", "attn_out", "both"], default="both",
                     help="moe_out (block output), attn_out (ssm_out/o_proj), or both")

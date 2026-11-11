@@ -1405,7 +1405,13 @@ def attach_branches(model, args) -> int:
     if gate != "none":
         print(f"branch gates: {gate} (identity at init)", flush=True)
     for name, p in model.named_parameters():
-        p.requires_grad_(".branch." in name or ".gate." in name)
+        p.requires_grad_(".branch." in name
+                         or (".gate." in name
+                             and not getattr(args, "freeze_router", False)))
+    n_router = sum(p.numel() for name, p in model.named_parameters()
+                   if ".gate." in name and p.requires_grad)
+    print(f"router arm: {'frozen' if getattr(args, 'freeze_router', False) else 'trained'} "
+          f"({n_router/1e6:.2f}M trainable router weights)", flush=True)
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
@@ -2342,7 +2348,9 @@ def stage_smoke(args):
         layer.mlp = MoEWithCorrection(layer.mlp, model.config.hidden_size,
                                       args.rank, args.branch_quant).to(args.device)
     for name, p in model.named_parameters():
-        p.requires_grad_(".branch." in name or ".gate." in name)
+        p.requires_grad_(
+            ".branch." in name
+            or (".gate." in name and not getattr(args, "freeze_router", False)))
     n_tr = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"trainable {n_tr/1e6:.2f}M (branches + routers)", flush=True)
 
@@ -2485,7 +2493,10 @@ def stage_qat_screen(args):
         ternarize_banks(model, args)
         n_br = attach_branches(model, args)
         for name, p in model.named_parameters():
-            p.requires_grad_(".branch." in name or ".gate." in name)
+            p.requires_grad_(
+                ".branch." in name
+                or (".gate." in name
+                    and not getattr(args, "freeze_router", False)))
         params = [p for p in model.parameters() if p.requires_grad]
         opt = torch.optim.Adafactor(params, lr=args.lr, weight_decay=0.0)
         n_qat = apply_ple_qat(model, qat_bits, args.ple_qat_group)
@@ -3401,6 +3412,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="train: experts per checkpointed group for "
                          "--checkpoint-mode group (32 saves ~0.3 GiB)")
     ap.add_argument("--rank", type=int, default=512)
+    ap.add_argument("--freeze-router", action="store_true",
+                    help="fixed-router arm: train only the correction branches; "
+                         "the pretrained router weights stay untouched")
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"],
                     default="fp32")
     ap.add_argument("--branch-target", choices=["moe_out", "attn_out", "both"],

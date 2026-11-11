@@ -294,6 +294,14 @@ The correction transfers to the GGUF base at the same ratio as the harness
 random-window harness protocol), so the runtime absolute PPL is lower than the
 harness number; the two protocols are not directly comparable.
 
+The router deltas are small but not cosmetic.  On the 563-chunk runtime
+protocol, the documented rank-1024 `attn_out` adapter measures 16.17 without
+the `ffn_gate_inp` pairs and 15.61 with them (3.5% relative), and the deltas
+move the layer-0 router by about 3.7% RMS.  That is an inference-time ablation;
+whether training the router jointly is better than freezing it and letting the
+branches restore the router's input is the open A/B in
+[`ROUTER-FREEZE.md`](ROUTER-FREEZE.md).
+
 ### 2.5 Where the cheap route already works
 
 MoTE-style up-cycling (pretrained FFN kept as a frozen BF16 shared expert,
@@ -342,7 +350,13 @@ Route A is the one this work opens: it reaches ternary bit budgets without the
    still paying and should scale with compute),
 2. router-aware losses: the router-KD term is a verified no-op (the
    `--router-weight 0` control matched within ~1.5%), so the correction repairs
-   the state the router reads rather than distilling its decisions,
+   the state the router reads rather than distilling its decisions.  The
+   fixed-router question is now measured on OLMoE: joint training keeps a
+   ~0.5% PPL edge, while the frozen arm is slightly better on teacher routing
+   agreement/KL and has no load-collapse penalty (the MiMo-V2.6 RL effect did
+   not transfer to this PTQ setting).  Protocol and per-seed numbers:
+   [`ROUTER-FREEZE.md`](ROUTER-FREEZE.md) §4a; the 35B transfer and
+   long-horizon read are open;
 3. ternarising the correction sidecar: STE-trained ternary branches cost
    1.2-1.5x PPL over fp32 on the absmean base; the tax is tunable with a mixed
    format (2/16 and 4/16 fp16 layers reach 1.37x / 1.28x at 24.6 MB / 40.2 MB).

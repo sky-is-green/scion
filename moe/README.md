@@ -21,7 +21,9 @@ Two targets:
 | `olmoe_proxy.py` | in-place ternary QAT + teacher cache + KD loop + eval |
 | `moe_proxy.py` | MoTE-style up-cycle proxy (Qwen3-1.7B) |
 | `olmoe_rotate_rtn.py` | rotation vs RTN quantizer comparison |
-| `olmoe_corrections.py` | per-layer residual-stream correction branches (route A); STE branch formats and mixed-precision sidecars |
+| `olmoe_corrections.py` | per-layer residual-stream correction branches (route A); STE branch formats and mixed-precision sidecars; `--freeze-router` fixed-router arm |
+| `router_metrics.py` | routing/load diagnostics shared by the trainers (top-1/top-k agreement, teacher-router KL, load CV/peak/cold, position buckets) |
+| `router-freeze-ab.sh` | matched joint-vs-fixed-router A/B on OLMoE (two arms, one cache, `--eval-router base` decomposition) |
 | `olmoe_experts.py` | per-expert correction branches (placement control) |
 | `eval_ckpts.py` | checkpoint trajectory + router diagnostics |
 | `save_ternary_olmoe.py` | materialise a ternary build to an HF dir |
@@ -110,6 +112,24 @@ with the student inputs.  Body/branch quantizer: `--quant {absmean,lloyd}`
 (`lloyd` is the deployable Q1_0_g128 rule; scale rule only, same 2-bit
 storage).  Branch formats: `--branch-quant {fp32,g128,rank}` (STE-trained when
 not fp32; `rank` is the TAARDIS V3 per-rank-component scheme).
+
+Fixed-router A/B (the MiMo-V2.6 §5.4 question):
+
+```sh
+# joint (current) vs --freeze-router; one cache per seed because the cache is
+# built from seed-specific text windows
+for s in 0 1; do
+  python moe/olmoe_proxy.py cache --windows 4096 --corpus-chars 50000000 \
+      --seed "$s" --out "moe/artifacts/olmoe/teacher-cache-s$s.pt"
+  CACHE="moe/artifacts/olmoe/teacher-cache-s$s.pt" \
+      STEPS=4096 SEEDS=$s EVAL_WINDOWS=32 bash moe/router-freeze-ab.sh
+done
+```
+
+The protocol, metrics and decision rule are in
+[`../docs/ROUTER-FREEZE.md`](../docs/ROUTER-FREEZE.md).  The eval JSON now
+carries top-1/top-8 agreement, teacher-router KL, load CV/peak/cold/dead, the
+per-position agreement profile, and the relative router delta per layer.
 
 `export_branches_lora.py` supports the `attn_out` placement only, because a
 LoRA attaches to a linear tensor; the `moe_out` placement (the best measured

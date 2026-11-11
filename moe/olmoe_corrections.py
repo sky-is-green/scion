@@ -5,6 +5,11 @@ Freeze the RTN-ternary expert banks, add trainable low-rank correction branches
 jointly end-to-end.  The router corrections are the MoE-specific addition:
 they let routing track the teacher once the hidden states are repaired.
 
+``--freeze-router`` is the fixed-router control: the branches train but the
+router weights stay at their pretrained values.  This is the arm the
+MiMo-V2.6 §5.4 result motivates; see ``docs/ROUTER-FREEZE.md`` for the A/B and
+the metrics it reads.
+
 Loss = LM + output KD (top-50 teacher logits) + router KD (teacher top-8).
 
 Usage:
@@ -33,6 +38,10 @@ from catq import ternary_catq  # noqa: E402
 from moe_proxy import ternary_absmean, ternary_lloyd  # noqa: E402
 from olmoe_proxy import (CACHE, FEAT_STRIDE, MODEL, OUT, gate_hook,  # noqa: E402
                          load_model, parse_layers, windows)
+from router_metrics import (bucket_agreement, load_stats,  # noqa: E402
+                            router_delta_stats, set_trainable, split_params,
+                            summarize, top1_agreement, topk_agreement,
+                            topk_union_kl)
 
 
 @torch.no_grad()
@@ -203,11 +212,23 @@ def _fp16_layers(args) -> set:
             if x.strip()}
 
 
+def layer_ranks(args, n_layers: int) -> list[int]:
+    """Per-layer branch ranks; --rank-map overrides the uniform --rank."""
+    spec = str(getattr(args, "rank_map", "") or "").strip()
+    if not spec:
+        return [args.rank] * n_layers
+    vals = [int(x) for x in spec.split(",") if x.strip()]
+    if len(vals) != n_layers:
+        raise SystemExit(f"--rank-map has {len(vals)} entries, expected {n_layers}")
+    return vals
+
+
 def build(args):
     mm = {0: "14GiB", 1: "19GiB"} if args.device_map == "auto" else None
     model, tok = load_model(args.device_map, mm)
     hidden = model.config.hidden_size
     fp16 = _fp16_layers(args)
+    ranks = layer_ranks(args, len(model.model.layers))
     for i, layer in enumerate(model.model.layers):
         experts = layer.mlp.experts
         # freeze the body in its deploy format: RTN once, no on-the-fly work
@@ -220,21 +241,23 @@ def build(args):
             # LoRA-mappable placement: the correction reads the attention
             # context and writes into the residual stream before the router.
             layer.self_attn.o_proj = MoEWithCorrection(
-                layer.self_attn.o_proj, hidden, args.rank, quant, args.quant).to(dev)
+                layer.self_attn.o_proj, hidden, ranks[i], quant, args.quant).to(dev)
         if target in ("moe_out", "both"):
-            layer.mlp = MoEWithCorrection(layer.mlp, hidden, args.rank, quant, args.quant).to(dev)
+            layer.mlp = MoEWithCorrection(layer.mlp, hidden, ranks[i], quant, args.quant).to(dev)
     if fp16:
         print(f"mixed sidecar: fp16 branches on layers {sorted(fp16)}", flush=True)
-    for name, p in model.named_parameters():
-        p.requires_grad_(("branch." in name) or (".gate." in name))
+    n_router = set_trainable(model, freeze_router=getattr(args, "freeze_router", False))
     n_tr = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"trainable {n_tr/1e6:.2f}M (branches + routers)", flush=True)
+    arm = "frozen router" if getattr(args, "freeze_router", False) else "trained router"
+    print(f"trainable {n_tr/1e6:.2f}M (branches + routers {n_router/1e6:.2f}M, {arm})",
+          flush=True)
     return model, tok
 
 
 def save(model, args, step):
+    keep_router = not getattr(args, "freeze_router", False)
     sd = {k: v for k, v in model.state_dict().items()
-          if ".branch." in k or ".gate." in k}
+          if ".branch." in k or (keep_router and ".gate." in k)}
     tag = "" if args.branch_quant == "fp32" else f"-{args.branch_quant}"
     fp16 = _fp16_layers(args)
     if fp16:
@@ -349,11 +372,17 @@ def train(args):
             del teacher
             torch.cuda.empty_cache()
 
-    params = [p for p in model.parameters() if p.requires_grad]
+    branch_params, router_params = split_params(model)
+    groups = [{"params": branch_params, "lr": args.lr}]
+    if router_params:
+        groups.append({"params": router_params,
+                       "lr": getattr(args, "router_lr", 0.0) or args.lr})
+        print(f"router param group: {sum(p.numel() for p in router_params)/1e6:.2f}M "
+              f"at lr {groups[-1]['lr']:.3e}", flush=True)
     if getattr(args, "optimizer", "adafactor") == "adamw":
-        opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=args.weight_decay)
+        opt = torch.optim.AdamW(groups, lr=args.lr, weight_decay=args.weight_decay)
     else:
-        opt = torch.optim.Adafactor(params, lr=args.lr, weight_decay=args.weight_decay)
+        opt = torch.optim.Adafactor(groups, lr=args.lr, weight_decay=args.weight_decay)
     model.train()
     step = 0
     for epoch in range(args.epochs):
@@ -393,12 +422,34 @@ def train(args):
                     rkd = rkd + F.kl_div(s_p.clamp_min(1e-9).log(), t_p,
                                          reduction="batchmean").to(rkd.device)
                 rkd = rkd / len(model.model.layers)
+            rl = torch.zeros((), device=args.device)
+            if args.router_logit_weight > 0:
+                # Full pre-top-k router KD: unlike the top-k renormalised rkd
+                # above, this penalises an unselected expert overtaking a
+                # selected one.  The router stays frozen, so the gradient goes
+                # through the branch-repaired hidden state.
+                for i, layer in enumerate(model.model.layers):
+                    s_logits, _, _ = store[i]
+                    rec_r = rec["router"][i]
+                    if len(rec_r) < 3:
+                        raise SystemExit(
+                            "router-logit KD needs a cache built with "
+                            "--router-logits (no full router scores in this one)")
+                    t_logits = rec_r[2].to(s_logits.device).float()
+                    temp = args.router_logit_temp
+                    s_lp = F.log_softmax(s_logits.float() / temp, dim=-1)
+                    t_lp = F.log_softmax(t_logits / temp, dim=-1)
+                    rl = rl + F.kl_div(s_lp, t_lp, log_target=True,
+                                       reduction="batchmean") * (temp ** 2)
+                rl = rl / len(model.model.layers)
             feat = torch.zeros((), device=args.device)
             if args.feat_weight > 0 and "feat" in rec:
                 sf = fstore["feat"][0][::FEAT_STRIDE].float()
                 tf = rec["feat"].to(sf.device).float()
                 feat = 1.0 - F.cosine_similarity(sf, tf, dim=-1).mean()
-            loss = lm + args.kd_weight * kd + args.router_weight * rkd + args.feat_weight * feat
+            loss = (lm + args.kd_weight * kd + args.router_weight * rkd
+                    + args.feat_weight * feat
+                    + args.router_logit_weight * rl)
             loss.backward()
             opt.step()
             opt.zero_grad(set_to_none=True)
@@ -410,6 +461,8 @@ def train(args):
                 print(f"step {step}: lr -> {opt.param_groups[0]['lr']:.3e}", flush=True)
             if step % args.log_every == 0:
                 extra = f" feat {float(feat):.4f}" if args.feat_weight > 0 else ""
+                if args.router_logit_weight > 0:
+                    extra += f" rl {float(rl):.4f}"
                 print(f"step {step} lm {lm.item():.4f} kd {kd.item():.4f} "
                       f"rkd {float(rkd):.4f} total {loss.item():.4f}{extra}", flush=True)
             if args.eval_every and step % args.eval_every == 0 and ev is not None:
@@ -444,7 +497,8 @@ def evaluate(args):
         logits = teacher(ids).logits
         for h in hs:
             h.remove()
-        ref[i] = {j: store[j][2].cpu() for j in store}
+        ref[i] = {j: (store[j][2].cpu(), store[j][1].float().cpu())
+                  for j in store}
         t_total += F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
                                    ids[:, 1:].reshape(-1), reduction="sum").item()
         t_ntok += ids[:, 1:].numel()
@@ -456,9 +510,13 @@ def evaluate(args):
     model.eval()
     base_gates = {k: p.detach().clone() for k, p in model.named_parameters()
                   if ".gate." in k}
+    n_experts = int(model.config.num_experts)
+    n_layers = len(model.model.layers)
 
     def run(tag):
-        total, ntok, agree = 0.0, 0, []
+        total, ntok = 0.0, 0
+        acc = {j: {"top1": [], "topk": [], "kl": [], "s_load": [],
+                   "t_load": [], "pos": []} for j in range(n_layers)}
         for i in range(len(data)):
             ids = data[i:i + 1].to(args.device)
             store = {}
@@ -471,14 +529,66 @@ def evaluate(args):
                                      ids[:, 1:].reshape(-1), reduction="sum").item()
             ntok += ids[:, 1:].numel()
             for j in store:
-                a = ref[i][j].to(store[j][2].device)
-                b = store[j][2]
-                agree.append(float((a.unsqueeze(-1) == b.unsqueeze(-2)).any(-1).float().mean()))
+                _, s_p, s_idx = store[j]
+                t_idx, t_p = ref[i][j]
+                t_idx = t_idx.to(s_idx.device)
+                t_p = t_p.to(s_idx.device)
+                acc[j]["top1"].append(top1_agreement(s_idx, t_idx))
+                acc[j]["topk"].append(topk_agreement(s_idx, t_idx))
+                acc[j]["kl"].append(topk_union_kl(s_idx, s_p, t_idx, t_p, n_experts))
+                acc[j]["s_load"].append(load_stats(s_idx, n_experts))
+                acc[j]["t_load"].append(load_stats(t_idx, n_experts))
+                acc[j]["pos"].append(bucket_agreement(s_idx, t_idx))
         ppl = math.exp(total / ntok)
-        print(f"{tag}: ppl {ppl:.4f} router_agree {sum(agree)/len(agree):.4f}", flush=True)
-        return {"ppl": round(ppl, 4), "router_agree": round(sum(agree) / len(agree), 4)}
+        layers = []
+        for j in range(n_layers):
+            a = acc[j]
+            rec = {"layer": j,
+                   "top1": sum(a["top1"]) / len(a["top1"]),
+                   "topk": sum(a["topk"]) / len(a["topk"]),
+                   "kl": sum(a["kl"]) / len(a["kl"]),
+                   "student_load": summarize(a["s_load"]),
+                   "teacher_load": summarize(a["t_load"])}
+            # position buckets are equal length here; average them slot-wise
+            n_pos = min(len(x) for x in a["pos"])
+            rec["position_agree"] = [
+                sum(x[b] for x in a["pos"]) / len(a["pos"]) for b in range(n_pos)
+            ]
+            layers.append(rec)
+        delta = router_delta_stats(model, base_gates)
+        summary = summarize([{k: v for k, v in d.items()
+                              if k not in ("position_agree", "student_load",
+                                           "teacher_load", "layer")}
+                             for d in layers])
+        for key in ("cv", "peak", "cold", "dead", "entropy"):
+            summary[f"student_{key}"] = summarize(
+                [d["student_load"] for d in layers])[key]
+            summary[f"teacher_{key}"] = summarize(
+                [d["teacher_load"] for d in layers])[key]
+        if delta:
+            summary["router_delta_rel"] = sum(delta.values()) / len(delta)
+        rec = {"ppl": round(ppl, 4),
+               "router_agree": round(summary["topk"], 4),
+               "top1_agree": round(summary["top1"], 4),
+               "router_kl": round(summary["kl"], 4),
+               "student_load": {k: round(v, 4) for k, v in summary.items()
+                                if k.startswith("student_")},
+               "teacher_load": {k: round(v, 4) for k, v in summary.items()
+                                if k.startswith("teacher_")},
+               "router_delta_rel": round(summary.get("router_delta_rel", 0.0), 4),
+               "layers": layers,
+               "router_delta": {k: round(v, 5) for k, v in delta.items()}}
+        print(f"{tag}: ppl {ppl:.4f} top1 {summary['top1']:.4f} "
+              f"top8 {summary['topk']:.4f} kl {summary['kl']:.4f} "
+              f"load_cv {summary['student_cv']:.3f} "
+              f"peak {summary['student_peak']:.2f} "
+              f"cold {100*summary['student_cold']:.1f}% "
+              f"router_delta {summary.get('router_delta_rel', 0.0):.4f}",
+              flush=True)
+        return rec
 
-    res = {"rtn_no_branches": run("rtn_no_branches")}
+    res = {"teacher_ppl": round(math.exp(t_total / t_ntok), 4),
+           "rtn_no_branches": run("rtn_no_branches")}
     if args.load:
         load_branch_state(model, args.load)
         if getattr(args, "eval_router", "trained") == "base":
@@ -489,8 +599,13 @@ def evaluate(args):
                     if k in base_gates:
                         p.copy_(base_gates[k])
         res["trained_branches"] = run("trained_branches")
-    (OUT / "branches-eval.json").write_text(json.dumps(res, indent=2))
-    print(json.dumps(res, indent=2))
+    out = OUT / f"branches-eval{('-'+args.tag) if getattr(args, 'tag', '') else ''}.json"
+    out.write_text(json.dumps(res, indent=2))
+    brief = {k: ({kk: vv for kk, vv in v.items() if kk != "layers"}
+                  if isinstance(v, dict) and "ppl" in v else v)
+             for k, v in res.items()}
+    print(json.dumps(brief, indent=2))
+    print(f"wrote {out}", flush=True)
 
 
 def main():
@@ -512,6 +627,8 @@ def main():
                     help="per-group scale rule for the frozen body and branches; "
                          "'lloyd' matches the deployable Q1_0_g128 quantizer")
     ap.add_argument("--rank", type=int, default=64)
+    ap.add_argument("--rank-map", default="",
+                    help="comma-separated per-layer branch ranks; overrides --rank")
     ap.add_argument("--branch-quant", choices=["fp32", "g128", "rank"], default="fp32",
                     help="deployed branch format; STE-trained when != fp32")
     ap.add_argument("--branch-quant-fp16-layers", default="",
@@ -527,6 +644,12 @@ def main():
     ap.add_argument("--steps", type=int, default=0)
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--router-lr", type=float, default=0.0,
+                    help="separate LR for the router weights (0 = use --lr); "
+                         "only used when the router is trainable")
+    ap.add_argument("--freeze-router", action="store_true",
+                    help="fixed-router arm: train only the correction branches and "
+                         "leave the pretrained routers untouched")
     ap.add_argument("--optimizer", choices=["adafactor", "adamw"], default="adafactor")
     ap.add_argument("--weight-decay", type=float, default=0.0)
     ap.add_argument("--temp", type=float, default=2.0)
@@ -535,12 +658,18 @@ def main():
                     help="cosine feature-distillation weight on the final-norm hidden "
                          "states (requires a cache built with --feat-states)")
     ap.add_argument("--router-weight", type=float, default=0.5)
+    ap.add_argument("--router-logit-weight", type=float, default=0.0,
+                    help="full pre-top-k router-logit KD weight; needs a cache "
+                         "built with --router-logits.  Unlike --router-weight "
+                         "this penalises unselected experts overtaking the "
+                         "teacher's top-k, and works with --freeze-router")
+    ap.add_argument("--router-logit-temp", type=float, default=1.0)
     ap.add_argument("--log-every", type=int, default=25)
     ap.add_argument("--ckpt-every", type=int, default=500)
     ap.add_argument("--eval-every", type=int, default=500)
     ap.add_argument("--eval-router", choices=["trained", "base"], default="trained",
-                    help="'base' keeps branch-only corrections (what a LoRA adapter ships) "
-                         "while evaluating")
+                    help="'base' keeps branch-only corrections (what a LoRA adapter "
+                         "ships) while evaluating a trained-router checkpoint")
     ap.add_argument("--load", default="")
     ap.add_argument("--ref-file", default="",
                     help="precomputed teacher router refs for the in-run eval "

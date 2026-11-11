@@ -159,6 +159,7 @@ def stage_cache(args):
     data = windows(tok, args.windows, args.seq, args.seed,
                    max_chars=args.corpus_chars)
     feat_states = bool(getattr(args, "feat_states", False))
+    keep_logits = bool(getattr(args, "router_logits", False))
     recs = []
     for w in range(len(data)):
         ids = data[w:w + 1].to(args.device)
@@ -177,9 +178,13 @@ def stage_cache(args):
         if fh is not None:
             fh.remove()
         t_top = logits[:, :-1].topk(args.top_logits, dim=-1)
-        router = {i: (store[i][2].cpu().to(torch.int16),
-                      store[i][1].cpu().to(torch.float16))
-                  for i in store}
+        router = {}
+        for i in store:
+            rec_r = [store[i][2].cpu().to(torch.int16),
+                     store[i][1].cpu().to(torch.float16)]
+            if keep_logits:
+                rec_r.append(store[i][0].cpu().to(torch.float16))
+            router[i] = tuple(rec_r)
         rec = {"idx": t_top.indices.cpu().to(torch.int32),
                "val": t_top.values.cpu().to(torch.float16),
                "router": router}
@@ -371,6 +376,10 @@ def main():
     ap.add_argument("--feat-states", action="store_true",
                     help="also cache the final-norm hidden states (token stride "
                          f"{FEAT_STRIDE}) for feature distillation")
+    ap.add_argument("--router-logits", action="store_true",
+                    help="also cache the full pre-top-k router logits per layer; "
+                         "needed by correction training with "
+                         "--router-logit-weight")
     ap.add_argument("--out", default="",
                     help="cache output path (default: $MOE_ARTIFACTS/olmoe/teacher-cache.pt)")
     ap.add_argument("--steps", type=int, default=0)
