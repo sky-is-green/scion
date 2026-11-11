@@ -29,10 +29,10 @@ the same Gemma-shaped body from scratch with and without it.
 
 ## What transfers to Scion v2
 
-1. **Our embedding and head are a real fraction of the 11.3 GB.** The 35B has
-   a 248,320-token vocabulary; at Q8_0 the input embedding and the output
-   head together are roughly 1.5-2 GB. That is the cheapest size target left
-   in the tier.
+1. **Our embedding and head are a measured 1.08 GB.** The 35B has a
+   248,320-token vocabulary at hidden 2048; at Q8_0 the input embedding is
+   0.540 GB and the output head is 0.540 GB, together 9.5% of the 11.3 GB
+   file. That is the cheapest size target left in the tier.
 2. **A frozen codebook is a consumer-tier move.** Replacing the embedding with
    a frozen codebook (or sharing/tieing the head more aggressively) could cut
    ~1-1.5 GB with little accuracy cost, if done as a conversion with a short

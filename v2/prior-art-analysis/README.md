@@ -34,9 +34,11 @@ run, open questions.
   both recover significant quality by training only scales and norm gains
   with codes frozen, in hours on one GPU. This sits between "frozen body" and
   "bf16 SFT escalation".
-- **Bit accounting and packing are free size wins.** Our ternary expert banks
-  sit in 2-bit slots (2.125 bpw) instead of 1.585-1.625. A 5-trit packing
-  could take the 11.3 GB tier to roughly 9 GB with identical weights.
+- **Bit accounting and packing are size levers, not free wins.** Our ternary
+  expert banks sit in 2-bit slots (2.125 bpw) instead of 1.585-1.625. A 5-trit
+  packing could take the 11.3 GB tier to roughly 9-9.6 GB with identical
+  weights, but only if the q36 HIP kernels get a PTQ1_0 path; today they are
+  Q2_0-specific. Embedding + head are a measured 1.08 GB (9.5%).
 - **Reasoning is the right metric.** ThinkBit shows PPL/MCQ can stay flat
   while sampled MATH-500 drops 6-15 points. Our hard-90 and loop-onset
   protocol is the correct axis.

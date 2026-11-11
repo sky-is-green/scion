@@ -51,6 +51,20 @@ hard-90 evaluation of the shipped 35B.
    (today it only runs in the streaming path), presence_penalty 1.5, budget
    sweep 4/8/16/32k, and the loop-onset coverage metric next to accuracy.
 7. Report seconds per correct answer and the loop onset, not just accuracy.
+8. **Corrections train on failures.** Use rollouts from the frozen body and
+   teacher-steered revisions of failed tool/coding trajectories, not only
+   teacher traces (Right On Q, SteerDistill). Length schedule 4k/8k/16k.
+9. **Export fidelity is a release gate.** Compare exported codes to
+   training-time codes per tensor; never recompute codes from float latents
+   (Lost in the bf16 Cast).
+10. **Format-preserving body moves are allowed.** Scale-only distillation
+    (scales + norm gains, codes frozen) is not QAT and can run before any
+    bf16 SFT escalation (ThinkBit, RoleQ).
+11. **Run the tier baselines.** Ternary-Flint (9.3-12.5 GB) and the ternary
+    Nemotron (8.82 GB) on the hard subset, before claiming the tier.
+12. **Packing is a kernel project.** The on-disk PTQ1_0 type exists and the
+    CPU path supports it, but the q36 HIP expert kernels are Q2_0-specific.
+    Prototype before promising the ~9.6 GB tier.
 
 ## 4. Open questions
 

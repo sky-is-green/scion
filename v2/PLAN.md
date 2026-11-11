@@ -95,6 +95,34 @@ recipe, the eval suite and raw results.
 6. **v1 is output-KD only.** Router deltas need teacher router logits, which a
    GGUF teacher cannot expose. The pipeline has a --freeze-router arm.
 
+## 5a. Prior-art inputs (adopted 2026-11-11)
+
+Full analyses: [prior-art-analysis/](prior-art-analysis/). What changes:
+
+1. **Failure-driven correction data.** Train on rollouts from the frozen body,
+   not only on teacher traces. Two variants: on-policy KD with Dynamic KL and
+   a 4k/8k/16k length schedule (Right On Q), and teacher-steered revisions of
+   failed tool/coding trajectories (SteerDistill).
+2. **Closed-form baseline.** Align, Then Correct (asymmetric low-rank
+   compensation, one SVD per layer) at rank 64 and 512, evaluated before the
+   full distill. If it matches the trained corrections, cut the training.
+3. **A format-preserving body-side stage (optional).** Scale-only
+   distillation: scales and norm gains trainable, ternary codes frozen,
+   forward KL to the teacher (ThinkBit, RoleQ). Not QAT. Add routing-consistent
+   norm adaptation only if router drift appears (ProQuant).
+4. **Export audit is a gate.** Verify the exported codes equal the
+   training-time codes on every tensor; never recompute codes from float
+   latents (Lost in the bf16 Cast). Add the code-level diff to the release
+   checklist.
+5. **Eval additions.** Repetitive-error rate, termination rate, trajectory
+   length, real bits per parameter and whole-file size (ThinkBit), plus two
+   external baselines.
+6. **Size track, in parallel.** A Q2_0 -> PTQ1_0 repack (same trits, tighter
+   packing) and an embedding/head reduction. Measured: embedding + head are
+   0.540 GB each, 1.08 GB total, 9.5% of the 11.3 GB. Caveat: the q36 HIP
+   expert kernels are Q2_0-specific; PTQ1_0 exists on disk and in the CPU
+   expert path, but the GPU path is a kernel prototype, not a free repack.
+
 ## 6. Feasibility checks (done)
 
 - No FlashNext distills exist on the Hub at any size (searched 2026-11-11).
@@ -113,31 +141,63 @@ recipe, the eval suite and raw results.
 
 ## 7. Plan
 
-### Phase 0: pilot (local, $0-5)
+### Phase 0: pilot and gates (local, $0-10)
 
-1. Corpus: 300-500 hard reasoning/coding prompts from the downloaded benches
+1. **Export audit (gate).** Re-run the exporter on the current model and diff
+   the exported ternary codes against the training-time codes, per tensor.
+   Count mismatches per million weights. Also confirm the branch exporter
+   (`pack_q1_0_g128`) is fed deployed ternary values, never the float master.
+2. **External baselines.** Run Ternary-Flint (Lean or PQ2_0) and the ternary
+   Nemotron 30B-A3B (8.82 GB) on the 30-item hard subset with the fixed
+   protocol, on this box. Same-tier references for the 11.3 GB artifact.
+3. **Failure rollouts.** Capture the current body's failed tools and coding
+   rollouts (plus its looping long items) for the steering and on-policy data.
+4. Corpus: 300-500 hard reasoning/coding prompts from the downloaded benches
    and work/corpora, eval sets excluded.
-2. Teacher pass: Scion-FlashNext 176B on the local 2-card box at 4-8k
-   context, ~80 tok/s. Traces plus top-k output logits in one pass.
-3. Corrections: retrain rank-512 branches, output-KD only, long windows (8k),
-   quantizer in the loop. Local 7900 XT if it fits (~18 GB working set), else
-   one rented 4090 ($2-5).
-4. Eval: 30-item hard subset, fixed protocol (non-streaming loop recovery,
-   presence_penalty 1.5, budgets 8k/16k).
-5. Gate: does loop onset move past 16k tokens, and does the subset score rise
-   above the current body?
+5. Teacher pass: Scion-FlashNext 176B on the local 2-card box at 4-8k
+   context, ~80 tok/s. Traces, top-k output logits, and steered revisions in
+   one pass.
+6. Corrections: retrain rank-512 branches, Dynamic KL, long windows (8k),
+   quantizer in the loop, on (a) teacher traces and (b) rollouts plus steered
+   failures. Local 7900 XT if it fits (~18 GB working set), else one rented
+   4090 ($2-5).
+7. Closed-form baseline: Align, Then Correct at rank 64 and 512 on the same
+   calibration data.
+8. Eval: 30-item hard subset, fixed protocol (non-streaming loop recovery,
+   presence_penalty 1.5, budgets 8k/16k), plus repetition and termination.
+9. Gate: loop onset past 16k tokens on at least half the long items, or +10
+   points on the subset over the current body. If neither, stop and report.
 
 ### Phase 1: full corrections (runpod, $40-80)
 
-1. 5-8k verified traces (16k cap), one teacher pass with the logit cache.
-2. Corrections on a 48 GB card with long windows.
-3. Export GGUF + Q2_0 pack, full eval: hard 90, easy 30, loop onset, budget
-   sweep 4/8/16/32k, seconds per correct.
+1. 5-8k verified traces and steered rollouts (16k cap), one teacher pass with
+   the logit cache.
+2. Corrections on a 48 GB card with long windows and the length schedule;
+   compare against the closed-form baseline and against a rank sweep
+   (64/128/512) at matched bytes.
+3. Checkpoint selection on the hard subset, not KD loss.
+4. Export GGUF + Q2_0 pack, full eval: hard 90, easy 30, loop onset, budget
+   sweep 4/8/16/32k, repetition/termination, seconds per correct.
 
 ### Phase 2: only if Phase 1 plateaus
 
-bf16 SFT/LoRA of the body on FlashNext traces (no QAT), merge, quantize once,
-retrain corrections.
+Try, in order, before touching the body:
+
+1. Scale-only distillation (codes frozen, scales + norm gains, forward KL) on
+   the current body; eval the hard subset. Format-preserving.
+2. A sparse second ternary plane on Fisher-selected expert units (+~0.5 bpw),
+   eval hard 90 per added byte.
+3. bf16 SFT/LoRA of the body on FlashNext traces (no QAT), merge, quantize
+   once, retrain corrections.
+
+### Size track (parallel, no training)
+
+1. Prototype a Q2_0 -> PTQ1_0 transcode on one expert tensor and measure the
+   file saving (~1.7 GB expected) and decode speed. Only proceed to the full
+   model if a q36 HIP kernel runs at parity.
+2. Embedding/head: 1.08 GB is 9.5% of the file. Options: Q6K head/emb
+   (~0.3 GB saving) or a frozen codebook (entry 008, up to ~1.0 GB). Any
+   change needs a short recovery and a hard-subset check.
 
 ### Phase 3: release
 
@@ -167,8 +227,8 @@ No full-body training line item.
 
 ## 10. Next step
 
-Build the 300-prompt corpus manifest (eval sets excluded), start the local
-teacher trace pass, then wire the long-window corrections pilot.
+The ordered task list is in section 13. Start with the export audit (it gates
+every number), then the two external baselines, then the failure-driven pilot.
 
 ## 11. Repo cleanup note (2026-11-11)
 
@@ -179,3 +239,39 @@ correction checkpoints, and eval-ref-w2.pt. The OLMoE model snapshot and the
 partial empero teacher download are re-fetchable. Teacher caches, intermediate
 step checkpoints and the qwen4exp kld-park windows were deleted as
 reproducible.
+
+## 12. Open questions register
+
+Closed or decided:
+
+| question | answer |
+|---|---|
+| How much of the file is embedding + head? | **Closed:** 0.540 GB each, 1.08 GB total, 9.5% of 11.3 GB (hidden 2048, vocab 248,320, Q8_0). |
+| Can the 5-trit packing fit the kernels? | **Partly:** on-disk type 143 and the CPU expert path exist; the q36 HIP expert kernels are Q2_0-specific. Treat as a kernel prototype, not a repack. |
+| Is scale-only distillation allowed under the frozen-body rule? | **Decided yes:** codes frozen, scales + norm gains only (<0.1% params), format-preserving. Not QAT. |
+| Do we train the router? | **No:** D2/D4 and ProQuant's routing-drift finding. |
+| Do we QAT the body? | **No:** D2, QAH's collapse, and the Scion-FlashNext evidence. |
+| Is export fidelity a real risk? | **Yes:** the branch exporter recomputes codes from float weights; exact only when fed deployed ternary values. Audit is a gate. |
+
+Still open, each with a decisive test:
+
+| question | test and pass condition |
+|---|---|
+| Can rank-512 corrections fix exposure bias? | Pilot A/B (traces vs rollouts vs steered failures); pass if loop onset >16k on >=50% of long items or +10 points on the 30-item subset. |
+| Does the teacher family matter for Dynamic KL? | FlashNext vs empero bf16 teacher on the 30-item subset, same data and rank. |
+| Does closed-form compensation match trained corrections? | Align, Then Correct at rank 64/512 vs trained at the same bytes, hard subset. |
+| Does scale-only distillation move long-horizon behavior? | Apply to the current body; hard subset and loop onset before/after. |
+| Do Flint and ternary Nemotron beat Scion on the hard 90? | External baselines, 30 items, same box and protocol. |
+| Does PTQ1_0 packing cost decode speed? | Single-tensor transcode plus a one-layer q36 HIP kernel run; require parity before the full repack. |
+| Is the current shipped GGUF code-faithful? | Dequantize every tensor, compare codes to training-time role_map codes, count mismatches per million weights. |
+
+## 13. Next actions, in order
+
+1. Export audit on the current 11.3 GB artifact (gate for everything else).
+2. External baselines: Ternary-Flint and ternary Nemotron on the 30-item hard
+   subset.
+3. Capture failure rollouts from the current body (tools, coding, long items).
+4. Build the pilot trace + steered-revision corpus; run the corrections A/B
+   (traces vs rollouts vs steered), closed-form at rank 64/512, rank sweep.
+5. Scale-only distillation on the current body (parallel, cheap).
+6. PTQ1_0 single-tensor transcode and kernel parity check (size track).
