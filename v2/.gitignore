@@ -14,3 +14,7 @@ eval/tmp/
 # python bytecode
 __pycache__/
 *.pyc
+
+# captured on-policy rolls and teacher traces
+rollouts/
+traces/

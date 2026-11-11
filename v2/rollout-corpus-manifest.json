@@ -1,0 +1,30 @@
+{
+  "created": "2026-11-11T18:17:51.928500+00:00",
+  "prompts": "v2/corpus/rollout-prompts.jsonl",
+  "sha256": "f4d1c6f55bc78b8f6b2f73c962a8b517359fe67f6f84825a223036067b6a385e",
+  "counts": {
+    "reasoning": 160,
+    "coding": 100,
+    "tools": 100,
+    "total": 360
+  },
+  "sources": {
+    "reasoning": [
+      "aime (2022-2024 parquet)",
+      "HuggingFaceH4/MATH-500 test"
+    ],
+    "coding": [
+      "mbpp.jsonl",
+      "humaneval.jsonl.gz",
+      "livecodebench/test.jsonl (medium+hard)"
+    ],
+    "tools": [
+      "synthetic-tools (this script)"
+    ]
+  },
+  "excluded": {
+    "heldoutlab hard-90 prompts": "exact normalised match",
+    "hivebench cascade tasks-bench test split (easy-30)": "exact normalised match"
+  },
+  "exclusion_set_size": 138
+}

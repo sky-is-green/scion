@@ -568,6 +568,11 @@ def build_student(model, args) -> int:
 def stage_train(args):
     patch_experts(args.group)
     model, tok = load_full(args)
+    if getattr(args, "bank_gguf", ""):
+        from seed_banks_from_gguf import seed_model_banks
+        n_seeded = seed_model_banks(model, args.bank_gguf)
+        print(f"seeded {n_seeded} expert banks from {args.bank_gguf} "
+              f"(deployed codes are now the training-time codes)", flush=True)
     n_tr = build_student(model, args)
     print(f"trainable {n_tr/1e6:.2f}M (branches + routers) target {args.branch_target}",
           flush=True)
@@ -596,7 +601,14 @@ def stage_train(args):
 
     cache_path = Path(args.cache_file) if args.cache_file else CACHE
     cache = torch.load(cache_path, map_location="cpu")
-    data = _corpus_windows(tok, args)
+    # A teacher-trace cache carries the exact scored token ids per record.
+    # Then the corpus file is not needed for the LM input, and cache/data
+    # alignment is guaranteed by construction (build_trace_cache.py).
+    cache_has_ids = bool(cache) and all("ids" in r for r in cache)
+    data = None if cache_has_ids else _corpus_windows(tok, args)
+    if cache_has_ids:
+        print(f"cache carries ids for all {len(cache)} records; "
+              f"using cached windows", flush=True)
 
     ref = None
     ev = None
@@ -623,7 +635,10 @@ def stage_train(args):
     for epoch in range(args.epochs):
         for rec in cache:
             bal, zl, mtp = None, None, None
-            ids = data[step % len(data):step % len(data) + 1].to(args.device)
+            if "ids" in rec:
+                ids = rec["ids"].to(args.device).reshape(1, -1)
+            else:
+                ids = data[step % len(data):step % len(data) + 1].to(args.device)
             if head is not None:
                 h, logits = model_hidden_logits(model, ids)
             else:
@@ -875,6 +890,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--quant", choices=["absmean", "lloyd", "catq"], default="lloyd",
                     help="per-group scale rule for the frozen banks (lloyd = deployable; "
                          "catq = learned LM+ST reconstruction)")
+    ap.add_argument("--bank-gguf", default="",
+                    help="seed the frozen expert banks from a deployed qwen35moe "
+                         "GGUF before quantising (makes training-time codes equal "
+                         "the deployed codes; see moe/seed_banks_from_gguf.py)")
     ap.add_argument("--alloc-file", default="",
                     help="RCO allocation map {tensor: bits} for the expert banks "
                          "(2 = lloyd ternary, 4/6/8 = g128 integer); default off")
