@@ -1,0 +1,25 @@
+{
+  "label": "Scion-35B-A3B PQ2_0-corr (from hard90 T=0.6 run)",
+  "n": 30,
+  "correct": 3,
+  "accuracy": 10.0,
+  "by_family": {
+    "reasoning": {
+      "n": 10,
+      "correct": 0
+    },
+    "coding": {
+      "n": 10,
+      "correct": 0
+    },
+    "tools": {
+      "n": 10,
+      "correct": 3
+    }
+  },
+  "truncated": 7,
+  "median_wall_s": 291.1,
+  "mean_decode_tok_s": 77.14,
+  "temperature": 0.6,
+  "seed": 1001
+}

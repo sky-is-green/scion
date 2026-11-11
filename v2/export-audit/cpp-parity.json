@@ -1,0 +1,44 @@
+{
+ "deployed": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/models-p310/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf",
+ "source": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/models-p310/bf16/Qwen3.8-35B-A3B-Distill-BF16.gguf",
+ "rows": [
+  {
+   "name": "blk.0.ffn_gate_exps.weight",
+   "weights": 268435456,
+   "groups": 2097152,
+   "code_mismatch": 424,
+   "mismatch_ppm": 1.5795230865478516,
+   "scale_mismatch_groups": 0,
+   "scale_mismatch_ppm": 0.0,
+   "elapsed_s": 59.13
+  },
+  {
+   "name": "blk.0.ffn_up_exps.weight",
+   "weights": 268435456,
+   "groups": 2097152,
+   "code_mismatch": 406,
+   "mismatch_ppm": 1.512467861175537,
+   "scale_mismatch_groups": 0,
+   "scale_mismatch_ppm": 0.0,
+   "elapsed_s": 58.81
+  },
+  {
+   "name": "blk.0.ffn_down_exps.weight",
+   "weights": 268435456,
+   "groups": 2097152,
+   "code_mismatch": 2118,
+   "mismatch_ppm": 7.890164852142334,
+   "scale_mismatch_groups": 0,
+   "scale_mismatch_ppm": 0.0,
+   "elapsed_s": 59.03
+  }
+ ],
+ "totals": {
+  "weights": 805306368,
+  "code_mismatch": 2948,
+  "scale_mismatch_groups": 0,
+  "groups": 6291456,
+  "mismatch_ppm": 3.6607185999552407,
+  "scale_mismatch_ppm": 0.0
+ }
+}
