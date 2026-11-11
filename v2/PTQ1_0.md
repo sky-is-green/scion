@@ -65,10 +65,19 @@ Same prompt, same 8 tokens, `strata-q36 --tokens ... --n 8
 | KLD mean (per position) | 0 | **0.0030** |
 | KLD max | 0 | 0.0158 |
 
-The Q2_0 path is deterministic (rerun bit-identical).  The PTQ1_0 path uses
-different kernels/accumulation order, hence the small distribution shift.
-This is much larger than the per-kernel parity errors (1e-8) and is not a
-"free repack" in the strict sense; it needs a hard-subset A/B before release.
+WikiText-2 PPL (`llama-perplexity -c 512 --chunks 16`, same build, GPU 1):
+
+| model | PPL |
+|---|---:|
+| Q2_0-corr | 9.0183 +/- 0.358 |
+| PTQ1_0-corr | **9.0076 +/- 0.357** |
+
+The PPL difference is within noise (the 16-chunk sample is deliberately
+short; release-grid PPL uses 580 chunks).  The Q2_0 path is deterministic
+(rerun bit-identical).  The PTQ1_0 path uses different kernels/accumulation
+order, hence the small distribution shift.  This is much larger than the
+per-kernel parity errors (1e-8) and is not a "free repack" in the strict
+sense; it needs a hard-subset A/B before release.
 
 Runtime: 4.42 GiB on the GPU for the dense part in both builds; routed experts
 7.97 GiB (Q2_0) vs 6.56 GiB (PTQ1_0) resident.  Generation on the 8-token
