@@ -1,0 +1,22 @@
+{
+  "n": 90,
+  "correct": 13,
+  "accuracy": 14.44,
+  "by_family": {
+    "reasoning": {
+      "n": 30,
+      "correct": 4
+    },
+    "coding": {
+      "n": 30,
+      "correct": 1
+    },
+    "tools": {
+      "n": 30,
+      "correct": 8
+    }
+  },
+  "truncated": 17,
+  "median_wall_s": 286.9,
+  "mean_decode_tok_s": 76.91
+}
