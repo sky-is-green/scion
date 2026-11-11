@@ -69,9 +69,10 @@ runpod GPU stock.  See [PROGRESS.md](PROGRESS.md).
    Python rule; the artifact is faithful C++ Lloyd output; seed the training
    body from the deployed GGUF (0 ppm after re-quantisation).  See
    [export-audit/README.md](export-audit/README.md).
-2. **Partial.** Nemotron running on the 30-item subset; Flint blocked (Metal-
-   only `flint` runtime, no Linux/ROCm arch, only the NonaCore file on the
-   Hub).  See [BASELINES.md](BASELINES.md) / [PROGRESS.md](PROGRESS.md).
+2. **Partial.** Nemotron 0/24 (stopped at 24/30; 22 truncations, 4 server
+   errors); Flint blocked (Metal-only `flint` runtime, no Linux/ROCm arch,
+   only the NonaCore file on the Hub).  See [BASELINES.md](BASELINES.md) /
+   [PROGRESS.md](PROGRESS.md).
 3. **Pilot sample done.** 360-prompt corpus (hard-90/easy-30 excluded), 12
    on-policy rollouts, 3 long reasoning loops at coverage 1.0.  See
    [PROGRESS.md](PROGRESS.md).

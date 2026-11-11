@@ -1,0 +1,23 @@
+{
+  "label": "Ternary-Nemotron-3.5-Lightning-30B-A3B (Q2_0, 8.82 GB)",
+  "partial": true,
+  "n": 24,
+  "target": 30,
+  "correct": 0,
+  "accuracy": 0.0,
+  "by_family": {
+    "reasoning": {"n": 6, "correct": 0},
+    "coding": {"n": 10, "correct": 0},
+    "tools": {"n": 8, "correct": 0}
+  },
+  "truncated": 22,
+  "server_error": 4,
+  "repairs": 5,
+  "median_wall_s": 224.3,
+  "mean_decode_tok_s": 144.76,
+  "mean_completion_tokens": 35199.1,
+  "max_completion_tokens": 86624,
+  "temperature": 0.6,
+  "seed": 1001,
+  "note": "Stopped at 24/30 by decision: the result is already 0/24 with 22 truncations and 4 server errors; the remaining 6 cannot change the qualitative conclusion."
+}

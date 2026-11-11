@@ -8,15 +8,23 @@ T=0.6 run; external models use the same harness and graders.
 | model | size | score | R | C | T | notes |
 |---|---:|---:|---:|---:|---:|---|
 | Scion-35B-A3B PQ2_0-corr (reference) | 11.34 GB | **3/30 (10.0%)** | 0/10 | 0/10 | 3/10 | 7 truncations; median 291 s; 77.1 tok/s |
-| Ternary-Nemotron-3.5-Lightning-30B-A3B | 8.82 GB | running | | | | Q2_0, stock llama.cpp ROCm, 65k context |
+| Ternary-Nemotron-3.5-Lightning-30B-A3B | 8.82 GB | **0/24 partial** | 0/6 | 0/10 | 0/8 | stopped at 24/30; 22 truncations, 4 server errors |
 | Ternary-Flint-40B-NonaCore | 10.58 GB | **blocked** | | | | Metal-only `flint` runtime; no Linux/ROCm arch |
 
-## Ternary Nemotron
+## Ternary Nemotron (stopped at 24/30)
 
 `v2/eval/hard-subset30-nemotron/` (runner `v2/scripts/hard_subset.py`).
-The model is a reasoning model and spends most of the 32k budget thinking;
-the early reasoning/coding items truncate.  Final numbers are appended here
-when the 30 items finish.
+
+- **0/24 correct**, by family 0/6 reasoning, 0/10 coding, 0/8 tools.
+- **22/24 truncated**, 4 server errors, 5 tool-call repairs.
+- Median 224 s; mean 35,199 completion tokens; max 86,624; mean decode
+  144.8 tok/s.
+- All four long reasoning items that produced enough text end at 10-gram
+  coverage **1.0** (R09, R21, R29, R05): the same loop shape as Scion.
+- Stopped by decision at 24/30.  The remaining six cannot change the
+  qualitative result (the model is at zero with almost everything truncated).
+- This is a community Q2_0 repack, not a controlled quantization study; treat
+  it as a same-tier reference, not a verdict on the model family.
 
 ## Ternary Flint - why it is blocked
 

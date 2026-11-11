@@ -39,9 +39,11 @@ the harness `stable_order`, interleaved).  Scion's own result on that subset,
 extracted from the saved T=0.6 run: **3/30 = 10.0%** (R 0/10, C 0/10, T 3/10),
 7 truncations, median 291 s, 77.1 tok/s.
 
-- **Ternary Nemotron 30B-A3B** (8.82 GB): running with the same protocol
-  (T=0.6, seed 1001, 32k, 65k server context, q8 KV).  Results land in
-  `v2/eval/hard-subset30-nemotron/`.
+- **Ternary Nemotron 30B-A3B** (8.82 GB): **0/24, stopped at 24/30** with the
+  same protocol (T=0.6, seed 1001, 32k, 65k server context, q8 KV); 22
+  truncations, 4 server errors, 5 repairs.  All four long reasoning items end
+  at 10-gram coverage 1.0.  Results: `v2/eval/hard-subset30-nemotron/`.  This
+  is a same-tier reference only; it is a community Q2_0 repack.
 - **Ternary-Flint-40B**: blocked on this box.  The Hub repo currently has one
   file, `Ternary-Flint-40B-NonaCore-Q4_0-9.8GB.gguf` (10.58 GB, arch `flint`),
   and its card ships a macOS-arm64 Metal runtime only (custom `flint` arch +
