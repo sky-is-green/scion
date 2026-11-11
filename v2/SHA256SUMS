@@ -5,7 +5,7 @@ fb579b5d31c8fdd6f1b486bef6710279a19e2130b65ec9770e89037f22816f81  ./eval/hard90-
 1752fd66a4a585a1abac3c8fa09ad8a22342c0494024c343dc2b34623ca5ba69  ./eval/hard90-scion-32k/summary.json
 8c9475cf1fd7bbbeb89fa070672d39b1d0c607c3d577db89bbb500051dd7144d  ./eval/hard90-scion-32k-t01/results.jsonl
 da44aa0d694a1fb6a5b58a5ad2f4b86a1f4b0d9c27a0e8263b4c34e50ab6dd1a  ./eval/hard90-scion-32k-t01/summary.json
-c8f6b97a53a06a8e259a0dfadb05bd95bc0495eba7edc4de3ae2653f44698877  ./eval/hard-subset30-nemotron/results.jsonl
+3ccc29a1c8a34aeebc534e009c83025c1f3f70d62afcd79fc253a11b50b2a32c  ./eval/hard-subset30-nemotron/results.jsonl
 c3d1b42df91af1da36a7f52b84fc480a7d10f40e91a385f6ff08b3f533752f08  ./eval/hard-subset30-scion/results.jsonl
 8c8153a92a32e57596c85da95d46e7895b894734e1b445a039c3e4b94c95cfe3  ./eval/hard-subset30-scion/summary.json
 ccbc4ecf8cb2400dae955a4b01beee2208fc990731e7126df39621683ff7d787  ./EVAL.md
@@ -18,6 +18,7 @@ e8d320ed51331366c703a8b616d65982adb80fc673a5a08bef746a0b391cdff5  ./export-audit
 4052a1b3f2301d1b1c228938a8f4b45d8abb00de138bdc5ce300c94d8a5aa49d  ./.gitignore
 4c24a9c3f0fef3b4e1643ee2967cb39d2a5cc0074c633d6bb7d3ac00100b9e0f  ./LESSONS.md
 6604849536a747849759504b68657efa4b626a5dddcc0caddef9b2b2c6662696  ./PLAN.md
+683f093b3d93d6cf7d1cc33e40b5ae13f5e00218acf43caf7bd6ed14f4dd43d8  ./PREFIX-SMOKE.md
 d7ced98430a64cbc2e854a55868fcf7dbbab3ebfeb662e36fb54c79189a83fd0  ./prior-art-analysis/001-right-on-q.md
 33e31b70f999b3288433863142908c90c21c94880a55e146e7d767ad1122f093  ./prior-art-analysis/002-thinkbit.md
 72ff2f39745393ded019a70e834150076ac10b528c7b30b69ace149a868a043d  ./prior-art-analysis/003-roleq.md
@@ -34,6 +35,7 @@ ae7df08ba924fb7bda60e97715c012fffeb964f1ea577445d6bf45d7bbfa79f5  ./prior-art-an
 1c5e36b4398484b7f700ba242579c28115b75c8a619b6964e40bb486ed09ef96  ./PTQ1_0.md
 fba84ca2b80a4dd6a58cd4be2bf17e700576de080f6245b04564a8bf2c076833  ./README.md
 6b819ed8b786981a6380bb7df81348fbc6c803584bf4ebf71e20f56579e3dc69  ./rollout-corpus-manifest.json
+cffaf03159d506cf88ab603034bee467ad877a342b94f1e14f73adda878111c3  ./rollouts/body/analysis.json
 141f6c3ab912773590e4ebfece0ea2614bc6bda42102c8a81da76c3367adb79d  ./rollouts/body/PC-000.json
 ff89ef85a8e6c19015dd8831ff701d3bfcbd165b911f8a89ca5a89fc24cfa14f  ./rollouts/body/PC-001.json
 b28cc0d22d75b94c4ccce89a34443407bc76a69cf0f060aa86140a73237bbe5a  ./rollouts/body/PC-002.json

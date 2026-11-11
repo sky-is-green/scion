@@ -529,7 +529,11 @@ def attach_branches(model, args) -> int:
                                           args.branch_quant, args.quant,
                                           gate=gate).to(dev)
         if target in ("attn_out", "both"):
-            if getattr(layer, "layer_type", "") == "linear_attention":
+            # transformers 5.5 does not put layer_type on the decoder module;
+            # the module shape is the reliable discriminator (GDN has
+            # linear_attn, full attention has self_attn).
+            if (getattr(layer, "layer_type", "") == "linear_attention"
+                    or hasattr(layer, "linear_attn")):
                 proj = layer.linear_attn.out_proj
                 layer.linear_attn.out_proj = MoEWithCorrection(
                     proj, proj.in_features, args.rank, args.branch_quant,
@@ -636,7 +640,7 @@ def stage_train(args):
         for rec in cache:
             bal, zl, mtp = None, None, None
             if "ids" in rec:
-                ids = rec["ids"].to(args.device).reshape(1, -1)
+                ids = rec["ids"].to(args.device).reshape(1, -1).long()
             else:
                 ids = data[step % len(data):step % len(data) + 1].to(args.device)
             if head is not None:
@@ -836,6 +840,7 @@ def save(model, args, step):
     if getattr(args, "tag", ""):
         name += f"-{args.tag}"
     p = OUT / f"{name}.pt"
+    p.parent.mkdir(parents=True, exist_ok=True)
     torch.save(sd, p)
     print(f"saved {p}", flush=True)
 
