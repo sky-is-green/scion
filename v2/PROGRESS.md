@@ -134,5 +134,15 @@ sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
    failing qwen4exp tests are pre-existing (transformers 5.17 vs the 5.5-era
    rig) and unchanged by the port.
 2. Real `llama-perplexity --save-all-logits` cache test (local, free).
+   **Done 2026-11-12 - `v2/REAL-CACHE.md`.**  Real dump from the deployed
+   35B through the prism fork, decoded, aligned and trained on (2 prefix
+   steps through the compact-banks port).  Key finding: the prism forks
+   score only the SECOND half of each chunk (255 rows, `first = n_ctx/2`),
+   same in the production teacher fork - `build_trace_cache.py` now detects
+   the layout and aligns ids so trainer row i predicts `ids[i+1]` (4 unit
+   tests).  Alignment: dump tokens == HF ids 2048/2048; teacher NLL from
+   the cache 2.232 vs the engine's 2.263; teacher support mass 0.96; the
+   FlashNext GGUF tokenizer matches the student (248,320 tokens, im_start
+   248045).
 3. Build the v2 trace cache and freeze the first experiment/gate.
 4. Full prefix loop; then write the run plan and ask for approval.

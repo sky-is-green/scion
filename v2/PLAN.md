@@ -362,6 +362,13 @@ A. Port the three memory switches to qwen35; prove bit-exact bank decode; measur
    full-model estimate ~13.6 GiB resident, 4k/8k on a 24-48 GB card.
 B. Validate the real cache path: real `_logits_` dump -> cache -> one prefix
    training step; tokenizer alignment.
+   **Done 2026-11-12.**  `v2/REAL-CACHE.md`: the prism forks score only the
+   second half of each chunk (`first = n_ctx/2`, confirmed also in the
+   production qwen4exp-proto fork) - `build_trace_cache.py` now detects the
+   layout and aligns ids (row i predicts ids[i+1], no trainer change);
+   dump tokens == HF ids exactly, teacher NLL reproduced from the cache,
+   FlashNext GGUF tokenizer == student, and two real-cache prefix steps ran
+   through the compact-banks port.
 C. Build the first v2 experiment: FlashNext trace cache, 4k windows, one arm;
    write its falsification criterion.
 D. Exercise the full loop on the prefix: seed -> train -> export -> merge ->
