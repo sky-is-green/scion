@@ -115,6 +115,43 @@ def _decode_ternary_blocks(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
     return codes, scales
 
 
+def read_bank_blocks(path: Path, layer: int, kind: str) -> tuple[np.ndarray, np.ndarray]:
+    """The deployed container verbatim: (codes, scales) per 128-weight group.
+
+    Returns ``codes`` uint8 ``[E, out, ng, 32]`` (four 2-bit codes per byte,
+    ``q + 1`` little-endian within the byte -- the same layout
+    ``qwen35_moe_proxy.pack_ternary_codes`` writes) and ``scales`` fp16
+    ``[E, out, ng]``, where ``ng = in / 128``.  Groups run along the last
+    (contiguous) dim, so a Q2_0_g128 block sequence maps 1:1 onto the HF
+    ``[E, out, in]`` bank layout with the group axis fastest.  Decoding these
+    buffers is therefore *bit-identical* to the deployed dequantisation: this
+    is the source for the compact-bank training container.
+    """
+    h = read_header(path)
+    name = f"blk.{layer}.ffn_{kind}_exps.weight"
+    t = next((x for x in h["tensors"] if x["name"] == name), None)
+    if t is None:
+        raise KeyError(f"{name} not in {path}")
+    if t["type"] not in (TYPE_Q2_0_G128, TYPE_Q1_0_G128):
+        raise ValueError(f"{name} has type {t['type']}, expected ternary g128")
+    if t["n"] % 128:
+        raise ValueError(f"{name}: {t['n']} weights is not a multiple of 128")
+    ne0, ne1, ne2 = t["dims"]          # [in, out, E]
+    if ne0 % 128:
+        raise ValueError(f"{name}: last dim {ne0} is not a multiple of 128")
+    ng = ne0 // 128
+    nb = t["n"] // 128 * 34
+    with open(path, "rb") as f:
+        f.seek(h["data_start"] + t["offset"])
+        raw = f.read(nb)
+    if len(raw) != nb:
+        raise SystemExit(f"{name}: short read ({len(raw)} of {nb} bytes)")
+    blocks = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 34)
+    scales = blocks[:, :2].copy().view("<f2").reshape(ne2, ne1, ng)
+    qb = blocks[:, 2:].reshape(ne2, ne1, ng, 32)
+    return qb.copy(), scales.copy()
+
+
 def read_bank(path: Path, layer: int, kind: str) -> np.ndarray:
     """Dequantised expert bank as [experts, out, in] float32."""
     h = read_header(path)
@@ -181,8 +218,11 @@ def main() -> None:
     for il in (int(x) for x in args.layers.split(",") if x):
         for kind in ("gate", "up", "down"):
             a = read_bank(Path(args.gguf), il, kind)
+            codes, scales = read_bank_blocks(Path(args.gguf), il, kind)
             print(f"layer {il} {kind}: {a.shape} {a.dtype} "
-                  f"min={a.min():.4g} max={a.max():.4g}")
+                  f"min={a.min():.4g} max={a.max():.4g}; blocks "
+                  f"codes {codes.shape} {codes.dtype} scales {scales.shape} "
+                  f"{scales.dtype}")
 
 
 if __name__ == "__main__":

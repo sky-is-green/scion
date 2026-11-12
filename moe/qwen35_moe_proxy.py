@@ -23,6 +23,15 @@ Quant-methods options (all default to the frozen v1 recipe): ``--quant catq``
 filtering), ``--corpus-file``/``--agentic-frac`` (AYOT reasoning-trace
 mixing), ``--top-logits`` (tail-plan step 1).
 
+Memory options (FlashNext P2 port, all default off): ``--compact-banks`` holds
+the frozen banks as deployed 2-bit codes + fp16 scales (verbatim from
+``--bank-gguf`` when set) and decodes only the hit experts in the training
+forward; ``--grad-checkpoint`` + ``--checkpoint-mode group
+--expert-group-size 64`` recompute the decode and the decoder layers in
+backward.  ``--chunked-ce`` bounds the vocab-side softmax memory.  These are
+the switches that made the 176B cur05-mirror fit one H200; they are what let
+the 35B take 4k/8k windows.
+
 Ops: training needs the FP teacher and ternary student resident together, so it
 needs a card that holds both (or two cards via ``--device-map auto`` with
 ``--max-memory``); single-GPU stages should pin a non-display GPU (for example
@@ -32,19 +41,23 @@ needs a card that holds both (or two cards via ``--device-map auto`` with
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import math
 import os
 import re
 import sys
+import types
 from pathlib import Path
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from moe_proxy import ternary_absmean  # noqa: E402
+from moe_proxy import _lloyd_scale, ternary_absmean, ternary_lloyd  # noqa: E402
 from olmoe_corrections import (CorrectionBranch, MoEWithCorrection,  # noqa: E402
                                gate_stats, load_branch_state, moe_block,
                                quantize_bank_inplace)
@@ -464,6 +477,673 @@ def build_ref(args):
     print(f"wrote {args.ref_file} ({len(ref)} windows)", flush=True)
 
 
+# --------------------------------------------------- compact banks (P2 port) --
+
+def pack_ternary_codes(q: torch.Tensor) -> torch.Tensor:
+    """Pack ternary codes in ``{-1, 0, +1}`` (last dim % 4 == 0) into 2-bit bytes.
+
+    Four values per byte, little-endian within the byte (codes ``4j+i`` at bits
+    ``2*i`` of byte ``j``).  ``+1`` is stored as ``0b10`` so a byte is only ever
+    built from the low two bits of each field.  This is also the byte layout of
+    the deployed Q2_0_g128 payload, so GGUF blocks pack/unpack with the same
+    helpers (``seed_banks_from_gguf.read_bank_blocks``).
+    """
+    if q.shape[-1] % 4:
+        raise ValueError("the last dim must be a multiple of 4 to pack 2-bit codes")
+    s = (q + 1).to(torch.int16).reshape(*q.shape[:-1], q.shape[-1] // 4, 4)
+    out = s[..., 0] | (s[..., 1] << 2) | (s[..., 2] << 4) | (s[..., 3] << 6)
+    return out.to(torch.uint8)
+
+
+def unpack_ternary_codes(packed: torch.Tensor) -> torch.Tensor:
+    """Inverse of :func:`pack_ternary_codes`; returns int8 values in {-1,0,+1}."""
+    b = packed.to(torch.int16)
+    parts = [(b >> (2 * i)) & 0b11 for i in range(4)]
+    q = torch.stack(parts, dim=-1).reshape(*packed.shape[:-1], packed.shape[-1] * 4)
+    return q.to(torch.int8) - 1
+
+
+def _encode_slice(wf: torch.Tensor, group: int, kind: str):
+    """Encode one float32 slice into packed codes + the fp16 per-group scale.
+
+    Reproduces ``ternary_lloyd`` / ``ternary_absmean`` exactly for ``kind``:
+    the scale is round-tripped through fp16 (the deployed container) and the
+    codes are the same ``round(clamp(g/a))``.
+    """
+    shape = wf.shape
+    gv = wf.reshape(*shape[:-1], shape[-1] // group, group)
+    if kind == "absmean":
+        a = gv.abs().mean(-1, keepdim=True).clamp_min(1e-8)
+    else:
+        a = _lloyd_scale(gv, gv.abs().mean(-1)).unsqueeze(-1)
+    a16 = a.half()
+    q = torch.clamp(torch.round(gv / a16.float().clamp_min(1e-12)), -1, 1)
+    # pack within each 128-group so the byte layout matches the buffer
+    # (..., ng, group // 4)
+    return pack_ternary_codes(q), a16.squeeze(-1)
+
+
+def decode_ternary(codes: torch.Tensor, scales: torch.Tensor,
+                   dtype: torch.dtype | None = None) -> torch.Tensor:
+    """Decode packed 2-bit codes + fp16 group scales back to a dense tensor.
+
+    ``codes`` is ``[..., ng, group // 4]`` and ``scales`` ``[..., ng]``; the
+    result is ``[..., ng * group]`` in ``dtype`` (or float32).  The value is
+    bit-identical to ``(q * a_half).to(dtype)`` where ``a_half`` is the stored
+    fp16 scale and ``q`` the ternary code.
+    """
+    q = unpack_ternary_codes(codes).float()
+    deq = q * scales.float().unsqueeze(-1)
+    deq = deq.reshape(*deq.shape[:-2], -1)
+    return deq if dtype is None else deq.to(dtype)
+
+
+class CompactBank(nn.Module):
+    """A frozen expert bank in its *deployed* form: 2-bit codes + fp16 scales.
+
+    The two buffers are the shipped container (``codes`` = 2 bits/param,
+    ``scales`` = 2 bytes per 128-group).  ``decode_expert`` materialises a
+    single expert's weight to run ``F.linear`` in the training forward, so the
+    full bf16 bank never has to be resident.  Ported from qwen4exp_proxy.py,
+    where this is what fit the 176B cur05-mirror on one H200; for the 35B an
+    expert slice is ~6.3 MB bf16 (gu ``[1024, 2048]`` + dn ``[2048, 512]``).
+    """
+
+    def __init__(self, codes: torch.Tensor, scales: torch.Tensor, group: int,
+                 out_dtype: torch.dtype):
+        super().__init__()
+        self.register_buffer("codes", codes, persistent=False)
+        self.register_buffer("scales", scales, persistent=False)
+        self.group = int(group)
+        self.out_dtype = out_dtype
+
+    @classmethod
+    def from_tensor(cls, w: torch.Tensor, group: int = 128, kind: str = "lloyd",
+                    chunk: int = 8) -> "CompactBank":
+        """Encode an ``[E, rows, cols]`` bank (the no-GGUF host path).
+
+        Chunked over the expert dim so the encode transient stays small next to
+        the resident model.
+        """
+        w = w.detach()
+        if w.dim() != 3:
+            raise ValueError(f"expected an [E, rows, cols] bank, got {tuple(w.shape)}")
+        last = w.shape[-1]
+        g = group if (group > 0 and last % group == 0) else last
+        ng = last // g
+        codes = torch.empty(w.shape[0], w.shape[1], ng, g // 4,
+                            dtype=torch.uint8, device=w.device)
+        scales = torch.empty(w.shape[0], w.shape[1], ng, dtype=torch.float16,
+                             device=w.device)
+        for s in range(0, w.shape[0], chunk):
+            c, a = _encode_slice(w[s:s + chunk].float(), g, kind)
+            codes[s:s + chunk] = c
+            scales[s:s + chunk] = a
+        return cls(codes, scales, g, w.dtype)
+
+    def decode_expert(self, e: int, dtype: torch.dtype | None = None) -> torch.Tensor:
+        return decode_ternary(self.codes[e], self.scales[e], dtype or self.out_dtype)
+
+    def decode_experts(self, idx_list, dtype: torch.dtype | None = None,
+                       chunk: int = 8) -> torch.Tensor:
+        """Batched :meth:`decode_expert` for a list/tensor of expert indices.
+
+        Decodes ``chunk`` experts at a time so the fp32 decode transient stays
+        ~chunk x 6.3 MB while the per-call overhead is amortised (the
+        per-expert decode loop was host-op bound on the P2 L40S run).
+        """
+        idx = torch.as_tensor(idx_list, device=self.codes.device)
+        n = int(idx.numel())
+        out = torch.empty((n,) + tuple(self.codes.shape[1:-2])
+                          + (self.codes.shape[-2] * self.group,),
+                          dtype=dtype or self.out_dtype,
+                          device=self.codes.device)
+        for i in range(0, n, max(1, int(chunk))):
+            out[i:i + chunk] = decode_ternary(
+                self.codes[idx[i:i + chunk]], self.scales[idx[i:i + chunk]],
+                dtype or self.out_dtype)
+        return out
+
+    def decode_all(self, dtype: torch.dtype | None = None) -> torch.Tensor:
+        return decode_ternary(self.codes, self.scales, dtype or self.out_dtype)
+
+    def nbytes(self) -> int:
+        return (self.codes.numel() * self.codes.element_size()
+                + self.scales.numel() * self.scales.element_size())
+
+    def param_numel(self) -> int:
+        """The dense parameter count the bank represents (codes are 2 bits)."""
+        return self.codes.numel() * 4
+
+
+def compact_banks_from_blocks(gu_codes: torch.Tensor, gu_scales: torch.Tensor,
+                              dn_codes: torch.Tensor, dn_scales: torch.Tensor,
+                              group: int, out_dtype: torch.dtype,
+                              up_codes: torch.Tensor | None = None,
+                              up_scales: torch.Tensor | None = None
+                              ) -> tuple["CompactBank", "CompactBank"]:
+    """Build the (gate_up, down) compact pair from deployed GGUF blocks.
+
+    ``seed_banks_from_gguf.read_bank_blocks`` returns the container verbatim;
+    the GGUF stores gate/up/down as separate tensors while the HF bank fuses
+    gate+up along the rows axis.  Groups run along the last (contiguous) dim,
+    so concatenating the per-tensor codes/scales along axis 1 gives the fused
+    bank's container verbatim -- no re-quantisation, the decode is
+    bit-identical to the deployed dequantisation.
+    """
+    if up_codes is not None:
+        gu_codes = torch.cat([gu_codes, up_codes], dim=1)
+        gu_scales = torch.cat([gu_scales, up_scales], dim=1)
+    return (CompactBank(gu_codes, gu_scales, group, out_dtype),
+            CompactBank(dn_codes, dn_scales, group, out_dtype))
+
+
+def _compact_expert_mlp(experts, current_state, expert_idx):
+    """One expert's decode + gate/up/down; checkpointed so the decoded weight is
+    recomputed in backward instead of saved."""
+    dt = experts._compact_gu.out_dtype
+    gu_e = experts._compact_gu.decode_expert(int(expert_idx), dt)
+    dn_e = experts._compact_dn.decode_expert(int(expert_idx), dt)
+    gate, up = F.linear(current_state, gu_e).chunk(2, dim=-1)
+    h = experts.act_fn(gate) * up
+    return F.linear(h, dn_e)
+
+
+def _compact_experts_group(experts, hidden_states, hit, top_k_weights,
+                           expert_mask):
+    """One checkpointed group of hit experts -> its partial block output.
+
+    Batched: the group's weights are decoded with one ``decode_experts`` call,
+    the group's (expert, token) pairs are padded into a ``[G, maxc, H]`` tensor
+    and the two expert projections run as two ``bmm``s.  This is ~75x fewer
+    host ops than the per-expert loop (P2 L40S: the per-expert loop was
+    host-op bound at >27 s/step) while the decoded weights stay bounded at
+    ~group x 6.3 MB (the reason for group checkpointing at all).
+    ``hit`` is a Python list, so no graph is kept for it.
+    """
+    dt = experts._compact_gu.out_dtype
+    dev = hidden_states.device
+    g = len(hit)
+    out = torch.zeros_like(hidden_states)
+    with torch.no_grad():
+        sub = expert_mask[torch.as_tensor(hit, device=dev)]      # [G, K, T]
+        g_idx, k_idx, t_idx = sub.nonzero(as_tuple=True)         # positions
+    if g_idx.numel() == 0:
+        return out
+    counts = torch.bincount(g_idx, minlength=g)
+    maxc = int(counts.max().item())
+    gu_w = experts._compact_gu.decode_experts(hit, dt)           # [G, 2F, H]
+    dn_w = experts._compact_dn.decode_experts(hit, dt)           # [G, H, F]
+    x = hidden_states[t_idx].to(dt)                              # [N, H]
+    x_pad = x.new_zeros(g, maxc, x.shape[-1])
+    w_pad = x.new_zeros(g, maxc)
+    starts = torch.cumsum(counts, 0) - counts
+    rank = torch.arange(g_idx.numel(), device=dev) - starts[g_idx]
+    x_pad[g_idx, rank] = x
+    w_pad[g_idx, rank] = top_k_weights[t_idx, k_idx].to(dt)
+    gu_out = torch.bmm(x_pad, gu_w.transpose(1, 2))              # [G, maxc, 2F]
+    gate, up = gu_out.chunk(2, dim=-1)
+    h = experts.act_fn(gate) * up
+    y = torch.bmm(h, dn_w.transpose(1, 2))                       # [G, maxc, H]
+    y = y * w_pad.unsqueeze(-1)
+    out.index_add_(0, t_idx, y[g_idx, rank].to(out.dtype))
+    return out
+
+
+def _compact_experts_block_grouped(experts, hidden_states, top_k_index,
+                                   top_k_weights, group_size: int = 32):
+    """The sparse block as a chain of checkpointed expert groups.
+
+    Memory is bounded by ``group_size`` decoded experts instead of the whole
+    hit set; the group partials are summed in float32 and cast back at the end
+    (sequential bf16 accumulation is not bit-reproducible across groupings
+    anyway).
+    """
+    with torch.no_grad():
+        expert_mask = torch.nn.functional.one_hot(top_k_index,
+                                                  num_classes=experts.num_experts)
+        expert_mask = expert_mask.permute(2, 1, 0)
+        hit = [int(e[0]) for e in
+               torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+               if int(e[0]) != experts.num_experts]
+    out = None
+    for i in range(0, len(hit), group_size):
+        part = torch.utils.checkpoint.checkpoint(
+            _compact_experts_group, experts, hidden_states, hit[i:i + group_size],
+            top_k_weights, expert_mask, use_reentrant=False)
+        out = part.float() if out is None else out + part.float()
+    if out is None:
+        return torch.zeros_like(hidden_states)
+    return out.to(hidden_states.dtype)
+
+
+def _compact_experts_block(experts, hidden_states, top_k_index, top_k_weights):
+    """The whole sparse-block expert computation for one training forward.
+
+    Used with a single checkpoint per block: the decoded expert weights are
+    recomputed in backward instead of saved, and there is one checkpoint node
+    per layer instead of one per expert (the per-expert form is launch-bound).
+    """
+    dt = experts._compact_gu.out_dtype
+    final_hidden_states = torch.zeros_like(hidden_states)
+    with torch.no_grad():
+        expert_mask = torch.nn.functional.one_hot(top_k_index,
+                                                  num_classes=experts.num_experts)
+        expert_mask = expert_mask.permute(2, 1, 0)
+        expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+    for expert_idx in expert_hit:
+        expert_idx = expert_idx[0]
+        if expert_idx == experts.num_experts:
+            continue
+        top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+        current_state = hidden_states[token_idx].to(dt)
+        gu_e = experts._compact_gu.decode_expert(int(expert_idx), dt)
+        dn_e = experts._compact_dn.decode_expert(int(expert_idx), dt)
+        gate, up = F.linear(current_state, gu_e).chunk(2, dim=-1)
+        h = experts.act_fn(gate) * up
+        h = F.linear(h, dn_e)
+        h = h * top_k_weights[token_idx, top_k_pos, None].to(dt)
+        final_hidden_states.index_add_(0, token_idx,
+                                       h.to(final_hidden_states.dtype))
+    return final_hidden_states
+
+
+def compact_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Training forward over the compact banks: decode the hit experts only.
+
+    Mirrors the STE training forward (same loop, dtypes, weighting) but reads
+    the deployed codes+scales instead of a resident bank.  With
+    ``_grad_checkpoint`` the decode is recomputed in backward: the banks are
+    frozen, but autograd otherwise saves every decoded expert weight for
+    ``grad_input`` (40 layers x up to 256 hit experts ~ 100 GiB).
+    """
+    if getattr(self, "_grad_checkpoint", False):
+        mode = getattr(self, "_ckpt_mode", "block")
+        if mode == "expert":
+            return _compact_experts_loop(self, hidden_states, top_k_index,
+                                         top_k_weights, checkpoint="expert")
+        if mode == "group":
+            return _compact_experts_block_grouped(
+                self, hidden_states, top_k_index, top_k_weights,
+                group_size=getattr(self, "_ckpt_group", 32))
+        return torch.utils.checkpoint.checkpoint(
+            _compact_experts_block, self, hidden_states, top_k_index,
+            top_k_weights, use_reentrant=False)
+    return _compact_experts_loop(self, hidden_states, top_k_index,
+                                 top_k_weights, checkpoint=None)
+
+
+def _compact_experts_loop(self, hidden_states, top_k_index, top_k_weights,
+                          checkpoint=None):
+    gu_bank, dn_bank = self._compact_gu, self._compact_dn
+    dt = gu_bank.out_dtype
+    final_hidden_states = torch.zeros_like(hidden_states)
+    with torch.no_grad():
+        expert_mask = torch.nn.functional.one_hot(top_k_index,
+                                                  num_classes=self.num_experts)
+        expert_mask = expert_mask.permute(2, 1, 0)
+        expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+    for expert_idx in expert_hit:
+        expert_idx = expert_idx[0]
+        if expert_idx == self.num_experts:
+            continue
+        top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+        current_state = hidden_states[token_idx].to(dt)
+        if checkpoint == "expert":
+            h = torch.utils.checkpoint.checkpoint(
+                _compact_expert_mlp, self, current_state, expert_idx,
+                use_reentrant=False)
+        else:
+            gu_e = gu_bank.decode_expert(int(expert_idx), dt)
+            dn_e = dn_bank.decode_expert(int(expert_idx), dt)
+            gate, up = F.linear(current_state, gu_e).chunk(2, dim=-1)
+            h = self.act_fn(gate) * up
+            h = F.linear(h, dn_e)
+        h = h * top_k_weights[token_idx, top_k_pos, None].to(dt)
+        final_hidden_states.index_add_(0, token_idx,
+                                       h.to(final_hidden_states.dtype))
+    return final_hidden_states
+
+
+def _install_compact_dispatch(m) -> None:
+    """Class-level fallback: ``type(m).forward`` dispatches on ``_compact``.
+
+    An instance ``forward`` binding can be overwritten (accelerate restores it
+    when hooks are removed); the class-level check survives that.  Here the
+    captured fallback is the ``patch_experts`` dispatch (STE forward when
+    ``_ternary``, stock HF forward otherwise), so compact and dense modules
+    coexist under one class patch.
+    """
+    cls = type(m)
+    if getattr(cls, "_q35_compact_patch", False):
+        return
+    orig = cls.forward
+
+    def forward(self, *a, **k):
+        if getattr(self, "_compact", False):
+            return compact_experts_forward(self, *a, **k)
+        return orig(self, *a, **k)
+
+    cls.forward = forward
+    cls._q35_compact_patch = True
+
+
+def _verify_bank_vs_params(bank: CompactBank, params: torch.Tensor, group: int,
+                           kind: str) -> int:
+    """Bit-equality of the compact decode against the seeded dense bank.
+
+    The dense bank holds ``bf16(q * a16)`` from ``seed_banks_from_gguf`` (the
+    deployed dequantisation); the compact decode is the same product from the
+    packed buffers.  Equal only if the block -> buffer layout, the byte
+    packing and the scale placement are all right, so this is the v2
+    bit-exactness gate.  Returns the code-mismatch count vs a fresh
+    ``ternary_lloyd`` re-derivation on the seeded values -- the 0-ppm property
+    the export audit proved for the deployed body, re-proven per tensor here
+    (the re-derived *scale* may differ from the deployed one by an fp16 ulp
+    after the bf16 cast; only the codes must agree).
+    """
+    mism = 0
+    chunk = 8
+    for e0 in range(0, params.shape[0], chunk):
+        dec = bank.decode_experts(list(range(e0, min(e0 + chunk, params.shape[0]))))
+        if not torch.equal(dec, params[e0:e0 + chunk]):
+            # find the first differing expert for a useful message
+            for e in range(e0, min(e0 + chunk, params.shape[0])):
+                if not torch.equal(bank.decode_expert(e), params[e]):
+                    raise AssertionError(
+                        f"compact decode differs from the seeded dense bank on "
+                        f"expert {e} (max |diff| "
+                        f"{float((bank.decode_expert(e).float() - params[e].float()).abs().max())})")
+        enc_codes, _ = _encode_slice(params[e0:e0 + chunk].float(), group, kind)
+        mism += int((unpack_ternary_codes(enc_codes)
+                     != unpack_ternary_codes(bank.codes[e0:e0 + chunk])).sum())
+    return mism
+
+
+def compact_banks_from_gguf(model, args, verify: bool = False) -> int:
+    """Build every frozen bank from the deployed GGUF container, verbatim.
+
+    Per layer: seed the dense params from the GGUF (the ``--bank-gguf`` v1
+    path), build the compact bank from the same file's packed codes+scales
+    (no re-quantisation), optionally verify decode == seeded values
+    bit-for-bit plus 0 code mismatches vs a fresh Lloyd re-derivation, then
+    free the dense banks.  Streaming per layer keeps the dense peak at one
+    bank (~1.6 GiB bf16) instead of the whole model (~64 GiB).
+
+    This is the seed fix applied to the compact container: the training
+    forward then sees exactly the deployed expert outputs, and the compact
+    decode IS what ships.
+    """
+    from seed_banks_from_gguf import read_bank, read_bank_blocks
+    path = Path(args.bank_gguf)
+    layers = text_layers(model)
+    dev_arg = getattr(args, "device", None)
+    use_gpu = (torch.cuda.is_available() and bool(dev_arg)
+               and str(dev_arg).startswith("cuda"))
+    enc_dev = dev_arg if use_gpu else None
+    banks = 0
+    for li, layer in enumerate(layers):
+        m = moe_block(layer).experts
+        gate_np = read_bank(path, li, "gate")
+        up_np = read_bank(path, li, "up")
+        down_np = read_bank(path, li, "down")
+        gu_np = np.concatenate([gate_np, up_np], axis=1)
+        del gate_np, up_np
+        # 1. seed the dense params exactly as the v1 --bank-gguf path does
+        with torch.no_grad():
+            m.gate_up_proj.copy_(torch.from_numpy(gu_np).to(
+                device=m.gate_up_proj.device, dtype=m.gate_up_proj.dtype))
+            m.down_proj.copy_(torch.from_numpy(down_np).to(
+                device=m.down_proj.device, dtype=m.down_proj.dtype))
+        del gu_np, down_np
+        # 2. the compact container: the same file's codes+scales, verbatim
+        gu_codes, gu_scales = read_bank_blocks(path, li, "gate")
+        up_codes, up_scales = read_bank_blocks(path, li, "up")
+        dn_codes, dn_scales = read_bank_blocks(path, li, "down")
+        bank_gu, bank_dn = compact_banks_from_blocks(
+            torch.from_numpy(gu_codes), torch.from_numpy(gu_scales),
+            torch.from_numpy(dn_codes), torch.from_numpy(dn_scales),
+            args.group, m.gate_up_proj.dtype,
+            torch.from_numpy(up_codes), torch.from_numpy(up_scales))
+        del gu_codes, up_codes, gu_scales, up_scales, dn_codes, dn_scales
+        if enc_dev is not None:
+            bank_gu = bank_gu.to(enc_dev)
+            bank_dn = bank_dn.to(enc_dev)
+        if verify:
+            codes_mism = _verify_bank_vs_params(bank_gu, m.gate_up_proj.data,
+                                                args.group, args.quant)
+            codes_mism += _verify_bank_vs_params(bank_dn, m.down_proj.data,
+                                                 args.group, args.quant)
+            if codes_mism:
+                raise AssertionError(
+                    f"layer {li}: {codes_mism} code mismatches between the "
+                    f"deployed GGUF container and a fresh {args.quant} "
+                    f"re-derivation of the seeded values")
+        # 3. swap the dense banks out for the compact ones
+        for name, bank in (("gate_up_proj", bank_gu), ("down_proj", bank_dn)):
+            orig_dev = getattr(m, name).device
+            setattr(m, "_compact_gu" if name == "gate_up_proj" else "_compact_dn",
+                    bank.to(orig_dev))
+            setattr(m, name, nn.Parameter(torch.empty(0, device=orig_dev),
+                                           requires_grad=False))
+        banks += 2
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        m._compact = True
+        _install_compact_dispatch(m)
+        m.forward = types.MethodType(compact_experts_forward, m)
+        if li == 0 or (li + 1) % 8 == 0:
+            print(f"compact banks (from {path.name}): {li + 1}/{len(layers)} "
+                  f"layers encoded", flush=True)
+    return banks
+
+
+def compact_banks(model, args, verify: bool = False) -> int:
+    """Replace every frozen expert bank with its deployed compact form.
+
+    With ``--bank-gguf`` the container is read verbatim from the deployed GGUF
+    (:func:`compact_banks_from_gguf`, the v2 path).  Otherwise the loaded
+    dense banks are encoded in place with the selected rule and the decode is
+    verified bit-equal to the in-place banker (the qwen4exp P2 behaviour):
+    park every bank on host, encode on ``--device`` (the Lloyd temporaries do
+    not fit next to the resident banks), keep the compact bank on the bank's
+    original device.  Returns the number of banks encoded.
+    """
+    if getattr(args, "bank_gguf", ""):
+        return compact_banks_from_gguf(model, args, verify=verify)
+    layers = text_layers(model)
+    dev_arg = getattr(args, "device", None)
+    use_gpu = (torch.cuda.is_available() and bool(dev_arg)
+               and str(dev_arg).startswith("cuda"))
+    enc_dev = dev_arg if use_gpu else None
+
+    parked: dict = {}
+    for layer in layers:
+        m = moe_block(layer).experts
+        for name in ("gate_up_proj", "down_proj"):
+            w = getattr(m, name)
+            parked[(id(m), name)] = w.device
+            if w.device.type != "cpu":
+                setattr(m, name,
+                        nn.Parameter(w.detach().to("cpu"), requires_grad=False))
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    banks = 0
+    for li, layer in enumerate(layers):
+        m = moe_block(layer).experts
+        for name in ("gate_up_proj", "down_proj"):
+            orig_dev = parked[(id(m), name)]
+            w = getattr(m, name)
+            w_e = w.to(enc_dev) if enc_dev is not None else w
+            bank = CompactBank.from_tensor(w_e, args.group, args.quant)
+            if verify:
+                _verify_bank(bank, w_e, args.group, args.quant)
+            setattr(m, "_compact_gu" if name == "gate_up_proj" else "_compact_dn",
+                    bank.to(orig_dev))
+            setattr(m, name,
+                    nn.Parameter(torch.empty(0, device=orig_dev), requires_grad=False))
+            banks += 1
+            del w, w_e
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        m._compact = True
+        _install_compact_dispatch(m)
+        m.forward = types.MethodType(compact_experts_forward, m)
+        if li == 0 or (li + 1) % 8 == 0:
+            print(f"compact banks: {li + 1}/{len(layers)} layers encoded",
+                  flush=True)
+    return banks
+
+
+def _verify_bank(bank: CompactBank, w: torch.Tensor, group: int, kind: str) -> None:
+    """Per-expert bit-equality of the decoded compact bank vs the in-place banker."""
+    out_dtype = bank.out_dtype
+    for e in range(w.shape[0]):
+        ref = (ternary_absmean if kind == "absmean" else ternary_lloyd)(
+            w[e].float(), group).to(out_dtype)
+        got = bank.decode_expert(e)
+        if not torch.equal(ref, got):
+            diff = float((ref.float() - got.float()).abs().max())
+            raise AssertionError(
+                f"compact decode differs from the {kind} banker on expert {e} "
+                f"(max |diff| {diff})")
+
+
+def expert_bank_bytes(model) -> dict:
+    """Byte accounting for the compact expert banks and the rest of the model."""
+    codes_b = scales_b = 0
+    dense_numel = 0
+    for layer in text_layers(model):
+        m = moe_block(layer).experts
+        for attr in ("_compact_gu", "_compact_dn"):
+            bank = getattr(m, attr, None)
+            if bank is None:
+                continue
+            codes_b += bank.codes.numel() * bank.codes.element_size()
+            scales_b += bank.scales.numel() * bank.scales.element_size()
+            dense_numel += bank.param_numel()
+    branch_b = sum(p.numel() * p.element_size() for n, p in model.named_parameters()
+                   if ".branch." in n and not p.is_meta)
+    router_b = sum(p.numel() * p.element_size() for n, p in model.named_parameters()
+                   if ".gate." in n and not p.is_meta)
+    other_b = sum(p.numel() * p.element_size() for n, p in model.named_parameters()
+                  if ".branch." not in n and ".gate." not in n and not p.is_meta)
+    return {"expert_codes": codes_b, "expert_scales": scales_b,
+            "expert_dense_numel": dense_numel,
+            "expert_bf16_equivalent": dense_numel * 2,
+            "branches": branch_b, "routers": router_b, "other_params": other_b}
+
+
+def memory_report(model, args, label: str = "") -> dict:
+    """Print the compact-bank accounting; returns the dict."""
+    rep = expert_bank_bytes(model)
+    # resident = what the compact model actually holds; the bf16 equivalent
+    # and the dense numel are informational (the qwen4exp sum included the
+    # equivalent, which overstated residency by the whole dense bank)
+    total_b = sum(v for k, v in rep.items()
+                  if k not in ("expert_dense_numel", "expert_bf16_equivalent"))
+    print(f"memory[{label or 'compact'}] expert codes "
+          f"{rep['expert_codes']/2**30:.2f} GiB + scales "
+          f"{rep['expert_scales']/2**30:.2f} GiB (dense bf16 would be "
+          f"{rep['expert_bf16_equivalent']/2**30:.1f} GiB), branches "
+          f"{rep['branches']/2**30:.3f} GiB, routers {rep['routers']/2**30:.3f} GiB, "
+          f"other params {rep['other_params']/2**30:.2f} GiB -> resident "
+          f"~{total_b/2**30:.2f} GiB", flush=True)
+    if torch.cuda.is_available():
+        dev = next(model.parameters()).device
+        dev = dev if dev.type == "cuda" else None   # None = current device
+        alloc = torch.cuda.memory_allocated(dev) / 2**30
+        reserved = torch.cuda.memory_reserved(dev) / 2**30
+        peak = torch.cuda.max_memory_allocated(dev) / 2**30
+        rep.update({"cuda_allocated_gib": alloc, "cuda_reserved_gib": reserved,
+                    "cuda_peak_gib": peak})
+        print(f"memory[{label or 'compact'}] cuda allocated {alloc:.2f} GiB "
+              f"reserved {reserved:.2f} GiB peak {peak:.2f} GiB", flush=True)
+    return rep
+
+
+def rebind_compact_forwards(model) -> int:
+    """Re-bind ``compact_experts_forward`` on every compacted experts module.
+
+    ``accelerate.hooks.remove_hook_from_module`` restores each module's
+    ``forward`` to the value captured when the offload hook was attached, which
+    shadows the compact binding (P2 finding: the class fp8 forward then runs
+    and asks for the deleted dense banks).  Re-bind after removing hooks.
+    """
+    n = 0
+    for layer in text_layers(model):
+        m = moe_block(layer).experts
+        if getattr(m, "_compact", False):
+            m.forward = types.MethodType(compact_experts_forward, m)
+            n += 1
+    return n
+
+
+def enable_grad_checkpointing(model, mode: str = "block") -> int:
+    """Turn on the decode checkpoint on every compact experts module.
+
+    Autograd saves every decoded expert weight for ``grad_input``; with 40
+    layers x up to 256 hit experts that is ~100 GiB of saved constants (P2
+    finding: a 41 GiB student OOMed at 138 GiB in the first forward).  ``mode``
+    is ``block`` (one checkpoint per sparse block -- fewer nodes), ``expert``,
+    or ``group`` (bounds the decoded-weight saves at ~group x 6.3 MB).
+    Returns the number of experts modules patched.
+    """
+    n = 0
+    for layer in text_layers(model):
+        m = moe_block(layer).experts
+        if getattr(m, "_compact", False):
+            m._grad_checkpoint = True
+            m._ckpt_mode = mode
+            n += 1
+    return n
+
+
+def enable_layer_checkpointing(model) -> bool:
+    """Checkpoint the decoder layers themselves (recompute in backward).
+
+    P2 L40S fit: the decoder layers' saved activations do not fit next to the
+    compact student on a small card.  This is exact (recompute) and costs one
+    extra forward per step; the compact experts' decode checkpoint nests
+    inside it.
+    """
+    cfg = getattr(model, "config", None)
+    if cfg is not None and getattr(cfg, "use_cache", None):
+        cfg.use_cache = False
+    try:
+        model.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False})
+    except TypeError:
+        model.gradient_checkpointing_enable()
+    return True
+
+
+def _ce_chunk_sum(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    return F.cross_entropy(logits.float(), targets, reduction="sum")
+
+
+def chunked_cross_entropy(logits, targets, chunk: int = 64):
+    """Cross-entropy without the full-vocab fp32 softmax buffers.
+
+    Ported from qwen4exp_proxy.py (the P2 L40S fit lever).  The 248,320 vocab
+    at seq 8k needs an ~8 GiB fp32 save in the forward plus an ~8 GiB grad
+    buffer in backward with the plain CE; each chunk is recomputed in
+    backward, so only one chunk's softmax is live at a time.  Mathematically
+    the same loss (fp32 reduction order differs in the last bits).
+    """
+    flat = logits.reshape(-1, logits.shape[-1])
+    tgt = targets.reshape(-1)
+    total = flat.new_zeros(())
+    for i in range(0, tgt.numel(), chunk):
+        total = total + torch.utils.checkpoint.checkpoint(
+            _ce_chunk_sum, flat[i:i + chunk], tgt[i:i + chunk],
+            use_reentrant=False)
+    return total / tgt.numel()
+
+
 # ------------------------------------------------------------------- train ---
 
 def load_full(args):
@@ -564,15 +1244,28 @@ def build_student(model, args) -> int:
 
     Shared by the train/eval stages and ``kld_eval`` so the W1 gate instrument
     cannot drift from the stage it is measuring.
+
+    With ``--compact-banks`` the frozen banks are held in their deployed form
+    (2-bit codes + fp16 scales; from the deployed GGUF verbatim when
+    ``--bank-gguf`` is set) and the training forward decodes the hit experts
+    only -- the FlashNext P2 memory port.
     """
-    ternarize_banks(model, args)
+    if getattr(args, "compact_banks", False):
+        compact_banks(model, args, verify=getattr(args, "verify_banks", False))
+        memory_report(model, args, "build_student")
+    else:
+        ternarize_banks(model, args)
     return attach_branches(model, args)
 
 
 def stage_train(args):
     patch_experts(args.group)
     model, tok = load_full(args)
-    if getattr(args, "bank_gguf", ""):
+    # --bank-gguf seeds the training-time codes from the deployed GGUF (the
+    # v2 export-audit fix).  With --compact-banks the compact builder seeds
+    # per layer itself (streaming: one dense bank at a time), so the upfront
+    # pass is skipped there.
+    if getattr(args, "bank_gguf", "") and not getattr(args, "compact_banks", False):
         from seed_banks_from_gguf import seed_model_banks
         n_seeded = seed_model_banks(model, args.bank_gguf)
         print(f"seeded {n_seeded} expert banks from {args.bank_gguf} "
@@ -580,6 +1273,8 @@ def stage_train(args):
     n_tr = build_student(model, args)
     print(f"trainable {n_tr/1e6:.2f}M (branches + routers) target {args.branch_target}",
           flush=True)
+    if getattr(args, "compact_banks", False):
+        memory_report(model, args, "train")
     if args.balance != "none":
         # Phase B: bias-based balancing patches the gate forward and keeps a
         # per-expert bias buffer; the stock v1 path (none) is untouched.
@@ -587,6 +1282,28 @@ def stage_train(args):
                                        args.balance_cb_eta, args.balance_qb_damp)
         print(f"router balance: {args.balance} on {n_gates} gates "
               f"(delta {args.balance_delta}, z {args.balance_z_coeff})", flush=True)
+    if getattr(args, "grad_checkpoint", False):
+        # FlashNext P2 memory port: checkpoint the compact expert decode so the
+        # decoded weights are recomputed in backward instead of saved, and the
+        # decoder layers on top of it (exact recompute).
+        ck_mode = getattr(args, "checkpoint_mode", "block")
+        n_ck = enable_grad_checkpointing(model, ck_mode)
+        if ck_mode == "group":
+            # bound the decoded-weight saves inside the recompute (P2 L40S:
+            # block mode saves every hit expert's weights, ~5 GiB)
+            n_g = 0
+            for layer in text_layers(model):
+                m = moe_block(layer).experts
+                if getattr(m, "_compact", False):
+                    m._ckpt_group = max(1, int(getattr(args, "expert_group_size", 32)))
+                    n_g += 1
+            print(f"gradient checkpointing: group size "
+                  f"{getattr(args, 'expert_group_size', 32)} on {n_g} modules",
+                  flush=True)
+        print(f"gradient checkpointing ({ck_mode}): {n_ck} experts modules",
+              flush=True)
+        enable_layer_checkpointing(model)
+        print("gradient checkpointing (decoder layers): enabled", flush=True)
     head = None
     if args.mtp_weight > 0:
         tcfg = getattr(model.config, "text_config", model.config)
@@ -647,8 +1364,11 @@ def stage_train(args):
                 h, logits = model_hidden_logits(model, ids)
             else:
                 logits = model_logits(model, ids)
-            lm = F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
-                                 ids[:, 1:].reshape(-1))
+            if args.chunked_ce:
+                lm = chunked_cross_entropy(logits[:, :-1], ids[:, 1:])
+            else:
+                lm = F.cross_entropy(logits[:, :-1].reshape(-1, logits.shape[-1]).float(),
+                                     ids[:, 1:].reshape(-1))
             ti = rec["idx"].to(logits.device)
             tv = rec["val"].to(logits.device).float()
             s_sel = logits[:, :-1].gather(-1, ti).reshape(-1, ti.shape[-1])
@@ -752,6 +1472,11 @@ def stage_train(args):
                     peak = float(lp.exp().max(-1).values.mean())
                     del lp, flat
             loss.backward()
+            # The next record's forward allocates its full logits before this
+            # one is rebound, so at 4k/8k windows two full-vocab tensors
+            # (~4-8 GiB at the 248k vocab) would briefly coexist.  Free the
+            # old one as soon as the graph has consumed it.
+            del logits
             opt.step()
             opt.zero_grad(set_to_none=True)
             if args.balance in ("bias", "quantile", "cbqb", "cb"):
@@ -761,6 +1486,11 @@ def stage_train(args):
                 # (loadH + per-sequence load variance, its own axis).
                 bal = balance_update(model, args.balance, args.balance_delta)
             step += 1
+            if step == 1:
+                # resident/peak readout after the first full step (load+build
+                # peak is printed by build_student's memory_report above): the
+                # number a card has to hold for the whole run.
+                memory_report(model, args, "step1")
             if (args.lr_half_every and step >= args.lr_decay_start
                     and step % args.lr_half_every == 0):
                 for g in opt.param_groups:
@@ -899,6 +1629,37 @@ def build_parser() -> argparse.ArgumentParser:
                     help="seed the frozen expert banks from a deployed qwen35moe "
                          "GGUF before quantising (makes training-time codes equal "
                          "the deployed codes; see moe/seed_banks_from_gguf.py)")
+    ap.add_argument("--compact-banks", action="store_true",
+                    help="P2 port: store the frozen banks in deployed form (2-bit "
+                         "codes + fp16 scale per group) and decode per-expert in "
+                         "the training forward; with --bank-gguf the container is "
+                         "read verbatim from the deployed GGUF. Default off "
+                         "(frozen v1 paths untouched)")
+    ap.add_argument("--verify-banks", action="store_true",
+                    help="compact-bank gate: verify every decoded expert is "
+                         "bit-equal to the seeded dense bank and re-derive "
+                         "the codes with the selected rule (0 mismatches "
+                         "expected on the deployed body); adds one full pass "
+                         "over the banks at build time")
+    ap.add_argument("--grad-checkpoint", action="store_true",
+                    help="train: checkpoint the compact expert decode and the "
+                         "decoder layers so both are recomputed in backward "
+                         "(exact; bounds the saved decoded-weight and "
+                         "activation memory)")
+    ap.add_argument("--checkpoint-mode", choices=["block", "expert", "group"],
+                    default="block",
+                    help="granularity of the compact-decode checkpoint "
+                         "(block = one node per sparse block (default); expert "
+                         "= one per expert; group = one per expert-group, "
+                         "bounds the decoded-weight saves at ~group x 6.3 MB)")
+    ap.add_argument("--expert-group-size", type=int, default=32,
+                    help="train: experts per checkpointed group for "
+                         "--checkpoint-mode group (the FlashNext runbook uses 64)")
+    ap.add_argument("--chunked-ce", action="store_true",
+                    help="train: compute the LM cross-entropy in recomputed "
+                         "chunks (qwen4exp P2 lever) instead of one full-vocab "
+                         "fp32 softmax; same loss to fp32 reduction order, "
+                         "bounds the vocab-side softmax memory. Off by default")
     ap.add_argument("--alloc-file", default="",
                     help="RCO allocation map {tensor: bits} for the expert banks "
                          "(2 = lloyd ternary, 4/6/8 = g128 integer); default off")

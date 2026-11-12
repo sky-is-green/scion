@@ -121,6 +121,18 @@ sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
 ## Next
 
 1. Port the FlashNext memory switches to qwen35; measure the prefix.
+   **Done 2026-11-12 - `v2/MEMORY-PORT.md`.**  The three switches are ported
+   (all default off), the compact container is read verbatim from the
+   deployed GGUF, and the bit-exactness gate passed on real weights: 3.22B
+   prefix weights, 0 mismatches, decode == deployed dequantised values.
+   Measured on the 4-layer prefix (20 GB card, recipe geometry): dense v1
+   OOMs at 2k; compact+ckpt fits 2k (15.4 GiB) and, with the chunked-CE
+   lever, 4k (13.9 GiB); 8k is 1-2.5 GiB short with the levers identified
+   (causal-conv1d, GDN ssm dtype, split-window accumulation).  Full-model
+   extrapolation: the compact model is ~13.6 GiB resident (vs 69.4 dense),
+   4k/8k windows need a 24-48 GB card.  28 new unit tests pass; the 41
+   failing qwen4exp tests are pre-existing (transformers 5.17 vs the 5.5-era
+   rig) and unchanged by the port.
 2. Real `llama-perplexity --save-all-logits` cache test (local, free).
 3. Build the v2 trace cache and freeze the first experiment/gate.
 4. Full prefix loop; then write the run plan and ask for approval.

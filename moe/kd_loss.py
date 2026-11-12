@@ -60,17 +60,47 @@ def kd_filtered(student_logits: torch.Tensor, teacher_logits: torch.Tensor,
 
 # --------------------------------------------------------- residual mass ----
 
-def support_mass_lse(logits: torch.Tensor, idx: torch.Tensor
+def support_mass_lse(logits: torch.Tensor, idx: torch.Tensor,
+                     chunk: int | None = None
                      ) -> tuple[torch.Tensor, torch.Tensor]:
     """``support_mass`` plus the full-vocab logsumexp it already computes.
 
     The D_KL2 tail term needs both: the mass ``w_s`` for its weight, and the
     normaliser ``lse`` to build the complement term ``log(1 - w_s) + lse``.
     Returning them together keeps the two tail terms on one full-width pass.
+
+    Rows are processed in checkpointed chunks (recomputed in backward), so the
+    fp32 full-vocab copy exists one chunk at a time instead of for the whole
+    window: at the 248,320 vocab that is ~0.25 GiB per chunk rather than
+    seq/268 GiB total.  Each row's logsumexp/gather/exp/sum is independent,
+    so the values are bitwise-identical to the unchunked form.  Set
+    ``chunk=0`` to force the single-pass form.
     """
-    lse = torch.logsumexp(logits.float(), dim=-1)              # (...)
-    sel = logits.gather(-1, idx.long()).float()                 # (..., k)
-    return (sel - lse.unsqueeze(-1)).exp().sum(-1), lse
+    flat = logits.reshape(-1, logits.shape[-1])
+    fl = idx.reshape(-1, idx.shape[-1]).long()
+    n = flat.shape[0]
+    if chunk is None:
+        chunk = max(1, (256 << 20) // (4 * flat.shape[-1]))  # ~0.25 GiB fp32
+    if chunk <= 0 or n <= chunk:
+        lse = torch.logsumexp(flat.float(), dim=-1)              # (...)
+        sel = flat.gather(-1, fl).float()                        # (..., k)
+        return (sel - lse.unsqueeze(-1)).exp().sum(-1).reshape(idx.shape[:-1]), \
+            lse.reshape(logits.shape[:-1])
+
+    def _chunk(f, i):
+        p = f[i:i + chunk].float()
+        lse_i = torch.logsumexp(p, dim=-1)
+        sel_i = p.gather(-1, fl[i:i + chunk]).float()
+        return lse_i, (sel_i - lse_i.unsqueeze(-1)).exp().sum(-1)
+
+    lse = flat.new_empty(n, dtype=torch.float32)
+    mass = flat.new_empty(n, dtype=torch.float32)
+    for i in range(0, n, chunk):
+        lse_i, w_i = torch.utils.checkpoint.checkpoint(
+            _chunk, flat, i, use_reentrant=False)
+        lse[i:i + chunk] = lse_i
+        mass[i:i + chunk] = w_i
+    return mass.reshape(idx.shape[:-1]), lse.reshape(logits.shape[:-1])
 
 
 def support_mass(logits: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:

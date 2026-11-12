@@ -355,6 +355,11 @@ concrete deltas. It does not change the locked decisions in section 5.
 
 A. Port the three memory switches to qwen35; prove bit-exact bank decode; measure
    2k/4k/8k peaks on the 4-layer prefix.
+   **Done 2026-11-12.**  `v2/MEMORY-PORT.md`: 0 bit mismatches on 3.22B real
+   prefix weights (decode == deployed dequantised values, container read
+   verbatim from the GGUF); dense v1 OOMs at 2k, compact+ckpt fits 2k/4k
+   (13.9-15.4 GiB on 20 GB), 8k ~1-2.5 GiB short with levers identified;
+   full-model estimate ~13.6 GiB resident, 4k/8k on a 24-48 GB card.
 B. Validate the real cache path: real `_logits_` dump -> cache -> one prefix
    training step; tokenizer alignment.
 C. Build the first v2 experiment: FlashNext trace cache, 4k windows, one arm;
