@@ -1,0 +1,25 @@
+{
+  "exe": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/strata/build-hip/strata-q36",
+  "args": [
+    "--model",
+    "/tmp/opencode/qwen35-realcache/Scion-35B-prefixloop-merged.gguf",
+    "--max-context",
+    "32768",
+    "--chunk",
+    "512"
+  ],
+  "cwd": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/strata",
+  "tokenizer": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/models-p310/scion-strata/pack-35b/tokenizer",
+  "model_name": "scion-35b-prefixloop-merged",
+  "reasoning_loop_recovery": "recover",
+  "log": "/tmp/opencode/prefixloop-engine.log",
+  "lib_dirs": [
+    "/opt/rocm/lib"
+  ],
+  "port": 8083,
+  "backend": "hip",
+  "gpu": [
+    1
+  ],
+  "gpus_asked": true
+}

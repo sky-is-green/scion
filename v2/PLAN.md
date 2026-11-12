@@ -373,6 +373,17 @@ C. Build the first v2 experiment: FlashNext trace cache, 4k windows, one arm;
    write its falsification criterion.
 D. Exercise the full loop on the prefix: seed -> train -> export -> merge ->
    subset30 -> code audit.
+   **Done 2026-11-12 (`v2/PREFIX-LOOP.md`).**  Every step real: compact-bank
+   prefix training on the real cache, Q1_0_g128 adapter export, `--replace`
+   merge into the deployed body (v1 factors superseded; the flag is new),
+   merged-file audit PASS (949+24 tensors byte-identical; 20.97M factor
+   weights decode exactly to deploy_weights; branch invariants clean), and
+   a strata serve + harness eval smoke on the merged file.  Three protocol
+   findings recorded: recovery detection runs non-streaming (stop-mode
+   canary fired at 2,560 tokens, coverage 0.643); "recover" mode is silently
+   inert for the 35B pack (the splice needs an effort sentence the pack's
+   template lacks); the v1 rollout "coverage 1.0" record was broken and is
+   retracted (the hard-90 loop evidence stands, re-verified).
 E. Write the exact full-model command, measured runtime/memory/disk, resume
    points, artifact sync, cost cap and stop rule.
 F. Ask for approval; only then create a pod.

@@ -155,6 +155,18 @@ sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
    tests).  Alignment: dump tokens == HF ids 2048/2048; teacher NLL from
    the cache 2.232 vs the engine's 2.263; teacher support mass 0.96; the
    FlashNext GGUF tokenizer matches the student (248,320 tokens, im_start
-   248045).
-3. Build the v2 trace cache and freeze the first experiment/gate.
-4. Full prefix loop; then write the run plan and ask for approval.
+   248045).  Upgraded the same day (`c0c84ab`): vectorized decode,
+   sampled teacher-tail tokens (tidx/tlp) so the FULL FlashNext recipe
+   (D_KL2 included) runs off real dumps, truncated-dump tolerance.
+3. Freeze experiment 1.  **Done 2026-11-12 - `v2/EXPERIMENT-1.md`**
+   (cur05-35B vs pred2.0-35B, one variable, 4k windows, falsification
+   criterion, eval protocol, budget sketch).
+4. Full prefix loop.  **Done 2026-11-12 - `v2/PREFIX-LOOP.md`.**  Seed ->
+   train -> export -> merge (--replace) -> audit PASS -> serve -> harness
+   smoke, all local; plus the recovery findings (detection non-streaming OK;
+   recover mode inert for the 35B pack - protocol options recorded) and the
+   rollout-coverage correction (`fb26b6e`).
+5. Remaining local work before E: eval-protocol decision on the recovery
+   options (a)/(b) and the same-protocol baseline rerun; E draft (exact
+   full-model command, measured runtime/memory, cost cap, stop rule); then
+   F (approval).
