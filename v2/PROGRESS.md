@@ -93,29 +93,34 @@ extracted from the saved T=0.6 run: **3/30 = 10.0%** (R 0/10, C 0/10, T 3/10),
   logits have KLD mean 0.0030 / max 0.0158 (rel-L2 3.6%).  Prototype only;
   hard-subset A/B required before a release repack.
 
-## Readiness reassessment (2026-11-12)
+## Path reassessment (2026-11-12)
 
-**Not pod-ready.**  The qwen35 training path loads the full ~69 GB bf16 body
-and has no compact-bank or gradient-checkpoint mode; the qwen4exp proxy has
-both and the same expert layout.  The old "18 GB local / one 4090 / 48 GB pod"
-assumptions are invalid, and the 512-token runbook cannot test the >16k
-loop-onset gate.  The 4-layer smoke used a random cache, so it is plumbing
-only.
+The 35B v1 path is the base, not something to rebuild.  Scion-FlashNext-176B
+is the same corrections-only method at 176B and supplies the concrete deltas:
 
-Readiness criteria (PLAN 13a): compact-bank port + measured memory at
-2k/4k/8k; real `_logits_` cache validation; an experiment that can test the
-gate; arms implemented or descoped; full prefix loop (seed -> train -> export
--> merge -> subset -> audit); measured ops plan with cost cap; frozen
-protocol.
+- the KD recipe (top-512 + tail-64, tail weights, support weighting, temp 2.0,
+  balance bias, one variable between arms);
+- the memory switches already proven at 176B: `--compact-banks`,
+  `--grad-checkpoint`, group checkpointing (the bank layout is shared);
+- checkpoint selection on the capability gate, not KD loss (the step-4000
+  extension was flat/worse and not shipped);
+- the evaluation discipline: accuracy, truncation, repetition and loop onset
+  first; KLD/PPL are diagnostics; the teacher is itself a 2.60 bpw distill.
 
-Local-first order: (A) CompactBank port + memory study, (B) real-cache
-validation on a small model, (C) experiment choice, (D) arms + full prefix
-loop, (E) run plan from measured numbers, (F) approval.  `runpod-pilot.sh` is
-a sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
+The old "18 GB local / one 4090 / 48 GB pod" line is invalid; the known 35B
+path is H100/H200 80 GB+, and the FlashNext switches are what make 4k/8k
+windows fit.  The 4-layer smoke used a random cache, so it is plumbing only.
+
+Local-first order (PLAN 13a): (A) port/tune the three memory switches on
+qwen35 and measure 2k/4k/8k on the prefix; (B) real `_logits_` cache test;
+(C) build the first v2 trace cache and freeze the experiment/gate; (D) full
+prefix loop (seed -> train -> export -> merge -> subset -> audit); (E) exact
+command, measured cost and stop rule; (F) approval.  `runpod-pilot.sh` is a
+sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
 
 ## Next
 
-1. CompactBank port + memory measurement (local, free).
+1. Port the FlashNext memory switches to qwen35; measure the prefix.
 2. Real `llama-perplexity --save-all-logits` cache test (local, free).
-3. Choose and freeze the first experiment; then implement/descope its arms.
-4. Only after PLAN 13a passes, write the run plan and ask for approval.
+3. Build the v2 trace cache and freeze the first experiment/gate.
+4. Full prefix loop; then write the run plan and ask for approval.

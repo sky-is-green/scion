@@ -278,11 +278,12 @@ Still open, each with a decisive test:
 5. Scale-only distillation on the current body (parallel, cheap).
 6. PTQ1_0 single-tensor transcode and kernel parity check (size track).
 
-## 13a. Readiness gate and execution status (2026-11-12)
+## 13a. Execution status, FlashNext lessons, and the path from here (2026-11-12)
 
-**No pod is authorised until the readiness criteria below pass.** This section
-records the audit result and the memory/ops reassessment; it does not change
-the locked decisions in section 5.
+The v1 path is the base. Scion-FlashNext-176B is the same corrections-only
+method executed at 176B, and its runbook/results are the template for the v2
+changes. This section records the audit result, the FlashNext lessons, and the
+concrete deltas. It does not change the locked decisions in section 5.
 
 ### Status against section 13
 
@@ -291,53 +292,78 @@ the locked decisions in section 5.
 | 1 | Export audit | **Done; v1 strict gate failed, v2 fix proven** | `v2/export-audit/README.md`: 3,660.9 ppm code mismatch vs the Python training rule; artifact is faithful C++ Lloyd output; re-quantising deployed values is 0 ppm. `moe/seed_banks_from_gguf.py`, `--bank-gguf`. |
 | 2 | External baselines | **Partial** | Nemotron **0/24**, stopped at 24/30 (22 truncations, 4 server errors); Flint blocked (Metal-only `flint` runtime, no Linux/ROCm arch, only the NonaCore file). `v2/BASELINES.md`. |
 | 3 | Failure rollouts | **Pilot sample** | 360-prompt corpus with hard-90/easy-30 excluded; 12 on-policy rollouts; loop coverage 1.0 on the long reasoning items. `v2/PROGRESS.md`. |
-| 4 | Pilot corrections / ATC / rank sweep | **Not started** | Only a 4-layer prefix smoke with a synthetic cache; not a memory or data validation. `v2/PREFIX-SMOKE.md`. |
+| 4 | Pilot corrections / ATC / rank sweep | **Not started** | Only a 4-layer prefix smoke with a synthetic cache; not a data or memory validation. `v2/PREFIX-SMOKE.md`. |
 | 5 | Scale-only distillation | **Not started** | No code, no run. |
 | 6 | PTQ1_0 + kernel parity | **Done as prototype** | 11.337 -> 9.827 GB; lossless trits/scales; HIP parity PASS; cross-type KLD 0.0030; PPL tie. `v2/PTQ1_0.md`. |
 
-### Why the old Phase 0 hardware line is wrong
+### Lessons from Scion-FlashNext-176B
 
-`qwen35_moe_proxy.py` loads the full 35B bf16 body (~69 GB) and has no
-`CompactBank` or gradient-checkpoint path. The qwen4exp proxy has both, and
-its bank layout is the same fused `gate_up_proj`/`down_proj`. Therefore:
+1. **The KD recipe is already proven at scale.** Top-512 teacher logits + 64
+   sampled tail tokens, `--kd-tail-weight`, `--kd-tailcond-weight`,
+   `--kd-support-w wt`, temp 2.0, `--balance bias`, rank-512 branches, both
+   placements, deployed quantizer in the loop. The 35B v2 pilot should mirror
+   this recipe, not invent a new loss. Primary vs fallback is one variable
+   (FlashNext: `cur05` vs `pred2.0`).
+2. **The memory mechanism is ours already.** FlashNext trained the 176B
+   student with `--compact-banks`, `--grad-checkpoint`, and
+   `--checkpoint-mode group --expert-group-size 64`. The qwen4exp bank layout
+   is the same fused `gate_up_proj`/`down_proj` as the 35B. Porting those
+   switches to `qwen35_moe_proxy.py` is the legitimate enabler for 4k/8k
+   windows; it is not a new training stack.
+3. **Select on the hard subset, not KD loss.** FlashNext trained a step-4000
+   extension, gated it (0.5880 KLD, flat/worse), and did not ship it. v2 must
+   select checkpoints on subset30 / loop onset and not ship the last step by
+   default.
+4. **KLD and PPL can hide capability loss.** FlashNext's KLD is
+   support-dominated (92.9% of the mass is the top-512 fit) and its code/logic
+   categories are weak. Accuracy, truncation, repetition and loop onset stay
+   primary; KLD/PPL are diagnostics.
+5. **The teacher is itself a 2.60 bpw distill.** FlashNext traces carry its
+   own code/logic weaknesses. If budget allows, compare FlashNext against the
+   empero BF16 teacher on the subset, same data/rank. Do not assume a distilled
+   teacher fixes coding.
+6. **Release/eval discipline.** One file with the adapter embedded, selected
+   checkpoints, and truncation reported honestly next to accuracy. The 35B v2
+   keeps that discipline.
 
-- the 20 GB local card and the 48 GB pod cannot hold the frozen body;
-- an 80-96 GB card is at best borderline for 4k sequences once branch
-  gradients and activations are included;
-- the 4-layer smoke (7 GB) proves plumbing only, not full-model memory;
-- teacher-pass and training estimates in section 7 / Phase 0 were not
-  grounded in measured numbers.
+### The v2 path
 
-### Readiness criteria (all must pass, all local/free)
+1. **Body:** the existing Scion 35B, frozen; seed experts from the deployed
+   GGUF with `--bank-gguf`. No body rebuild.
+2. **Trainer/host:** the existing `qwen35_moe_proxy.py` / `box-run-v2.sh`
+   path; the empero BF16 HF checkpoint is the host, not a training target.
+3. **Recipe:** the FlashNext KD recipe above, with the 35B architecture and
+   the v2 data.
+4. **Memory:** port `--compact-banks`, `--grad-checkpoint` and group
+   checkpointing from `qwen4exp_proxy.py`; measure on the 4-layer prefix.
+5. **Data:** FlashNext teacher traces, on-policy rollouts, and steered
+   revisions, eval-excluded; 4k+ windows so the gate is testable.
+6. **Selection/eval:** subset30 and hard-90; loop onset, truncation,
+   repetition; KLD/PPL secondary.
+7. **Export:** existing `export_branches_lora.py` + `merge_adapter_into_body.py`;
+   re-audit the exported codes against the training seed.
 
-1. **Compact student.** Port `CompactBank` to qwen35; decode bit-exact against
-   the current bank; measure peak VRAM/RAM at 512/2k/4k/8k on the 4-layer
-   prefix; extrapolate to 40 layers and state the smallest viable card.
-2. **Real cache path.** Produce a real `llama-perplexity --save-all-logits`
-   dump from a small local model, parse it with `moe/build_trace_cache.py`,
-   load the cache, and complete one prefix training step. Check teacher/student
-   tokenizer alignment.
-3. **Experiment choice.** Pick the first experiment so it can actually test
-   the section 7 gate. A 512-token-only trace-KD run cannot test "loop onset
-   past 16k"; either use 4k+ windows or change the gate before training.
-4. **Arms.** Implement or explicitly descope: traces, rollouts, steered
-   revisions, Dynamic KL / length schedule, ATC rank 64/512, rank sweep,
-   scale-only.
-5. **Full loop on the prefix.** Seed -> real cache -> train -> export ->
-   merge -> subset30 -> code audit, end to end.
-6. **Ops plan.** Exact commands, measured runtime, peak memory, disk budget,
-   resume points, artifact sync/checksum, cost cap and abort conditions.
-7. **Protocol freeze.** n, seeds, metric, gate and decision tree fixed before
-   the run.
+### What is actually new
 
-### Order
+- The 35B port of the three FlashNext memory switches (proven sibling code).
+- The FlashNext trace/logit cache path (`moe/build_trace_cache.py`, tested on
+  real `_logits_` bytes).
+- The v2 data and length schedule.
+- The seed fix (`--bank-gguf`), already done.
 
-A. CompactBank port + memory study.
-B. Real-logits cache validation on a small local model.
-C. Choose the first experiment and write its falsification criterion.
-D. Implement/descope the arms; exercise the full loop on the prefix.
-E. Write the run plan and cost model from measured numbers.
+### Order (local first; no pod before step E and approval)
+
+A. Port the three memory switches to qwen35; prove bit-exact bank decode; measure
+   2k/4k/8k peaks on the 4-layer prefix.
+B. Validate the real cache path: real `_logits_` dump -> cache -> one prefix
+   training step; tokenizer alignment.
+C. Build the first v2 experiment: FlashNext trace cache, 4k windows, one arm;
+   write its falsification criterion.
+D. Exercise the full loop on the prefix: seed -> train -> export -> merge ->
+   subset30 -> code audit.
+E. Write the exact full-model command, measured runtime/memory/disk, resume
+   points, artifact sync, cost cap and stop rule.
 F. Ask for approval; only then create a pod.
 
-`moe/runpod-pilot.sh` is a sketch for E/F, not an approved runbook. The
-previous "minimal pilot, $2-8" estimate is withdrawn.
+The previous "minimal pilot, $2-8" estimate is withdrawn; `runpod-pilot.sh` is
+a sketch for E/F, not an approved runbook.

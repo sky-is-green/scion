@@ -1,12 +1,14 @@
 # Project state - 2026-11-11
 
-Status: **audit passed; section 13 started; pilot not authorised.**  Export
-gate found a 3,661 ppm v1 training/deployment code mismatch and the
-seed-from-GGUF fix is in; external baselines and rollouts are partly done.
-The old Phase 0 hardware line is wrong: the 35B proxy loads a 69 GB bf16 body
-with no compact bank or gradient checkpointing.  Readiness criteria and the
-local-first order are in [PLAN.md](PLAN.md) section 13a; no pod until they
-pass.  See [PROGRESS.md](PROGRESS.md).
+Status: **audit passed; v2 path aligned to the existing 35B recipe + the
+Scion-FlashNext lessons; pilot not authorised.**  Export gate found a
+3,661 ppm v1 training/deployment code mismatch and the seed-from-GGUF fix is
+in; external baselines and rollouts are partly done.  The 35B v1 path is the
+base.  FlashNext supplies the proven KD recipe, the compact-bank/grad-checkpoint
+switches for long windows, and the checkpoint-selection rule.  The local-first
+order and the no-pod rule are in [PLAN.md](PLAN.md) section 13a; no pod until
+the cache, exact command, measured cost and approval.  See
+[PROGRESS.md](PROGRESS.md).
 
 ## Repository
 

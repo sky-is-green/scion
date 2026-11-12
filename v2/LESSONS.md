@@ -73,18 +73,41 @@ hard-90 evaluation of the shipped 35B.
    artifact is internally faithful and re-quantising its dequantised values is
    exact.  Seed the frozen training banks from the deployed GGUF and re-audit
    every v2 export to 0 ppm.  This is the code-level version of D9/009.
-2. **Size the hardware from measured bytes, not assumed working sets.**  The
-   35B body is ~69 GB in bf16; the current qwen35 proxy has no compact bank or
-   gradient checkpointing.  The old "18 GB local / one 4090" line is invalid.
-   Port `CompactBank` and measure 2k/4k/8k peaks before naming a card.
+2. **Follow the existing 35B path; port the proven memory switches.**  The
+   body is ~69 GB in bf16 and the known 35B runbook is H100/H200 80 GB+.  The
+   176B sibling already trained a larger frozen body with `--compact-banks`,
+   `--grad-checkpoint` and group checkpointing; those same switches, ported to
+   qwen35, are the legitimate way to fit 4k/8k windows.  Do not rebuild the
+   stack; do measure on the prefix before naming a card.
 3. **A 512-token pilot cannot test a >16k loop-onset gate.**  Choose an
    experiment whose length schedule can falsify the hypothesis, or change the
    gate before spending.
 4. **Plumbing smoke is not a data-path test.**  The 4-layer prefix ran on a
    random cache.  A real `_logits_` dump must be parsed and trained on before
    any full run.
-5. **No pod before PLAN section 13a passes.**  The runbook is a sketch until
-   its commands, memory, runtime, resume and cost cap are measured.
+5. **No pod before the cache, command, measured cost and approval.**  The
+   runbook is a sketch until its commands, memory, runtime, resume and stop
+   rule are measured.
+
+## 3b. What Scion-FlashNext-176B already proves
+
+1. **Corrections-only works at scale.** The 176B is the same recipe as the
+   35B: frozen ternary experts, rank-512 branches, output-KD, deployed
+   quantizer in the loop, embedded adapter, no body QAT.
+2. **The KD recipe is settled.** Top-512 + tail-64, tail weights, support
+   weighting, temp 2.0, balance bias; one variable between the primary and
+   fallback arms.
+3. **The memory switches exist.** `--compact-banks`, `--grad-checkpoint`,
+   `--checkpoint-mode group --expert-group-size 64` are proven on the 176B
+   and the bank layout is shared with the 35B.
+4. **Select on the capability gate, not KD loss.** The step-4000 extension
+   was flat/worse on the gate and was not shipped.
+5. **KLD/PPL are not capability.** The KLD is support-dominated and the
+   code/logic categories are weak; report accuracy, truncation, repetition
+   and loop onset first.
+6. **The teacher has its own weaknesses.** FlashNext is a 2.60 bpw distill;
+   its traces carry its code/logic gaps. Compare teachers if the budget
+   allows, and do not assume its traces fix coding.
 
 ## 4. Open questions
 
