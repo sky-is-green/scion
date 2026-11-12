@@ -66,6 +66,26 @@ hard-90 evaluation of the shipped 35B.
     CPU path supports it, but the q36 HIP expert kernels are Q2_0-specific.
     Prototype before promising the ~9.6 GB tier.
 
+## 3a. v2 execution lessons (2026-11-12)
+
+1. **The shipped body is valid C++ Lloyd output, not Python-rule output.**
+   3,660.9 ppm of expert codes differ from the Python training rule; the
+   artifact is internally faithful and re-quantising its dequantised values is
+   exact.  Seed the frozen training banks from the deployed GGUF and re-audit
+   every v2 export to 0 ppm.  This is the code-level version of D9/009.
+2. **Size the hardware from measured bytes, not assumed working sets.**  The
+   35B body is ~69 GB in bf16; the current qwen35 proxy has no compact bank or
+   gradient checkpointing.  The old "18 GB local / one 4090" line is invalid.
+   Port `CompactBank` and measure 2k/4k/8k peaks before naming a card.
+3. **A 512-token pilot cannot test a >16k loop-onset gate.**  Choose an
+   experiment whose length schedule can falsify the hypothesis, or change the
+   gate before spending.
+4. **Plumbing smoke is not a data-path test.**  The 4-layer prefix ran on a
+   random cache.  A real `_logits_` dump must be parsed and trained on before
+   any full run.
+5. **No pod before PLAN section 13a passes.**  The runbook is a sketch until
+   its commands, memory, runtime, resume and cost cap are measured.
+
 ## 4. Open questions
 
 - Can corrections alone patch long-horizon behavior, or is the body the hard

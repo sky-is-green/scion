@@ -1,9 +1,12 @@
 # Project state - 2026-11-11
 
-Status: **audit passed; section 13 started.**  Export gate found a 3,661 ppm
-v1 training/deployment code mismatch and the seed-from-GGUF fix is in;
-external baselines and rollouts are partly done; pilot training is blocked on
-runpod GPU stock.  See [PROGRESS.md](PROGRESS.md).
+Status: **audit passed; section 13 started; pilot not authorised.**  Export
+gate found a 3,661 ppm v1 training/deployment code mismatch and the
+seed-from-GGUF fix is in; external baselines and rollouts are partly done.
+The old Phase 0 hardware line is wrong: the 35B proxy loads a 69 GB bf16 body
+with no compact bank or gradient checkpointing.  Readiness criteria and the
+local-first order are in [PLAN.md](PLAN.md) section 13a; no pod until they
+pass.  See [PROGRESS.md](PROGRESS.md).
 
 ## Repository
 

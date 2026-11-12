@@ -93,10 +93,29 @@ extracted from the saved T=0.6 run: **3/30 = 10.0%** (R 0/10, C 0/10, T 3/10),
   logits have KLD mean 0.0030 / max 0.0158 (rel-L2 3.6%).  Prototype only;
   hard-subset A/B required before a release repack.
 
+## Readiness reassessment (2026-11-12)
+
+**Not pod-ready.**  The qwen35 training path loads the full ~69 GB bf16 body
+and has no compact-bank or gradient-checkpoint mode; the qwen4exp proxy has
+both and the same expert layout.  The old "18 GB local / one 4090 / 48 GB pod"
+assumptions are invalid, and the 512-token runbook cannot test the >16k
+loop-onset gate.  The 4-layer smoke used a random cache, so it is plumbing
+only.
+
+Readiness criteria (PLAN 13a): compact-bank port + measured memory at
+2k/4k/8k; real `_logits_` cache validation; an experiment that can test the
+gate; arms implemented or descoped; full prefix loop (seed -> train -> export
+-> merge -> subset -> audit); measured ops plan with cost cap; frozen
+protocol.
+
+Local-first order: (A) CompactBank port + memory study, (B) real-cache
+validation on a small model, (C) experiment choice, (D) arms + full prefix
+loop, (E) run plan from measured numbers, (F) approval.  `runpod-pilot.sh` is
+a sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
+
 ## Next
 
-1. Retry runpod; run `moe/runpod-pilot.sh` teacher/score/train/export.
-2. Finish the Nemotron baseline and add it to `v2/BASELINES.md`.
-3. Evaluate the pilot merged GGUF on `subset30` (same T/seed).
-4. Scale-only distillation and the closed-form ATC baseline follow the same
-   pod path; both are still unrun.
+1. CompactBank port + memory measurement (local, free).
+2. Real `llama-perplexity --save-all-logits` cache test (local, free).
+3. Choose and freeze the first experiment; then implement/descope its arms.
+4. Only after PLAN 13a passes, write the run plan and ask for approval.

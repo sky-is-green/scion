@@ -154,13 +154,15 @@ Full analyses: [prior-art-analysis/](prior-art-analysis/). What changes:
    rollouts (plus its looping long items) for the steering and on-policy data.
 4. Corpus: 300-500 hard reasoning/coding prompts from the downloaded benches
    and work/corpora, eval sets excluded.
-5. Teacher pass: Scion-FlashNext 176B on the local 2-card box at 4-8k
-   context, ~80 tok/s. Traces, top-k output logits, and steered revisions in
-   one pass.
+5. Teacher pass: Scion-FlashNext 176B at 4-8k context. **Correction
+   (2026-11-12): the local 2-card 20 GB box cannot hold the 60 GB Q6_K
+   teacher; the teacher pass needs a rented 80 GB+ card (see 13a).**
 6. Corrections: retrain rank-512 branches, Dynamic KL, long windows (8k),
    quantizer in the loop, on (a) teacher traces and (b) rollouts plus steered
-   failures. Local 7900 XT if it fits (~18 GB working set), else one rented
-   4090 ($2-5).
+   failures. **Correction (2026-11-12): the current qwen35 proxy loads the full
+   69 GB bf16 body and has no compact-bank or gradient-checkpoint path. The
+   "18 GB local / one 4090" assumption is invalid until the compact-bank port
+   in 13a is done and measured; do not size a rental from this line.**
 7. Closed-form baseline: Align, Then Correct at rank 64 and 512 on the same
    calibration data.
 8. Eval: 30-item hard subset, fixed protocol (non-streaming loop recovery,
@@ -275,3 +277,67 @@ Still open, each with a decisive test:
    (traces vs rollouts vs steered), closed-form at rank 64/512, rank sweep.
 5. Scale-only distillation on the current body (parallel, cheap).
 6. PTQ1_0 single-tensor transcode and kernel parity check (size track).
+
+## 13a. Readiness gate and execution status (2026-11-12)
+
+**No pod is authorised until the readiness criteria below pass.** This section
+records the audit result and the memory/ops reassessment; it does not change
+the locked decisions in section 5.
+
+### Status against section 13
+
+| # | action | status | evidence |
+|---|---|---|---|
+| 1 | Export audit | **Done; v1 strict gate failed, v2 fix proven** | `v2/export-audit/README.md`: 3,660.9 ppm code mismatch vs the Python training rule; artifact is faithful C++ Lloyd output; re-quantising deployed values is 0 ppm. `moe/seed_banks_from_gguf.py`, `--bank-gguf`. |
+| 2 | External baselines | **Partial** | Nemotron **0/24**, stopped at 24/30 (22 truncations, 4 server errors); Flint blocked (Metal-only `flint` runtime, no Linux/ROCm arch, only the NonaCore file). `v2/BASELINES.md`. |
+| 3 | Failure rollouts | **Pilot sample** | 360-prompt corpus with hard-90/easy-30 excluded; 12 on-policy rollouts; loop coverage 1.0 on the long reasoning items. `v2/PROGRESS.md`. |
+| 4 | Pilot corrections / ATC / rank sweep | **Not started** | Only a 4-layer prefix smoke with a synthetic cache; not a memory or data validation. `v2/PREFIX-SMOKE.md`. |
+| 5 | Scale-only distillation | **Not started** | No code, no run. |
+| 6 | PTQ1_0 + kernel parity | **Done as prototype** | 11.337 -> 9.827 GB; lossless trits/scales; HIP parity PASS; cross-type KLD 0.0030; PPL tie. `v2/PTQ1_0.md`. |
+
+### Why the old Phase 0 hardware line is wrong
+
+`qwen35_moe_proxy.py` loads the full 35B bf16 body (~69 GB) and has no
+`CompactBank` or gradient-checkpoint path. The qwen4exp proxy has both, and
+its bank layout is the same fused `gate_up_proj`/`down_proj`. Therefore:
+
+- the 20 GB local card and the 48 GB pod cannot hold the frozen body;
+- an 80-96 GB card is at best borderline for 4k sequences once branch
+  gradients and activations are included;
+- the 4-layer smoke (7 GB) proves plumbing only, not full-model memory;
+- teacher-pass and training estimates in section 7 / Phase 0 were not
+  grounded in measured numbers.
+
+### Readiness criteria (all must pass, all local/free)
+
+1. **Compact student.** Port `CompactBank` to qwen35; decode bit-exact against
+   the current bank; measure peak VRAM/RAM at 512/2k/4k/8k on the 4-layer
+   prefix; extrapolate to 40 layers and state the smallest viable card.
+2. **Real cache path.** Produce a real `llama-perplexity --save-all-logits`
+   dump from a small local model, parse it with `moe/build_trace_cache.py`,
+   load the cache, and complete one prefix training step. Check teacher/student
+   tokenizer alignment.
+3. **Experiment choice.** Pick the first experiment so it can actually test
+   the section 7 gate. A 512-token-only trace-KD run cannot test "loop onset
+   past 16k"; either use 4k+ windows or change the gate before training.
+4. **Arms.** Implement or explicitly descope: traces, rollouts, steered
+   revisions, Dynamic KL / length schedule, ATC rank 64/512, rank sweep,
+   scale-only.
+5. **Full loop on the prefix.** Seed -> real cache -> train -> export ->
+   merge -> subset30 -> code audit, end to end.
+6. **Ops plan.** Exact commands, measured runtime, peak memory, disk budget,
+   resume points, artifact sync/checksum, cost cap and abort conditions.
+7. **Protocol freeze.** n, seeds, metric, gate and decision tree fixed before
+   the run.
+
+### Order
+
+A. CompactBank port + memory study.
+B. Real-logits cache validation on a small local model.
+C. Choose the first experiment and write its falsification criterion.
+D. Implement/descope the arms; exercise the full loop on the prefix.
+E. Write the run plan and cost model from measured numbers.
+F. Ask for approval; only then create a pod.
+
+`moe/runpod-pilot.sh` is a sketch for E/F, not an approved runbook. The
+previous "minimal pilot, $2-8" estimate is withdrawn.
