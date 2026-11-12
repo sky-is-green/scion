@@ -54,16 +54,21 @@ python moe/qwen35_moe_proxy.py train --device-map auto --device cuda:0 \
 that caught the W1 collapse); OFF on a tight card (monitoring only, the
 objective is unchanged).
 
-## Cache spec (what the teacher pass must produce)
+## Data spec (what the teacher pass must produce)
 
 1. Teacher: Scion-FlashNext-176B-A6B Q6_K via `llama-perplexity
    --save-all-logits` (the `qwen4exp-proto` fork; its half-chunk scoring is
    what `build_trace_cache.py` decodes - see `v2/REAL-CACHE.md`).
 2. Corpus: the teacher's traces over the 360-prompt rollout corpus
    (`v2/rollout-corpus-manifest.json`; hard-90/easy-30 excluded by
-   construction, 138 normalized-exclusion checks) plus the 12 on-policy
-   rollouts already captured and steered revisions of the failed
-   tool/coding trajectories.  Eval sets never enter training.
+   construction, 138 normalized-exclusion checks).  The 12 on-policy
+   rollouts captured so far are on-policy traces but **not loop exemplars**
+   (2026-11-12 correction: their recorded "coverage 1.0" was a broken
+   metric; the texts are clean solutions) - the failure-driven data needs
+   rollouts at the 32k budget where the hard-90 texts actually degenerate
+   (all 30 items past 25k tokens show 0.65-0.97 duplication on the stored
+   rows).  Steered revisions of failed tool/coding trajectories stay in
+   scope (SteerDistill).  Eval sets never enter training.
 3. `build_trace_cache.py --logits ... --out cache.pt --top-k 512 --seq 512
    --tail-logits 64 --seed 0` - produces `ids/idx/val/w/tidx/tlp` per
    record; the FULL recipe (including D_KL2) runs off this cache with no

@@ -59,9 +59,21 @@ extracted from the saved T=0.6 run: **3/30 = 10.0%** (R 0/10, C 0/10, T 3/10),
   test split are excluded by normalized exact match (138 exclusions).
   Manifest: `v2/rollout-corpus-manifest.json` (sha256 of the prompts).
 - 12 rollouts captured from the shipped body (4 per family, 16k cap):
-  `v2/rollouts/body/` (gitignored), summary + analysis.  All three long
-  reasoning rollouts (12.6k, 14.1k and 2.9k tokens) end at **10-gram coverage
-  1.0**; coding/tools are short (75-741 tokens), one tool call emitted.
+  `v2/rollouts/body/` (gitignored), summary + analysis.  **Correction
+  2026-11-12: the analysis.json "cov" values for these rollouts are wrong.**
+  Recomputed with the 10-gram duplicate-fraction and covered-position
+  metrics on the stored texts, the three "long reasoning rollouts" are
+  *clean solutions*, not loops: PR-001 (2,935 tok) dup 0.003 / covered 0.013
+  (reasoning-only), PR-002 (14.1k tok) dup 0.089 / covered 0.175
+  (reasoning+content); both end with a wrap-out and a real answer, and a
+  byte-identical rerun of PR-001 through the same server reproduced it.  The
+  "coverage 1.0" record came from a broken analysis computation and is
+  retracted; the rollouts are on-policy traces, **not** loop exemplars.  The
+  hard-90 loop evidence is unaffected (verified independently, see below).
+- The hard-90 loop evidence re-verified 2026-11-12 on the stored rows: all
+  30 items past 25k tokens show 10-gram duplicate fractions 0.65-0.97
+  (e.g. R07 0.948, C07 0.955) - genuinely degenerate completions.  The
+  primary gate's basis stands.
 - The hard-90/easy-30 text is not in the corpus; no eval data enters training.
 
 ## 5. Pilot corrections (blocked on GPU stock)

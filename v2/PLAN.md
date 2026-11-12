@@ -291,7 +291,7 @@ concrete deltas. It does not change the locked decisions in section 5.
 |---|---|---|---|
 | 1 | Export audit | **Done; v1 strict gate failed, v2 fix proven** | `v2/export-audit/README.md`: 3,660.9 ppm code mismatch vs the Python training rule; artifact is faithful C++ Lloyd output; re-quantising deployed values is 0 ppm. `moe/seed_banks_from_gguf.py`, `--bank-gguf`. |
 | 2 | External baselines | **Partial** | Nemotron **0/24**, stopped at 24/30 (22 truncations, 4 server errors); Flint blocked (Metal-only `flint` runtime, no Linux/ROCm arch, only the NonaCore file). `v2/BASELINES.md`. |
-| 3 | Failure rollouts | **Pilot sample** | 360-prompt corpus with hard-90/easy-30 excluded; 12 on-policy rollouts; loop coverage 1.0 on the long reasoning items. `v2/PROGRESS.md`. |
+| 3 | Failure rollouts | **Pilot sample; coverage record corrected** | 360-prompt corpus with hard-90/easy-30 excluded; 12 on-policy rollouts captured.  **2026-11-12: the rollouts' recorded "coverage 1.0" is retracted** - the stored texts are clean solutions (dup 0.003-0.089), the analysis metric was broken; the hard-90 loop evidence re-verified independently (all >25k items at 0.65-0.97 duplication).  `v2/PROGRESS.md` section 4. |
 | 4 | Pilot corrections / ATC / rank sweep | **Not started** | Only a 4-layer prefix smoke with a synthetic cache; not a data or memory validation. `v2/PREFIX-SMOKE.md`. |
 | 5 | Scale-only distillation | **Not started** | No code, no run. |
 | 6 | PTQ1_0 + kernel parity | **Done as prototype** | 11.337 -> 9.827 GB; lossless trits/scales; HIP parity PASS; cross-type KLD 0.0030; PPL tie. `v2/PTQ1_0.md`. |

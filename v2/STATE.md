@@ -78,9 +78,12 @@ the cache, exact command, measured cost and approval.  See
    errors); Flint blocked (Metal-only `flint` runtime, no Linux/ROCm arch,
    only the NonaCore file on the Hub).  See [BASELINES.md](BASELINES.md) /
    [PROGRESS.md](PROGRESS.md).
-3. **Pilot sample done.** 360-prompt corpus (hard-90/easy-30 excluded), 12
-   on-policy rollouts, 3 long reasoning loops at coverage 1.0.  See
-   [PROGRESS.md](PROGRESS.md).
+3. **Pilot sample done; coverage record corrected 2026-11-12.**  360-prompt
+   corpus (hard-90/easy-30 excluded), 12 on-policy rollouts captured.  The
+   rollouts' recorded "coverage 1.0" is retracted (broken analysis metric;
+   the texts are clean solutions, dup 0.003-0.089).  The hard-90 loop
+   evidence re-verified independently: all 30 items past 25k tokens show
+   0.65-0.97 10-gram duplication.  See [PROGRESS.md](PROGRESS.md) section 4.
 4. **Blocked on runpod stock.**  Runbook ready: `moe/runpod-pilot.sh`;
    4-layer local pipeline smoke passed ([PREFIX-SMOKE.md](PREFIX-SMOKE.md)).
 5. **Not run** (same pod path).  Scale-only needs the full HF student.
