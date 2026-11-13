@@ -58,3 +58,22 @@ git clone https://github.com/heldoutlab/bonsai2-27b-test /tmp/opencode/bonsai2-2
 #     --config /path/to/v2/configs/scion35b-strata.json --port 8082
 cd work/hivebench && python3.12 experiments/hard90_scion.py --temperature 0.6
 ```
+
+## Linux harness note (2026-11-13)
+
+The upstream harness grades coding items through
+`/usr/bin/sandbox-exec -p <profile> /opt/homebrew/bin/python3.12 -I` - both
+macOS paths (the original runs on this box had local shims for them; the
+shims are gone and /usr/bin is not writable).  `v2/scripts/setup_harness.py`
+re-clones the harness and patches the fresh clone with the same semantics
+(plain subprocess instead of the sandbox wrapper; PYTHON_FOR_TESTS -> the
+local isolated CPython 3.12).  Run it after every fresh clone:
+
+```bash
+python v2/scripts/setup_harness.py     # idempotent
+```
+
+The subset runner also appends the recovery sentence to the system prompt by
+default (`--no-recovery-sentence` to opt out) - see
+[v2/PREFIX-LOOP.md](PREFIX-LOOP.md) and
+[v2/EXPERIMENT-1.md](EXPERIMENT-1.md).
