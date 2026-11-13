@@ -170,3 +170,17 @@ sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
    options (a)/(b) and the same-protocol baseline rerun; E draft (exact
    full-model command, measured runtime/memory, cost cap, stop rule); then
    F (approval).
+   **Done 2026-11-13.**  The recovery decision is (b) and it is live in both
+   runners (`hard_subset.py`/`hard90_scion.py` append the xhigh effort
+   sentence; verified: detection at 4,608 tokens, the R07 reply completed
+   untruncated at 24.7k vs the 32.5k degenerate truncation without it).
+   The baseline under the new protocol: **5/30 (was 3/30), truncations 3
+   (was 7)** - `v2/BASELINES.md`; the freeze's secondary gate is now >= 8/30.
+   The E draft is `v2/RUN-PLAN.md`: the full 4096-step two-arm run does not
+   fit the $80 cap at 4k windows, so the paid step is a 200-step pilot whose
+   measured s/step gates everything after; F0 (the local full-model probe)
+   was found infeasible (the load transition needs ~70 GiB of VRAM+RAM, this
+   box has ~68) and is replaced by the pod pilot's own startup memory_report;
+   the pod requirement is now ">= 70 GiB VRAM+RAM combined".
+6. Next: step F - approval for the pilot pod (the run plan's stages 0-4,
+   ~$15-25 within the cap, stop rules in RUN-PLAN.md).

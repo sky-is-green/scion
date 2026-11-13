@@ -57,13 +57,17 @@ $560).  Three consequences, all reflected below:
    falsification criterion stays; the budget may force a shorter schedule
    (e.g. 512-1024 steps at 4k) - decided with the pilot's numbers, not now.
 
-**F0 (local, free, after the baseline rerun frees the GPUs): a 2-step
-full-model probe on BOTH 7900 XTs** (`--device-map auto --max-memory
-'0:19GiB,1:19GiB'`, 4k synthetic cache, the full switch stack) - replaces
-the x10 extrapolation with a measured full-model s/step and peak VRAM,
-and exercises the streaming per-layer seed on all 40 layers.  This is the
-last local de-risk before the pod; it may change the numbers in this
-table but not the decision structure.
+**F0 (full-model 2-step probe on both local cards) is NOT feasible on this
+box - corrected 2026-11-13.**  The load transition needs the whole BF16
+host resident somewhere: 69.4 GiB of weights vs 40 GiB of VRAM + ~28 GiB of
+usable RAM = ~68 GiB, and the compact conversion needs transient room on
+top.  The pod does not have this problem (48 GB card + abundant RAM), and
+the pilot's own startup `memory_report` is the measurement F0 would have
+given: resident model, peak VRAM and s/step at the real 4k cache, printed
+before the first checkpoint.  Consequence for sizing: the pod needs >= 70
+GiB of VRAM+RAM combined for the load transition (a 48 GB card qualifies;
+24 GB + 64 GB RAM also qualifies), which is now part of the pod
+requirements below.
 
 ## Stage plan (all commands already exercised locally)
 

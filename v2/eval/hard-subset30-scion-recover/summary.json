@@ -1,0 +1,25 @@
+{
+  "label": "Scion-35B PQ2_0-corr + recovery sentence",
+  "n": 30,
+  "correct": 5,
+  "accuracy": 16.67,
+  "by_family": {
+    "reasoning": {
+      "n": 10,
+      "correct": 2
+    },
+    "coding": {
+      "n": 10,
+      "correct": 0
+    },
+    "tools": {
+      "n": 10,
+      "correct": 3
+    }
+  },
+  "truncated": 3,
+  "median_wall_s": 171.1,
+  "mean_decode_tok_s": 75.75,
+  "temperature": 0.6,
+  "seed": 1001
+}

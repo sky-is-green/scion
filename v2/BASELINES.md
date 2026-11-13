@@ -41,6 +41,24 @@ T=0.6 run; external models use the same harness and graders.
 - Result: no same-protocol Flint number on this box; do not substitute the
   author's Apple-Silicon PPL/speed claims.
 
+## Baseline rerun under the recovery protocol (2026-11-13)
+
+`v2/eval/hard-subset30-scion-recover/` - the shipped v1 model, the same
+protocol, plus the recovery sentence in the system prompt (which makes the
+server's "recover" loop mode live; see `v2/PREFIX-LOOP.md`):
+
+| model / protocol | size | score | R | C | T | truncated | median wall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Scion v1, original protocol (extracted from the hard-90 run) | 11.34 GB | 3/30 (10.0%) | 0/10 | 0/10 | 3/10 | 7 | 291 s |
+| **Scion v1 + recovery sentence (new reference)** | 11.34 GB | **5/30 (16.7%)** | **2/10** | 0/10 | 3/10 | **3** | **171 s** |
+| Ternary-Nemotron (original protocol, stopped at 24/30) | 8.82 GB | 0/24 | 0/6 | 0/10 | 0/8 | 22 | 224 s |
+
+The recovery alone moves the shipped model +2 items and cuts truncations
+7 -> 3 - direct evidence that the loop is a primary failure mode and that
+the v2 gate must be measured against **5/30**, not 3/30 (the freeze's
+"+10 points" secondary gate is now >= 8/30).  Coding stays 0/10 either way:
+those failures are capability/truncation in the answer, not just loops.
+
 ## Teacher reference
 
 Scion-FlashNext-176B-A6B Q6_K (60.2 GB) does not fit the local 2x20 GB box;

@@ -94,9 +94,11 @@ extension was flat/worse on the gate and was not shipped):
   coverage 0.99 in v1): PASS if the 10-gram coverage onset moves past 16k
   generated tokens on >= 50% of the long items (v1: onset at ~5-10k, 26 of
   30 items at 0.99 coverage).
-- **Secondary gate:** +10 points on subset30 over the current body
-  (3/30 = 10.0% -> >= 13/30... i.e. >= 6/30 on the first pass given noise;
-  the formal target stays PLAN section 4: >= 40% on the full hard 90).
+- **Secondary gate:** +10 points on subset30 over the current body.  The
+  current body under the frozen eval protocol is **5/30** (the recovery
+  sentence alone moves it from 3/30; `v2/BASELINES.md`), so the gate is
+  **>= 8/30**; the formal target stays PLAN section 4: >= 40% on the full
+  hard 90.
 - **Abort criteria:** NaN loss, load entropy collapse (H < 4.5 nats with
   peak > 0.5 - the W1 signature), a >50% deviation from the expected loss
   shape (lm 7-9 scale at full model, kd ~0.25-0.35 at the 176B's cache
