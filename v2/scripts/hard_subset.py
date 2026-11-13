@@ -34,6 +34,19 @@ for p in (str(HARNESS), str(ITEMS)):
 import run  # noqa: E402
 import config as cfg  # noqa: E402
 
+# The strata engine's "recover" loop mode splices the recovery prompt by
+# swapping the chat template's xhigh effort sentence for the low one
+# (serve/server.py focused_recovery_prompt); it needs that sentence verbatim
+# inside the FIRST system message, and the pack's chat template does not add
+# one (v2/PREFIX-LOOP.md).  Appending it here - to every run, v2 arms and
+# baselines alike - is what makes recovery live while keeping runs
+# comparable.  Without it, "recover" is a silent no-op (detection fires,
+# nothing happens).
+XHIGH_SENTENCE = ("Reasoning effort is set to xhigh. Please think carefully "
+                  "through the task, validate key assumptions, consider "
+                  "plausible alternatives, and prioritize correctness, "
+                  "consistency, and clarity in the final answer.")
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -50,11 +63,20 @@ def main() -> int:
     ap.add_argument("--effort-field", action="store_true")
     ap.add_argument("--extra-body", default="{}",
                     help="JSON object merged into every chat request")
+    ap.add_argument("--no-recovery-sentence", action="store_true",
+                    help="do not append the xhigh effort sentence to the system "
+                         "prompt (recovery 'recover' mode is then a silent "
+                         "no-op; default OFF, i.e. the sentence IS appended so "
+                         "every run shares one prompt shape)")
     args = ap.parse_args()
 
     cfg.PORT = args.port
     cfg.MAX_TOKENS = {"medium": args.max_tokens, "xhigh": args.max_tokens}
     cfg.MAX_TOOL_TURNS = 30
+    if not args.no_recovery_sentence:
+        cfg.SYSTEM_PROMPT = cfg.SYSTEM_PROMPT.rstrip() + "\n\n" + XHIGH_SENTENCE
+        print("recovery sentence appended to the harness system prompt "
+              "(--no-recovery-sentence turns this off)", flush=True)
 
     spec = json.loads(Path(args.items_file).read_text())
     order = spec["ids"] if isinstance(spec, dict) else spec

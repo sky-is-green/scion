@@ -45,6 +45,12 @@ def main() -> int:
     cfg.PORT = args.port
     cfg.MAX_TOKENS = {"medium": 32768, "xhigh": 32768}
     cfg.MAX_TOOL_TURNS = 30
+    # recovery "recover" mode needs the template's xhigh effort sentence in
+    # the first system message (see v2/scripts/hard_subset.py XHIGH_SENTENCE);
+    # without it the mode is a silent no-op
+    from hard_subset import XHIGH_SENTENCE
+    cfg.SYSTEM_PROMPT = cfg.SYSTEM_PROMPT.rstrip() + "\n\n" + XHIGH_SENTENCE
+    print("recovery sentence appended to the harness system prompt", flush=True)
 
     arm = {
         "label": "Scion-35B-A3B PQ2_0-corr (Strata, 32k)",

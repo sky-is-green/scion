@@ -108,10 +108,15 @@ extension was flat/worse on the gate and was not shipped):
 
 - subset30 (`v2/eval/subset30.json`) via `v2/scripts/hard_subset.py`:
   T=0.6, seed 1001, top_p 0.95 / top_k 20 / min_p 0.05, 32k budget,
-  presence_penalty 1.5, one server at a time, streaming requests so the
-  server's `reasoning_loop_recovery` actually runs (the v1 runs sent
-  `stream: false` and the recovery was inert - fix the runner, not the
-  server).
+  presence_penalty 1.5, one server at a time.  **Recovery decision (made
+  2026-11-13, verified live): the runner appends the chat template's xhigh
+  effort sentence to the system prompt by default, which makes "recover"
+  mode live for non-streaming requests** (detection fired at 4,608 tokens,
+  coverage 0.277, and the reply completed untruncated where the same item
+  otherwise ran to a 32.5k-token degenerate truncation).  `--no-recovery-
+  sentence` opts out.  The reference baseline under this protocol is the
+  rerun in `v2/eval/hard-subset30-scion-recover/` - the v2 arms compare
+  against that, not the old 3/30.
 - Loop-onset coverage per item at every 512-token check, reported next to
   accuracy; truncation counts; seconds per correct.
 - KLD/PPL are diagnostics only (FlashNext lesson 4: support-dominated KLD,

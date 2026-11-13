@@ -104,24 +104,40 @@ for p in sorted(glob.glob(repo + "/v2/traces/flashnext/*.json")):
 print("\n\n".join(texts))
 EOF
     wc -c "$WORK/traces.txt"
+    # -c 4096: each chunk is a 4k window (experiment 1's window length); the
+    # fork scores the second half of each chunk (2047 rows) - that half-chunk
+    # layout is what build_trace_cache.py detects and decodes (v2/REAL-CACHE).
+    # The dump is ~1.02 GB per chunk: keep it on the volume, delete after the
+    # cache is built.
     "$FORK/build/bin/llama-perplexity" -m "$TEACHER" -f "$WORK/traces.txt" \
-        -c 512 --chunks -1 -ngl 99 -fa on --save-all-logits "$WORK/logits.bin" \
+        -c 4096 --chunks -1 -ngl 99 -fa on --save-all-logits "$WORK/logits.bin" \
         > "$WORK/perplexity.log" 2>&1
     python moe/build_trace_cache.py --logits "$WORK/logits.bin" \
-        --out "$WORK/cache.pt" --top-k 512 --seq 512
-    ls -lh "$WORK/cache.pt" "$WORK/logits.bin"
+        --out "$WORK/cache.pt" --top-k 512 --seq 4096 --tail-logits 64 --seed 0
+    rm -f "$WORK/logits.bin"
+    ls -lh "$WORK/cache.pt"
     ;;
 
 train)
     cd "$REPO"
     [ -f "$WORK/cache.pt" ] || { echo "missing $WORK/cache.pt" >&2; exit 2; }
     [ -f "$BODY" ] || { echo "missing $BODY" >&2; exit 2; }
+    # FlashNext P2 memory switches (v2/MEMORY-PORT.md): the frozen banks live
+    # as deployed codes+scales read verbatim from --bank-gguf, the decode and
+    # the decoder layers are recomputed in backward (group of 64), and the
+    # vocab-side CE is chunked.  --verify-banks runs the bit-exactness gate at
+    # build time.  The cache carries tidx/tlp (score stage: --tail-logits 64),
+    # so the full cur05 recipe incl. D_KL2 runs.  --log-entropy stays off on a
+    # tight card (monitoring only; ~1 GiB of fp32 logits transients).
     time python moe/qwen35_moe_proxy.py train \
         --device-map auto --device cuda:0 \
         --bank-gguf "$BODY" \
         --cache-file "$WORK/cache.pt" \
+        --compact-banks --grad-checkpoint --checkpoint-mode group --expert-group-size 64 \
+        --verify-banks --chunked-ce \
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
-        --kd-weight 2.0 --kd-tail-weight 2.0 --temp 2.0 --balance bias \
+        --kd-weight 2.0 --kd-tail-weight 2.0 --kd-tailcond-weight 3.0 --temp 2.0 \
+        --balance bias \
         --epochs 1 --steps "${PILOT_STEPS:-200}" --eval-every 0 \
         --ckpt-every "${PILOT_CKPT_EVERY:-100}" --log-every 10 \
         --tag pilot 2>&1 | tee "$WORK/train.log"
