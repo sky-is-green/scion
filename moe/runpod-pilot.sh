@@ -154,9 +154,19 @@ export)
         --base-model "$MOE_ARTIFACTS/empero-hf" \
         --recipe "v2 pilot: FlashNext traces, seeded body, rank512 g128, 200 steps" \
         --out "$WORK/qwen35-v2-pilot-adapter.gguf"
+    # --replace: v2 branches train from zero, so the v1 factors at the same
+    # sites must not survive into the merged file (they would apply twice).
     python moe/merge_adapter_into_body.py --body "$BODY" \
         --adapter "$WORK/qwen35-v2-pilot-adapter.gguf" \
-        --out "$WORK/Scion-35B-A3B-v2-pilot.gguf"
+        --out "$WORK/Scion-35B-A3B-v2-pilot.gguf" --replace
+    # the 0-ppm gate: no eval number is recorded before this passes
+    # (v2/PREFIX-LOOP.md; audit_merged_adapter needs the ckpt + base model)
+    python v2/scripts/audit_merged_adapter.py \
+        --merged "$WORK/Scion-35B-A3B-v2-pilot.gguf" --body "$BODY" \
+        --adapter "$WORK/qwen35-v2-pilot-adapter.gguf" --ckpt "$CKPT" \
+        --base-model "$MOE_ARTIFACTS/empero-hf"
+    python v2/scripts/export_audit.py \
+        --deployed "$WORK/Scion-35B-A3B-v2-pilot.gguf" --branches-only
     sha256sum "$WORK"/*.gguf
     ;;
 
