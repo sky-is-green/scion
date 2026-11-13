@@ -1,13 +1,20 @@
-# Project state - 2026-11-11
+# Project state - 2026-11-13
 
-Status: **audit passed; v2 path aligned to the existing 35B recipe + the
-Scion-FlashNext lessons; pilot not authorised.**  Export gate found a
-3,661 ppm v1 training/deployment code mismatch and the seed-from-GGUF fix is
-in; external baselines and rollouts are partly done.  The 35B v1 path is the
-base.  FlashNext supplies the proven KD recipe, the compact-bank/grad-checkpoint
-switches for long windows, and the checkpoint-selection rule.  The local-first
-order and the no-pod rule are in [PLAN.md](PLAN.md) section 13a; no pod until
-the cache, exact command, measured cost and approval.  See
+Status: **local phase (PLAN 13a A-D) done; run plan drafted; pilot not
+authorised.**  The FlashNext memory switches are ported and gated
+(bit-exact, 0/3.22B prefix weights), the real `_logits_` cache path is
+validated end to end (and upgraded: tail tokens, truncated-dump tolerance,
+vectorised decode), experiment 1 is frozen, and the full prefix loop ran
+with the merged artifact passing the 0-ppm audit.  Three protocol findings
+changed the eval design: recovery detection works non-streaming (verified
+live), "recover" mode needed the effort sentence in the system prompt (the
+runners now append it, verified), and the 12 on-policy rollouts are NOT
+loop exemplars (the recorded "coverage 1.0" was a broken metric - retracted;
+the hard-90 loop evidence stands, re-verified at 0.65-0.97 duplication).
+The run plan draft ([RUN-PLAN.md](RUN-PLAN.md)) sizes the pod work from local
+measurements: the full 4096-step two-arm run does not fit the $80 cap, so
+the paid step is a 200-step pilot whose measured s/step gates everything
+after.  **No pod before explicit approval (step F).**  See
 [PROGRESS.md](PROGRESS.md).
 
 ## Repository
