@@ -57,6 +57,14 @@ $560).  Three consequences, all reflected below:
    falsification criterion stays; the budget may force a shorter schedule
    (e.g. 512-1024 steps at 4k) - decided with the pilot's numbers, not now.
 
+**F0 (local, free, after the baseline rerun frees the GPUs): a 2-step
+full-model probe on BOTH 7900 XTs** (`--device-map auto --max-memory
+'0:19GiB,1:19GiB'`, 4k synthetic cache, the full switch stack) - replaces
+the x10 extrapolation with a measured full-model s/step and peak VRAM,
+and exercises the streaming per-layer seed on all 40 layers.  This is the
+last local de-risk before the pod; it may change the numbers in this
+table but not the decision structure.
+
 ## Stage plan (all commands already exercised locally)
 
 0. **Preflight (no GPU)**: upload the corpus

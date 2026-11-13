@@ -371,6 +371,10 @@ B. Validate the real cache path: real `_logits_` dump -> cache -> one prefix
    through the compact-banks port.
 C. Build the first v2 experiment: FlashNext trace cache, 4k windows, one arm;
    write its falsification criterion.
+   **Local half done 2026-11-12 - `v2/EXPERIMENT-1.md`** (cur05-35B vs
+   pred2.0-35B, one variable, cache spec incl. the tail-token dump flag,
+   falsification criterion, eval protocol, budget sketch).  The teacher
+   pass itself is pod-gated.
 D. Exercise the full loop on the prefix: seed -> train -> export -> merge ->
    subset30 -> code audit.
    **Done 2026-11-12 (`v2/PREFIX-LOOP.md`).**  Every step real: compact-bank
@@ -380,12 +384,21 @@ D. Exercise the full loop on the prefix: seed -> train -> export -> merge ->
    weights decode exactly to deploy_weights; branch invariants clean), and
    a strata serve + harness eval smoke on the merged file.  Three protocol
    findings recorded: recovery detection runs non-streaming (stop-mode
-   canary fired at 2,560 tokens, coverage 0.643); "recover" mode is silently
-   inert for the 35B pack (the splice needs an effort sentence the pack's
-   template lacks); the v1 rollout "coverage 1.0" record was broken and is
-   retracted (the hard-90 loop evidence stands, re-verified).
+   canary fired at 2,560 tokens, coverage 0.643); "recover" mode is inert
+   for the 35B pack unless the system prompt carries the effort sentence
+   (the runners now append it - verified live 2026-11-13: detection at
+   4,608 tokens, the reply completed untruncated); the v1 rollout
+   "coverage 1.0" record was broken and is retracted (the hard-90 loop
+   evidence stands, re-verified).
 E. Write the exact full-model command, measured runtime/memory/disk, resume
    points, artifact sync, cost cap and stop rule.
+   **Drafted 2026-11-13 - `v2/RUN-PLAN.md`.**  The full 4096-step two-arm
+   run does not fit the $80 cap at 4k windows (x10 step-time extrapolation
+   gives ~5.7-7 days per arm); the paid step is a 200-step pilot whose
+   measured s/step gates everything after.  Remaining local de-risk (F0):
+   a 2-step full-model probe on both local cards once the baseline rerun
+   frees the GPUs; the subset30 baseline under the new recovery protocol is
+   rerunning now (v2/eval/hard-subset30-scion-recover/).
 F. Ask for approval; only then create a pod.
 
 The previous "minimal pilot, $2-8" estimate is withdrawn; `runpod-pilot.sh` is
