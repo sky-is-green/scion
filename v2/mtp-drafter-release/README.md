@@ -15,6 +15,10 @@ tags:
 
 # Scion-FlashNext-176B-A6B — native MTP drafter (Strata)
 
+<p align="center">
+  <img src="assets/hero.webp" alt="Scion-FlashNext-176B-A6B MTP drafter" width="360">
+</p>
+
 A ~0.89 GB speculative-decoding head for
 [**Scion-FlashNext-176B-A6B**](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B),
 the 2-bit ternary release of Qwen3.8-Flash-Next. **It is not a trained drafter:
