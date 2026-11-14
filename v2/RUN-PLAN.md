@@ -55,11 +55,15 @@ pod.  Measured on this box (2x 7900 XT, 30 GB RAM, NVMe streaming):
   max 0.103, **zero traces in the degenerate zone** (>= 0.35).  The teacher
   does NOT loop on the loop-prone prompts.  Record:
   `v2/scripts/loop_signature.py --dir v2/traces/flashnext`.
-- **Cache: building.**  The 30 traces are ~73k tokens (17 x 4k chunks); the
-  frozen dump path (`llama-perplexity --save-all-logits`, CPU-only, measured
-  8.2 tok/s, PPL 1.50 sanity) runs ~2.4 h, then
-  `build_trace_cache.py --top-k 512 --seq 4096 --tail-logits 64 --seed 0`
-  -> `v2/traces/flashnext-cache.pt`.
+- **Cache: BUILT and verified (2026-11-14).**  17/17 chunks survived the
+  re-dump to the volume (the first dump died at 15.3/17 on the 16 GiB
+  /tmp tmpfs).  `v2/traces/flashnext-cache.pt` (120 MB, 17 records, 2047
+  rows/chunk, top-k 512, tail 64) verified: teacher mass 0.9986 (min
+  0.854), row-0 top-1 matches the embedded next-token target, tidx/tlp
+  present for the full recipe incl. D_KL2.  Two builder bugs were fixed on
+  the way: the truncation path seeked the payload 32 KiB short (every row
+  corrupted - "teacher mass 512.0") and non-multiple truncated dumps were
+  rejected instead of floor-ed.
 - **Consequence for the pod:** the pilot shrinks to the TRAIN stage only
   (~$8-12: setup + 200 steps + the 70 GiB load transition).  Stages 0-3
   (~$5-15 + transfer) are eliminated.  The full 360-trace corpus is also
