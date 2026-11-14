@@ -1,3 +1,18 @@
+---
+library_name: llama.cpp
+base_model: SkyIsNotGreen/Scion-FlashNext-176B-A6B
+license: apache-2.0
+language:
+- en
+tags:
+- speculative-decoding
+- draft-model
+- mtp
+- gguf
+- llama.cpp
+- scion
+---
+
 # Scion-FlashNext-176B-A6B — native MTP drafter (Strata)
 
 A ~0.89 GB speculative-decoding head for

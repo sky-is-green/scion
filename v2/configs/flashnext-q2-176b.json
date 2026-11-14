@@ -22,6 +22,8 @@
     "--mmap-experts",
     "--vram-reserve-mib",
     "3072",
+    "--vram-reserve-later-mib",
+    "1024",
     "--pool-workers",
     "15",
     "--pcie-frac",
@@ -41,7 +43,7 @@
   },
   "port": 8091,
   "backend": "hip",
-  "gpu": [0, 1],
+  "gpu": [1, 0],
   "gpus_asked": true,
   "layer_split": "auto"
 }

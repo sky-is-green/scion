@@ -82,19 +82,23 @@ def parse_dump(path: str) -> dict:
 
         # the scored-row layout: full (upstream) or half (the prism forks
         # score only the second half of each chunk); detect from the size.
-        # Exact-and-complete wins; otherwise an exact partial fit (truncated
-        # dump) with the most complete chunks wins; ties prefer half, the
-        # production layout.
+        # Exact-and-complete wins; otherwise the largest whole-chunk floor
+        # wins, ties prefer half (the production layout).  A truncated dump
+        # is floor-ed twice - whole rows, then whole chunks - because the
+        # fork's async row writers can be cut off MID-ROW when the process
+        # exits (observed 2026-11-14: 17 declared chunks, 15.53 chunks of
+        # rows, the tail partial); the dropped bytes are the last chunk's
+        # remainder and are unusable by construction.
         rows_full = n_ctx - 1
         rows_half = n_ctx - 1 - n_ctx // 2
         layout, n_rows, first, have = None, 0, 0, 0
         best = None
         for cand, frst in ((rows_full, 0), (rows_half, n_ctx // 2)):
-            if not cand or payload < row_b or payload % row_b:
+            if not cand or payload < row_b * cand:
                 continue
             total_rows = payload // row_b
-            have_c, rem = divmod(total_rows, cand)
-            if rem or not (1 <= have_c <= n_chunk):
+            have_c = total_rows // cand
+            if not (1 <= have_c <= n_chunk):
                 continue
             complete = have_c == n_chunk
             is_half = frst != 0
@@ -114,7 +118,10 @@ def parse_dump(path: str) -> dict:
                   f"({layout} layout) - truncated dump, using the complete "
                   f"chunks", flush=True)
             n_chunk = have
-    return {"tokens": tokens[:n_chunk], "n_vocab": n_vocab, "n_chunk": n_chunk,
+    # NOTE: the tokens array is NOT truncated to n_chunk: the payload seek in
+    # main() is computed from tokens.shape, and the header's token block covers
+    # ALL declared chunks regardless of how many rows survived a truncation.
+    return {"tokens": tokens, "n_vocab": n_vocab, "n_chunk": n_chunk,
             "layout": layout, "rows": n_rows, "first": first}
 
 

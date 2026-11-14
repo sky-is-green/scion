@@ -8,6 +8,25 @@ re-measured on the pod at stage start before any long stage begins.
 
 ## Hardware and cost basis
 
+### Local box VRAM policy (2026-11-14)
+
+This box has 2x RX 7900 XT (20.5 GiB each).  **The displays are on card1**
+(both DP connectors): it must keep ~2.5 GiB free for the desktop, i.e. the
+engine's usage on it is capped at ~18 GiB.  Card0 drives nothing and may run
+close to capacity (~1 GiB reserve).  In the strata serve configs this is
+`"gpu": [1, 0]` (the FIRST split card gets `--vram-reserve-mib`), so the
+display card carries `--vram-reserve-mib 3072` and the free card
+`--vram-reserve-later-mib 1024`.  The gpu-list order is the reserve order -
+do not "fix" it back to [0, 1].
+
+**/tmp on this box is a 16 GiB tmpfs** (reboot-wiped, RAM-backed).  A 14.5
+GiB logits dump written there hit ENOSPC mid-row; `std::ofstream` fails
+silently afterwards, so the file stopped growing at ~15.3/17 chunks while the
+run still printed its final perplexity.  Logit dumps (and any multi-GB
+artifact) go to the work volume, never /tmp.
+
+### Pod options
+
 - Pod options (runpod, current stock unknown): 1x RTX 4090 24 GB (~$0.40/h),
   1x L40S / A6000 48 GB (~$0.8-1.6/h), 2x 48 GB (~$1.6-3.2/h), A100/H100 80
   GB (~$2-4/h).  The account spend limit is $80 and the balance ~$5.50:
