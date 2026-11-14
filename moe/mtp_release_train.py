@@ -132,7 +132,10 @@ def main() -> None:
     print("loading release tensors ...", flush=True)
     tok_embd = load_gguf_tensor(args.gguf, "token_embd.weight")   # [vocab, H]
     output = load_gguf_tensor(args.gguf, "output.weight")         # [vocab, H]
-    norm_w = load_gguf_tensor(args.gguf, "output_norm.weight")    # [H]
+    try:
+        norm_w = load_gguf_tensor(args.gguf, "output_norm.weight")    # [H]
+    except KeyError:
+        norm_w = None   # e.g. the hc-mixer arch: the probe's h IS the head input (no final norm)
     hidden = tok_embd.shape[1]
     vocab = tok_embd.shape[0]
     print(f"hidden {hidden}, vocab {vocab}", flush=True)
@@ -165,7 +168,7 @@ def main() -> None:
 
     tok_gpu = tok_embd.to(dev)
     out_gpu = output.to(dev)
-    norm_gpu = norm_w.to(dev)
+    norm_gpu = norm_w.to(dev) if norm_w is not None else None
 
     def batch(windows):
         h = torch.from_numpy(np.concatenate(

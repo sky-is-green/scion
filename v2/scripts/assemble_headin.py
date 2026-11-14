@@ -32,9 +32,16 @@ def main() -> int:
     ap.add_argument("--per-chunk", type=int, default=70656)
     ap.add_argument("--in-dir", default="v2/traces/mtp-probe/headin")
     ap.add_argument("--out", default="v2/traces/mtp-probe-gpu")
+    ap.add_argument("--tokens", default="v2/traces/mtp-probe/tokens.bin",
+                    help="the token stream copied next to the win files (the trainer reads it there)")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    hdir = out / "h"           # mtp_release_train.py reads root/h/win_XX_h.bin
+    hdir.mkdir(parents=True, exist_ok=True)
+    if args.tokens and not (out / "tokens.bin").exists():
+        import shutil
+        shutil.copyfile(args.tokens, out / "tokens.bin")
     wins_per = args.per_chunk // 512
     total_rows = 0
     for c in range(args.chunks):
@@ -63,8 +70,8 @@ def main() -> int:
                 else:                     # mirror the previous row (a hole in a
                     h[r] = h[r - 1]       # dead chunk run; the trainer sees one
                     am[r] = am[r - 1]     # duplicated step, not a wrong one)
-            h.tofile(out / f"win_{idx}_h.bin")
-            am.tofile(out / f"win_{idx}_argmax.bin")
+            h.tofile(hdir / f"win_{idx}_h.bin")
+            am.tofile(hdir / f"win_{idx}_argmax.bin")
             total_rows += 512
         print(f"chunk {c}: {n_recs} records -> {wins_per} windows (win_{c*wins_per}..win_{(c+1)*wins_per-1})")
     print(f"total: {total_rows} rows -> {out}")
