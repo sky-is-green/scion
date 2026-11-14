@@ -1,0 +1,1 @@
+a22206a4d74eafbf31063a84610292535fb3b49af9a339963817fd04aed81e4d  Scion-FlashNext-176B-A6B-mtp-drafter.gguf
