@@ -25,6 +25,12 @@ silently afterwards, so the file stopped growing at ~15.3/17 chunks while the
 run still printed its final perplexity.  Logit dumps (and any multi-GB
 artifact) go to the work volume, never /tmp.
 
+**The fork's HIP binaries can hang at backend init even with `-ngl 0`**
+(observed on test-mtp-probe 2026-11-14: 0% CPU, model never touched, no
+error).  For CPU-only jobs use the CPU-only build tree (`build/`, OpenMP ON)
+- e.g. `build/bin/test-mtp-probe` - and keep the HIP tree (`build-hip/`) for
+strata-style serving paths.
+
 ### Pod options
 
 - Pod options (runpod, current stock unknown): 1x RTX 4090 24 GB (~$0.40/h),
