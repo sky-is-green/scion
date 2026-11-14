@@ -15,6 +15,37 @@ re-measured on the pod at stage start before any long stage begins.
   (see the runtime math below).  The plan is therefore: paid PILOT first
   (measures everything), then a decision with real numbers.
 
+## UPDATE 2026-11-14: stages 0-3 are DONE locally, for $0
+
+The teacher gate, the traces, the logit dump and the cache no longer need a
+pod.  Measured on this box (2x 7900 XT, 30 GB RAM, NVMe streaming):
+
+- **Serving the teacher: strata + the NATIVE MTP head.**  FlashNext IS the
+  ternarized Qwen3.8-Flash-Next, and the Qwen3.8 BF16 checkpoint ships the
+  body-aligned MTP head.  `strata/tools/mtp_fetch.py` pulled the 31 `mtp.*`
+  tensors by HTTP range request (5.21 GB), `mtp_pack.py` packed them to
+  `mtp-q2_0.gguf` (0.889 GB), `mtp_rt.py` wrote the engine runtime
+  (`strata-data/mtp/rt`).  Serving config: `v2/configs/flashnext-q6k-176b.json`.
+  Measured decode: **21-58 tok/s** with --spec 4 (the prism fork's
+  llama-server, by contrast, is unusable on this box: 0.1 tok/s - its HIP
+  build falls back on the qwen4exp custom ops; the 35B HIP perplexity was
+  also slower than the known CPU baseline).
+- **Teacher gate PASSED (free, 2026-11-14 ~00:50).**  30 traces (10 per
+  family, 4096 cap, T 0.6 seed 1001 - the frozen teacher stage) via
+  `capture_rollouts.py` against the local engine: median 10-gram dup 0.002,
+  max 0.103, **zero traces in the degenerate zone** (>= 0.35).  The teacher
+  does NOT loop on the loop-prone prompts.  Record:
+  `v2/scripts/loop_signature.py --dir v2/traces/flashnext`.
+- **Cache: building.**  The 30 traces are ~73k tokens (17 x 4k chunks); the
+  frozen dump path (`llama-perplexity --save-all-logits`, CPU-only, measured
+  8.2 tok/s, PPL 1.50 sanity) runs ~2.4 h, then
+  `build_trace_cache.py --top-k 512 --seq 4096 --tail-logits 64 --seed 0`
+  -> `v2/traces/flashnext-cache.pt`.
+- **Consequence for the pod:** the pilot shrinks to the TRAIN stage only
+  (~$8-12: setup + 200 steps + the 70 GiB load transition).  Stages 0-3
+  (~$5-15 + transfer) are eliminated.  The full 360-trace corpus is also
+  local now (~7-10 h of strata time) if the pilot's budget math wants it.
+
 ## What is measured locally (4-layer prefix, one 7900 XT 20 GB)
 
 From `v2/MEMORY-PORT.md` (real recipe geometry, rank 512 both, tail terms on):

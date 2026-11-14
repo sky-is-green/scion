@@ -182,5 +182,16 @@ sketch for E/F; the previous "minimal pilot, $2-8" estimate is withdrawn.
    was found infeasible (the load transition needs ~70 GiB of VRAM+RAM, this
    box has ~68) and is replaced by the pod pilot's own startup memory_report;
    the pod requirement is now ">= 70 GiB VRAM+RAM combined".
-6. Next: step F - approval for the pilot pod (the run plan's stages 0-4,
-   ~$15-25 within the cap, stop rules in RUN-PLAN.md).
+6. **Breakthrough 2026-11-14: the teacher stage is LOCAL and FREE.**  The
+   176B serves on this box via strata + the NATIVE MTP head (fetched from
+   the Qwen3.8-Flash-Next BF16 checkpoint by HTTP range request, packed by
+   `tools/mtp_pack.py`, runtime by `tools/mtp_rt.py`) at 21-58 tok/s; the
+   frozen teacher stage ran here (`capture_rollouts.py`): **the teacher gate
+   PASSED** - 30 clean traces (median 10-gram dup 0.002, max 0.103, zero in
+   the >= 0.35 loop zone); the logit dump (CPU-only, 8.2 tok/s, 17 chunks)
+   and the cache build are chained overnight.  The pod pilot shrinks to the
+   train stage only (~$8-12).  The prism fork's llama-server is unusable on
+   this box (0.1 tok/s; HIP custom-op fallback) - strata is the serving
+   path; `v2/scripts/loop_signature.py` is the gate metric.
+7. Next: step F - approval for the train-only pilot pod (the run plan's
+   remaining stage, ~$8-12 within the cap, stop rules in RUN-PLAN.md).
