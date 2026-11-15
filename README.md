@@ -1,12 +1,15 @@
 # Scion: ternary quantization with trained corrections
 
 Scion is the project behind the released
-[**Scion-35B-A3B**](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B) and
+[**Scion-35B-A3B**](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B),
 [**Scion-FlashNext-176B-A6B**](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B),
-split out of
+and their optional MTP drafters:
+[35B](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter) and
+[176B](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B-mtp-drafter).
+It was split out of
 [bonsai2-ternary-forensics](https://github.com/sky-is-green/bonsai2-ternary-forensics)
 so the harness, the port decisions and the release docs can be cloned and run on
-their own. The dense-model forensics (Bonsai 2 27B) stayed in that repository.
+their own.
 
 <p align="center">
   <a href="https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B"><img src="docs/figures/scion-35b.webp" alt="Scion-35B-A3B animated pixel hero" width="250"></a>
@@ -18,21 +21,28 @@ their own. The dense-model forensics (Bonsai 2 27B) stayed in that repository.
 
 **The idea.** Ternarise the expert banks of a pretrained MoE in place, then
 recover the routing damage with small trained corrections on the residual
-stream. No full-precision masters and no full-model QAT. The frozen 35B body
-ships at 2.125 bpw (`Q2_0_g128` ternary experts, formerly `PQ2_0`; Q8_0 for
-the rest); the 176B ships `TQ1_0_g128` (formerly `PTQ1_0`). The
+stream. No full-precision masters and no full-model QAT. The 35B body ships at
+2.125 bpw expert banks (`Q2_0_g128`; `PQ2_0` in the fork) and 11.34 GB total;
+the 176B ships 1.75 bpw expert banks (`TQ1_0_g128`; `PTQ1_0` in the fork). The
 corrections are rank-512 branches on the attention output and the MoE block
 output, plus router deltas, trained by output-KD **with the deployed quantizer
-in the loop**.
+in the loop**. The 35B drafter is a small trained k=1 sidecar. The 176B drafter
+is Qwen's own native MTP block, packed back with zero training.
 
-## Where the project is (2026-10)
+## Releases (2026-11)
 
-| lane | status |
-|---|---|
-| **Scion-35B-A3B** | **released**: 11.34 GB / 2.61 bpw ternary experts + embedded corrections, plus an optional k=1 MTP drafter. Runtime `v0.4.2`. CPU and ROCm verified; CUDA/Windows binaries published but runtime-unverified (see [platform scope](docs/PLATFORM-SCOPE.md)). |
-| **Scion-35B v2 (FlashNext distill)** | **planning**: frozen ternary body, corrections retrained against Scion-FlashNext with long-horizon windows. Plan: [v2/PLAN.md](v2/PLAN.md); lessons: [v2/LESSONS.md](v2/LESSONS.md). |
-| **Scion-FlashNext-176B-A6B** | **released** (2026-10-05): the 125B MoE (6B activated) + the 51.2B-parameter n-gram table in one 60.17 GB file at 2.72 bpw; `TQ1_0_g128` ternary experts (formerly `PTQ1_0`) + embedded corrections. CUDA, ROCm and CPU verified; runtime branch `qwen4exp-proto`. |
-| **Dense (Clef-Flash)** | **in progress, not released**: the rotated-basis + GPTQ + QAT ladder reaches 23.25 PPL / 5.52 GiB, but free generation still degrades and a plain Q2_K (13.06 PPL, 3.56 GiB) beats it. The 2026-10-06 derisk run (0.8B, 1500 steps, mixed corpus + logits KD) plateaus at 42.4 PPL with generation still broken, so scaling the same recipe is not justified and the lane is on hold. See [`dense/README.md`](dense/README.md). |
+| model | what | size | runtime | status |
+|---|---|---|---|---|
+| [**Scion-35B-A3B**](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B) | ternary Qwen3.8-35B-A3B distill + trained corrections | 11.34 GB | Prism `moe-corr-runtime` / Strata | released; runtime v0.4.2; CPU and ROCm verified, CUDA/Windows published but runtime-unverified |
+| [**Scion-35B-A3B-mtp-drafter**](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter) | k=1 MTP sidecar, trained self-distill | 50 MB | Prism `-md` | released; ~1.2x generation |
+| [**Scion-FlashNext-176B-A6B**](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B) | ternary FlashNext 176B + 51.2B n-gram table + trained corrections | 57.62 GB default; 60.17 GB Q4_0 table; 65.8 GB F16 | Prism `qwen4exp-proto` / Strata | released 2026-10-05 |
+| [**Scion-FlashNext-176B-A6B-mtp-drafter**](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B-mtp-drafter) | native MTP block, zero training | 0.89 GB | **Strata only** | released 2026-11-15 |
+| Scion-35B v2 | long-horizon correction retrain | — | — | planning; [plan](v2/PLAN.md), [lessons](v2/LESSONS.md) |
+
+The 35B v2 lane is a frozen-body correction retrain aimed at long-horizon work:
+the shipped 35B scores 14.4% on the hard-90 suite and derails into repetition
+at 5-10k generated tokens. The plan and the lessons so far are in
+[`v2/PLAN.md`](v2/PLAN.md) and [`v2/LESSONS.md`](v2/LESSONS.md).
 
 Negative results are kept in [`FAILURES.md`](FAILURES.md); runtime support
 boundaries and what a backend report must carry are in
@@ -40,13 +50,15 @@ boundaries and what a backend report must carry are in
 
 ## Runtime boundary
 
-Scion owns the model, the training, the codecs and the export. It does not depend on a serving
-engine. The reference loader is the Prism `qwen4exp` llama.cpp fork; Strata is one optional
-runtime, and its scripts live under [`integrations/strata/`](integrations/strata/). The container
-types and correction contract are in [`SCION_RUNTIME.md`](SCION_RUNTIME.md); core tests run without
-a Strata checkout.
+Scion owns the model, the training, the codecs and the export. The reference
+loader is the Prism `qwen4exp` llama.cpp fork; Strata is the second runtime.
+The 35B and 176B bodies run on the fork (branches below), the 35B drafter is an
+`-md` sidecar, and the 176B native MTP drafter is **Strata-only** — it is not
+loadable as a llama.cpp sidecar. Container types and the correction contract
+are in [`SCION_RUNTIME.md`](SCION_RUNTIME.md); core tests run without a Strata
+checkout.
 
-## Reference release: Scion-35B-A3B
+## Release: Scion-35B-A3B
 
 `empero-ai/Qwen3.8-35B-A3B-Distill` (a Qwen3.8-line distill on
 `Qwen/Qwen3.6-35B-A3B`), ternary experts, Q8_0 rest and embedded corrections:
@@ -71,34 +83,68 @@ axes inverted so the better end is up. Every row uses the same protocol.
 
 Card and weights:
 [`SkyIsNotGreen/Scion-35B-A3B`](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B).
-A snapshot of the card is kept at `docs/RELEASE-35B-MODEL-CARD.md`.
+A snapshot of the card is kept at `docs/RELEASE-35B-MODEL-CARD.md`. The repo
+also ships an optional decision head: a correctness readout
+(`EMB 2048 <file> <p_correct>`) for agents that need a confidence gate.
 
-Optional speedup: a 50 MB k=1 **MTP drafter** ships at
-[`SkyIsNotGreen/Scion-35B-A3B-mtp-drafter`](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter).
-It drafts the next token from the model's own hidden state and gives about
-1.2x generation (up to 1.37x on the bench prompt) with unchanged outputs.
-Pass it with `-md` only: the sidecar is detected from the GGUF. Do not add
-`--spec-type draft-mtp` (that selects the MTP head inside a full model and
+### 35B MTP drafter
+
+The optional **50 MB k=1 MTP drafter** is a trained self-distill (3,088 windows,
+67-83% acceptance). It drafts the next token from the model's own hidden state
+and gives about 1.2x generation (up to 1.37x on the bench prompt) with unchanged
+outputs. Pass it with `-md` only: the sidecar is detected from the GGUF. Do not
+add `--spec-type draft-mtp` (that selects the MTP head inside a full model and
 fails with `unknown model architecture: 'mtp'`); the sidecar's explicit type
 name is `draft-mtp-sidecar`.
 
 ## Release: Scion-FlashNext-176B-A6B
 
-`Qwen/Qwen3.8-Flash-Next-FP8` quantized to **2.72 bpw**: the 125B language model
-(6B activated per token, 512 experts top-10) plus the 51.2B-parameter n-gram
-table in a single file. Ternary **PTQ1_0** expert banks with embedded
-corrections; body Q6_K+Q8_0 (default) or F16; 60.17 GB and 65.80 GB variants.
+`Qwen/Qwen3.8-Flash-Next-FP8` quantized to **2.60-2.72 bpw** in the ternary
+containers: the 125B language model (6B activated per token, 512 experts top-10)
+plus the 51.2B-parameter n-gram table in a single file. Ternary `TQ1_0_g128`
+expert banks at 1.75 bpw (`PTQ1_0` in the fork) with embedded corrections;
+body Q6_K+Q8_0 or F16.
 
-| metric (one harness) | **Scion-FlashNext** | ISTA GSQ-RCO Q2_0 |
+| container | size | notes |
+|---|---|---|
+| Q6_K + Q4X160 table (default) | 57.62 GB | 2.60 bpw; smallest |
+| Q6_K + Q4_0 table | 60.17 GB | 2.72 bpw |
+| F16 body | 65.8 GB | fidelity variant |
+
+| metric (one harness, Q6_K/Q4_0 table) | **Scion-FlashNext** | ISTA GSQ-RCO Q2_0 |
 |---|---|---|
 | HellaSwag 400 | **82.00** | 81.50 |
 | Winogrande 400 | **77.50** | 74.75 |
 | wikitext-2 PPL | 5.457 | **5.240** |
 
+Measured with Strata on the 2x RX 7900 XT box (Q4_0-table file): **80.5-80.8
+tok/s** generation, 12.4 ms/token, 2.3-2.4 tokens per pipeline window.
+
 Card and weights:
 [`SkyIsNotGreen/Scion-FlashNext-176B-A6B`](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B);
-snapshot at `docs/RELEASE-FLASHNEXT-176B-A6B-MODEL-CARD.md`. It needs the
-runtime fork's `qwen4exp-proto` branch, not stock llama.cpp.
+snapshot at `docs/RELEASE-FLASHNEXT-176B-A6B-MODEL-CARD.md`. The body runs on
+the fork's `qwen4exp-proto` branch or Strata; stock llama.cpp cannot load it.
+
+## Release: Scion-FlashNext-176B-A6B native MTP drafter
+
+Qwen's own MTP block is present in the BF16 checkpoint but is dropped by
+llama.cpp's converter (`supports_mtp_export = false`). This pack restores the
+31 `mtp.*` tensors in Strata's runtime layout, so the 176B can draft from its
+own hidden state with no training, no distillation and no fitting pass.
+
+| metric | result |
+|---|---|
+| Draft acceptance (weighted, 10 mixed greedy prompts, 256 tok) | **0.741** (1310/1769), 0.640-0.810 per request |
+| Draft acceptance (30 long-form generations, T 0.6) | 0.62-0.72 per request |
+| Decode (2x RX 7900 XT, Q6_K, `--spec 4`) | 52-78 tok/s |
+| Prefill, ~450-token prompts | 116-135 tok/s |
+
+0.89 GB; Q2_0 round-to-nearest experts and BF16 dense tensors. **Strata only:**
+this is not a llama.cpp `-md` sidecar, and the fork's `draft-mtp-sidecar` lane
+does not load it. Convert once and serve with `--mtp mtp/rt --spec 4`; the full
+command, provenance manifest and tensor hashes are on the
+[card](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B-mtp-drafter)
+and in [`v2/mtp-drafter-release/`](v2/mtp-drafter-release/).
 
 ## What the experiments established
 
@@ -115,47 +161,55 @@ An earlier proof on the frozen proxy `allenai/OLMoE-1B-7B-0924`: the uncorrected
 mixed GGUF measured **566.7 PPL, and 14.48** with both placements and routers
 (2.12 GB body, 22.2 MB adapter), with CPU and HIP builds agreeing.
 
-## Dense route (2026-10-03)
-
-The recipe above repairs MoE routing damage. A dense variant is now open, with
-Cloudflare's **Clef-Flash** (Qwen3.5-9B + joint schema head) as the test bed:
-ternary body via `GGML_PQ2_0_LLOYD=1`, residual-stream corrections re-derived
-for a dense/hybrid stack, and a typed-decision metric (accept/reject parity
-against bf16) that the MoE PPL/KLD work did not have. Measured so far: absmax
-is broken (hidden-state cosine 0.007), Lloyd alone gives 0.417, and uncorrected
-decisions shift down ~0.43 - corrections are load-bearing here too. Plan:
-[`docs/DENSE-TERNARY-QAT.md`](docs/DENSE-TERNARY-QAT.md). The work is a
-postable ternary Clef community quant; the ladder so far (f16 = 12.59 PPL):
-deployed 8684 -> signed RTN 476 -> GPTQ+act-order 141.6 -> 128-w Hessians 120.6
--> +`ffn_down` F16 75.2 -> **QAT 23.25** (5.52 GiB). The 2026-10-06 community
-gate found a plain Q2_K at 13.06 PPL / 3.56 GiB beats the ternary artifact, so
-nothing is released; the follow-up derisk run (0.8B, mixed corpus + logits KD,
-1500 steps) confirmed free generation does not recover with scale on this
-recipe (PPL plateau ~42.4; code/math still degenerate), so the lane is on hold.
-Status: [`dense/README.md`](dense/README.md).
-
 ## Quickstart
 
-**Run a release.** Both releases need the runtime fork,
+**Run a release.** The 35B and 176B bodies need the runtime fork,
 [`sky-is-green/prism-ml-llama.cpp`](https://github.com/sky-is-green/prism-ml-llama.cpp).
-The 35B loads on the default `moe-corr-runtime` branch; Flash-Next needs
-`qwen4exp-proto`. Build once and run:
+The 35B loads on `moe-corr-runtime`; Flash-Next needs `qwen4exp-proto`. Build
+once per branch and run:
 
 ```bash
-git clone https://github.com/sky-is-green/prism-ml-llama.cpp
+git clone -b moe-corr-runtime https://github.com/sky-is-green/prism-ml-llama.cpp
 cd prism-ml-llama.cpp
 ./verify-container-support.sh          # prints RESULT: OK
 cmake -B build -DGGML_CUDA=ON          # or -DGGML_HIP=ON, or no flag for CPU
 cmake --build build -j --target llama-cli llama-server
 
-# Scion-35B-A3B with the drafter (branch moe-corr-runtime)
+# weights
+hf download SkyIsNotGreen/Scion-35B-A3B Scion-35B-A3B-PQ2_0-corr.gguf --local-dir .
+hf download SkyIsNotGreen/Scion-35B-A3B-mtp-drafter Scion-35B-A3B-mtp-drafter.gguf --local-dir .
+
+# Scion-35B-A3B with the drafter
 ./build/bin/llama-server -m Scion-35B-A3B-PQ2_0-corr.gguf \
     -md Scion-35B-A3B-mtp-drafter.gguf -ngl 99 -c 4096 -t 8 --port 8080
 ```
 
+```bash
+# 176B, 48 GB card + >= 64 GB host RAM (clone -b qwen4exp-proto and build first)
+hf download SkyIsNotGreen/Scion-FlashNext-176B-A6B \
+    Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf --local-dir .
+./build/bin/llama-server -m Scion-FlashNext-176B-A6B-Q6_K-Q4X160.gguf -ngl 99 \
+    --cpu-moe -ot per_layer_token_embd.weight=CPU -fa on --numa distribute \
+    -c 4096 --port 8081
+```
+
+The 176B native MTP drafter is Strata-only:
+
+```bash
+hf download SkyIsNotGreen/Scion-FlashNext-176B-A6B-mtp-drafter \
+    Scion-FlashNext-176B-A6B-mtp-drafter.gguf --local-dir .
+# in the Strata checkout
+python tools/mtp_rt.py --gguf Scion-FlashNext-176B-A6B-mtp-drafter.gguf --out mtp/rt
+```
+
+Then add `--mtp mtp/rt --spec 4` to the Strata serve command; the full
+invocation is on the
+[drafter card](https://huggingface.co/SkyIsNotGreen/Scion-FlashNext-176B-A6B-mtp-drafter).
+
 Recommended sampling and context notes are on each model card. The fork's
 `master` is an untouched upstream mirror and cannot load these files; a load
-failure saying `invalid ggml type 142` means the wrong branch was built.
+failure saying `invalid ggml type 142` (35B) or `143/146` (176B) means the wrong
+branch or an upstream build was used.
 
 **Reproduce the recipe, locally and free: the OLMoE proxy.** Python 3.10 or
 newer, torch (ROCm or CUDA wheels), `transformers`, `datasets`, `numpy` and
@@ -164,7 +218,7 @@ ternary QAT negative control is `moe/olmoe_proxy.py` and the correction trainer
 is `moe/olmoe_corrections.py`.
 
 **Paths.** The harness resolves its external paths through `moe/scion_paths.py`
-and `dense/clef_paths.py`; every default is an environment variable
+and every default is an environment variable
 (`SCION_WORKSPACE`, `SCION_MODELS`, `LLAMA_BIN`, `GGUF_PY`, ...). Set
 `SCION_WORKSPACE` if models and sibling checkouts live outside the repo's
 parent directory.
@@ -188,9 +242,10 @@ volume. Port notes: `moe/PORT-QWEN35.md`; the architecture decision record:
 | path | what |
 |---|---|
 | `moe/` | the harness: proxies, correction trainers, port, box-run scripts, export and bench tooling, result JSONs |
-| `dense/` | the dense/hybrid route (Clef-Flash): reverse loader, correction trainer, rotated-basis quantizer, QAT |
+| `v2/` | 35B v2 planning, FlashNext evals, and the 176B native MTP drafter pack |
 | `docs/` | write-ups: the MoE extension, release tables, port decision, tail plan, platform scope, registers |
 | `serving/` | serving experiments: placement sweep (ternary vs f16 offload, threads, split modes) and the expert-cache negative result |
+| `integrations/strata/` | Strata serving scripts, decision-head clients and fit notes |
 | `scion_moe/` | vendored `rotation` and RTN quantizer used by the harness |
 | `FAILURES.md` | the negative register for this track (D1-D8) |
 | `retention-grid.png` | the release figure (regenerate with `moe/plot_bench.py`, which writes into `moe/results/qwen35-retention/`) |
@@ -203,14 +258,15 @@ volume. Port notes: `moe/PORT-QWEN35.md`; the architecture decision record:
 - `-ncmoe` is the VRAM-budget dial, and placement does not change the math;
 - the optional MTP drafter gives about **1.2x generation** on the 35B (up to 1.37x on the bench prompt) with unchanged outputs;
 - for the KV cache, `--cache-type-k/v q8_0` is lossless in practice; `q4_0` costs about +0.3% PPL at 4k context on the 35B;
+- the 176B body runs on both the fork and Strata; the 80.5-80.8 tok/s figure is Strata, and its native MTP drafter is Strata-only;
 - a hot-expert GPU cache gave **no throughput gain**, because `mul_mat_id` computes k experts per token regardless of the weights. It would need sparse per-token dispatch rather than a static split (`serving/placement-sweep-20260927/THROUGHPUT.md`).
 
 ## Provenance
 
 Split from
 [`sky-is-green/bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics)
-at `b01f7e2` (2026-09-27). The dense forensics, the replication ladder and their
-failure register stayed there; this track's register is [`FAILURES.md`](FAILURES.md).
+at `b01f7e2` (2026-09-27). This track's negative register is
+[`FAILURES.md`](FAILURES.md).
 
 ## License and attribution
 
