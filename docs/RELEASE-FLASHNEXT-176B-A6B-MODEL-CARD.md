@@ -151,19 +151,6 @@ files, this release is one file with the corrections and the table inside.
 | Fidelity file (this repo) | same containers, F16 body | 65.80 GB |
 | MTP head (not shipped) | the base's 4B multi-token-prediction draft | — |
 
-> **About the Hub's quant chip.** The Hub labels a GGUF by regex-matching a
-> known quant token in the **file name** (`parseGGUFQuantLabel` from
-> `@huggingface/tasks`), not from `general.file_type`. The files are named
-> after tokens the widget knows: `-F16` and `-Q6_K` show immediately, and the
-> shrink file is `-Q6_K-Q4X160` so it labels as `Q6_K` today and upgrades to
-> `Q4X160` once the Hub recognizes that name (the regex keeps the **last**
-> match). A PR adding `Q4X160`, `PTQ1_0` and `PQ2_0` to that list is
-> [filed](https://github.com/huggingface/huggingface.js/pull/2665). The
-> containers themselves have no standard name: expert banks in **PTQ1_0**
-> (Prism's private ternary container, type id 143), the n-gram table in
-> **Q4X160** (146) or **Q4_0**, the body in Q6_K/Q8_0, norms in F32. Use the
-> fork; stock llama.cpp knows none of these.
-
 ### Shipped shrink container (Q4X160)
 
 The PLE n-gram table (28.8 GB of the Q4_0 file) ships in a smaller container on
@@ -473,10 +460,11 @@ and `answer_room` on:
 | Unsloth UD-Q2_K_XL (same base) | 79.6 GB | 30/30 (100%) | 0 | 28.6 s |
 
 \* A Strata-compatible repack of the Q6_K release, **not** an official Scion Q2 and not ISTA's
-GSQ-RCO Q2_0.
+[GSQ-RCO Q2_0](https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF).
 
-This is not the 400-task protocol above and is not a public ranking. The Unsloth quant is three
-tasks ahead on this small suite at 15–20 GB more file size; the 60.17 GB Scion Q6_K is about four
+This is not the 400-task protocol above and is not a public ranking. The
+[Unsloth UD-Q2_K_XL](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/tree/main/UD-Q2_K_XL)
+quant is three tasks ahead on this small suite at 15–20 GB more file size; the 60.17 GB Scion Q6_K is about four
 times the throughput (42 vs 10 effective tok/s). The Q2 bridge is the closest size/accuracy point.
 The Unsloth arm ran without MTP/speculation while the Scion arms used spec 4 + MTP, and the 30-task
 suite is cache-sensitive; the 400-task/PPL table above remains the public quality data.
@@ -536,8 +524,8 @@ winner on these 30 tasks.
 
 ## License and Attribution
 
-Apache-2.0 for this derivative; see [`LICENSE`](./LICENSE) and
-[`NOTICE`](./NOTICE). Base weights:
+Apache-2.0 for this derivative; see [`LICENSE`](../LICENSE) and
+[`NOTICE`](../NOTICE). Base weights:
 [Qwen / Alibaba Cloud](https://huggingface.co/Qwen/Qwen3.8-Flash-Next)
 (`license:other`; the FP8 release used as teacher:
 [`Qwen/Qwen3.8-Flash-Next-FP8`](https://huggingface.co/Qwen/Qwen3.8-Flash-Next-FP8)).

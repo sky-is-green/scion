@@ -31,10 +31,7 @@ tags:
 
 > **Snapshot note.** This is the model card as published on
 > [Hugging Face](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B), kept here
-> for provenance. The harness it references lives in this repository (`moe/`); the
-> dense forensics stayed in
-> [`bonsai2-ternary-forensics`](https://github.com/sky-is-green/bonsai2-ternary-forensics).
-
+> for provenance. The harness it references lives in this repository (`moe/`).
 
 <p align="center">
   <a href="https://github.com/sky-is-green/scion"><b>GitHub: Build-scripts and docs</b></a> &nbsp;|&nbsp;
@@ -338,7 +335,7 @@ Benchmarks).
 | :--- | :--- | ---: | :--- |
 | Language model (this repo) | PQ2_0 experts, Q8_0 rest, embedded corrections | 11.34 GB | resident; the whole model |
 | **k=1 MTP drafter** ([separate repo](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B-mtp-drafter)) | **fp16 head (`fc1`/`gelu`/`fc2`) over the model's own hidden + next-token embedding** | **50 MB** | **transient; ~1 ms/eval on GPU** |
-| **Decision head (optional)**, in this repo under [`decision-head/`](./decision-head) | **closed-form ridge + Platt (66 KB) over the model's own last-prompt-token hidden** | **66 KB** | **transient; one judge pass, ~0.3 s on one 7900 XT** |
+| **Decision head (optional)**, in this repo under [`decision-head/`](../decision-head) | **closed-form ridge + Platt (66 KB) over the model's own last-prompt-token hidden** | **66 KB** | **transient; one judge pass, ~0.3 s on one 7900 XT** |
 | Uncorrected body (not uploaded) | PQ2_0 experts and Q8_0 rest | 10.46 GiB | for swap tests |
 | Corrections (not uploaded) | rank-512 branches and router deltas (`q1_0_g128`) | 98 MiB | for swap tests |
 
@@ -380,7 +377,7 @@ the prompted self-judge, and catches 23 of this model's 28 wrong answers at zero
 false rejects. It is a correctness readout over the model's own hidden state,
 not a second model.*
 
-**Files.**  [`decision-head/`](./decision-head) carries the fitted head: the `.json` is the exchange
+**Files.**  [`decision-head/`](../decision-head) carries the fitted head: the `.json` is the exchange
 form (the study's schema), the `.bin` is the engine's runtime form for the Strata sidecar.
 
 **With the Strata q36 engine**, either the engine sidecar:
@@ -675,8 +672,8 @@ and method notes:
 
 ## License and Attribution
 
-Apache-2.0, inherited from the base model; see [`LICENSE`](./LICENSE) and
-[`NOTICE`](./NOTICE).
+Apache-2.0, inherited from the base model; see [`LICENSE`](../LICENSE) and
+[`NOTICE`](../NOTICE).
 Base weights: [empero-ai](https://huggingface.co/empero-ai/Qwen3.8-35B-A3B-Distill) and
 [Qwen / Alibaba Cloud](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) (Apache-2.0);
 BF16 conversion: [MrFuzzihead](https://huggingface.co/MrFuzzihead/Qwen3.8-35B-A3B-Distill-APEX-GGUF);

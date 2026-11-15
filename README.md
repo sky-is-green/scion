@@ -44,6 +44,12 @@ the shipped 35B scores 14.4% on the hard-90 suite and derails into repetition
 at 5-10k generated tokens. The plan and the lessons so far are in
 [`v2/PLAN.md`](v2/PLAN.md) and [`v2/LESSONS.md`](v2/LESSONS.md).
 
+**Model cards and guides.** [35B](docs/RELEASE-35B-MODEL-CARD.md) ·
+[35B drafter](docs/RELEASE-35B-A3B-MTP-DRAFTER-MODEL-CARD.md) ·
+[176B](docs/RELEASE-FLASHNEXT-176B-A6B-MODEL-CARD.md) ·
+[176B drafter](v2/mtp-drafter-release/README.md) ·
+[decision head](decision-head/README.md).
+
 Negative results are kept in [`FAILURES.md`](FAILURES.md); runtime support
 boundaries and what a backend report must carry are in
 [`docs/PLATFORM-SCOPE.md`](docs/PLATFORM-SCOPE.md).
@@ -85,7 +91,8 @@ Card and weights:
 [`SkyIsNotGreen/Scion-35B-A3B`](https://huggingface.co/SkyIsNotGreen/Scion-35B-A3B).
 A snapshot of the card is kept at `docs/RELEASE-35B-MODEL-CARD.md`. The repo
 also ships an optional decision head: a correctness readout
-(`EMB 2048 <file> <p_correct>`) for agents that need a confidence gate.
+(`EMB 2048 <file> <p_correct>`) for agents that need a confidence gate; see
+[`decision-head/README.md`](decision-head/README.md).
 
 ### 35B MTP drafter
 
@@ -95,7 +102,8 @@ and gives about 1.2x generation (up to 1.37x on the bench prompt) with unchanged
 outputs. Pass it with `-md` only: the sidecar is detected from the GGUF. Do not
 add `--spec-type draft-mtp` (that selects the MTP head inside a full model and
 fails with `unknown model architecture: 'mtp'`); the sidecar's explicit type
-name is `draft-mtp-sidecar`.
+name is `draft-mtp-sidecar`. Full card:
+[`docs/RELEASE-35B-A3B-MTP-DRAFTER-MODEL-CARD.md`](docs/RELEASE-35B-A3B-MTP-DRAFTER-MODEL-CARD.md).
 
 ## Release: Scion-FlashNext-176B-A6B
 
@@ -242,6 +250,7 @@ volume. Port notes: `moe/PORT-QWEN35.md`; the architecture decision record:
 | path | what |
 |---|---|
 | `moe/` | the harness: proxies, correction trainers, port, box-run scripts, export and bench tooling, result JSONs |
+| `decision-head/` | the 35B correctness readout: guide, JSON and runtime weights |
 | `v2/` | 35B v2 planning, FlashNext evals, and the 176B native MTP drafter pack |
 | `docs/` | write-ups: the MoE extension, release tables, port decision, tail plan, platform scope, registers |
 | `serving/` | serving experiments: placement sweep (ternary vs f16 offload, threads, split modes) and the expert-cache negative result |
