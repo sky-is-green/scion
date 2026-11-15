@@ -70,8 +70,8 @@ def main() -> int:
                 else:                     # mirror the previous row (a hole in a
                     h[r] = h[r - 1]       # dead chunk run; the trainer sees one
                     am[r] = am[r - 1]     # duplicated step, not a wrong one)
-            h.tofile(hdir / f"win_{idx}_h.bin")
-            am.tofile(hdir / f"win_{idx}_argmax.bin")
+            h.tofile(hdir / f"win_{idx:02d}_h.bin")
+            am.tofile(hdir / f"win_{idx:02d}_argmax.bin")
             total_rows += 512
         print(f"chunk {c}: {n_recs} records -> {wins_per} windows (win_{c*wins_per}..win_{(c+1)*wins_per-1})")
     print(f"total: {total_rows} rows -> {out}")
