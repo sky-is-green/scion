@@ -67,16 +67,20 @@ Same prompt, `n_predict = 64`, greedy, both arms on a warm server:
 | draft-mtp | 64 | 207.2 s | **0.304** |
 
 **The draft lane is currently ~11% slower than no draft on this rig.** The
-acceptance gain (1.45 tokens per target step) is real, but the checkpoint
-rollback path pays it back: every partial acceptance restores the full hybrid
-memory state and replays the accepted prefix. The recurrent-snapshot rollback
-would avoid that, but it corrupts qwen4exp's GDN state (see Correctness), so it
-stays off.
+acceptance gain (1.45 tokens per target step) is real, but two costs eat it:
 
-On a host where the model fits in RAM (or with a cheaper rollback), the
-algorithmic gain is bounded by the 1.45 tokens/step, i.e. up to ~1.45x fewer
-target steps, minus the draft/verify overhead. Fixing the qwen4exp RS rollback
-is the prerequisite for a net speed win here.
+1. every partial acceptance restores the full hybrid memory state and replays
+   the accepted prefix (the checkpoint path), and
+2. the verify batch streams experts for up to 4 tokens' routing per step, i.e.
+   more expert traffic per step than a single-token decode. On this box the
+   expert banks are memory-bound, so that traffic dominates.
+
+The recurrent-snapshot rollback would remove cost 1, but it corrupts qwen4exp's
+GDN state (see Correctness), so it stays off. On a memory regime where the
+target's experts are resident (RAM or GPU slot cache with full coverage), the
+verify batch reuses the same expert weights across its tokens and the 1.4
+tokens/step should turn into a net ~1.3-1.4x. Fixing the qwen4exp RS rollback
+is the prerequisite for measuring that here.
 
 Both arms are paging expert rows on this box (30 GB RAM for a 60 GB model), so
 the absolute tok/s is a floor, not the model's capability.
