@@ -49,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
                     help="hidden width of the fc1/fc2 intermediate, as a multiple "
                          "of 2H (capacity knob; 1.0 = the prefix head's width)")
     ap.add_argument("--weight-decay", type=float, default=0.0)
+    ap.add_argument("--state-lambda", type=float, default=1.0,
+                    help="weight of the next-head-input prediction loss (fc3, the "
+                         "MTP state head: the llama.cpp draft-mtp lane chains through "
+                         "the draft's own hidden row, so it must live in the target's "
+                         "head-input space).  0 = logits-only (strata-side chaining "
+                         "only, where the verify window teacher-forces every row)")
     ap.add_argument("--steps", type=int, default=4096)
     ap.add_argument("--batch-windows", type=int, default=4)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -101,12 +107,20 @@ def rms(x: torch.Tensor, w: torch.Tensor | None = None) -> torch.Tensor:
     return y if w is None else y * w
 
 
-def head_forward(fc1: torch.Tensor, fc2: torch.Tensor, norm_w: torch.Tensor,
-                 output: torch.Tensor, h: torch.Tensor, e: torch.Tensor) -> torch.Tensor:
-    """Draft logits for hidden ``h`` [N, H] and next-token embedding ``e`` [N, H]."""
+def head_forward(fc1: torch.Tensor, fc2: torch.Tensor, fc3: torch.Tensor, norm_w: torch.Tensor | None,
+                 output: torch.Tensor, h: torch.Tensor, e: torch.Tensor, with_state: bool = False):
+    """Draft logits for hidden ``h`` [N, H] and next-token embedding ``e`` [N, H].
+
+    x = [rms(h), rms(e)] -> fc1 -> gelu -> t;  logits from rms(fc2 t, norm_w) @ output.T.
+    The state head (fc3 t) predicts the target's next head input - the draft's own
+    hidden row for the llama.cpp draft-mtp lane's chain (with_state=True returns
+    (logits, state)).
+    """
     x = torch.cat([rms(h), rms(e)], dim=-1)
-    z = fc2 @ F.gelu(fc1 @ x.T)                 # [H, N]
-    return (rms(z.T, norm_w) @ output.T)        # [N, vocab]
+    t = F.gelu(fc1 @ x.T)
+    z = fc2 @ t              # [H, N]
+    lg = (rms(z.T, norm_w) @ output.T)          # [N, vocab]
+    return lg, ((fc3 @ t).T if with_state else None)   # [N, H]
 
 
 def acceptance(draft_logits: torch.Tensor, main_argmax: torch.Tensor,
@@ -154,16 +168,21 @@ def main() -> None:
     w1 = int(round(args.width_mult * 2 * hidden))
     fc1 = torch.empty(w1, 2 * hidden).normal_(0, 0.02)
     fc2 = torch.empty(hidden, w1).normal_(0, 0.02)
+    fc3 = torch.empty(hidden, w1).normal_(0, 0.02)   # the state head: predicts the target's next head input
     if args.layers != 2:
         raise SystemExit("only --layers 2 is implemented for the release trainer")
     if args.init:
         sd = torch.load(args.init, map_location="cpu")
         fc1 = sd["_mtp_head.fc1.weight"].float()
         fc2 = sd["_mtp_head.fc2.weight"].float()
+        if "_mtp_head.fc3.weight" in sd:
+            fc3 = sd["_mtp_head.fc3.weight"].float()
+            print(f"state head warm-started from {args.init}", flush=True)
         print(f"warm start from {args.init}", flush=True)
     fc1 = torch.nn.Parameter(fc1.to(dev))
     fc2 = torch.nn.Parameter(fc2.to(dev))
-    opt = torch.optim.AdamW([fc1, fc2], lr=args.lr,
+    fc3 = torch.nn.Parameter(fc3.to(dev))
+    opt = torch.optim.AdamW([fc1, fc2, fc3], lr=args.lr,
                             weight_decay=args.weight_decay)
 
     tok_gpu = tok_embd.to(dev)
@@ -177,16 +196,23 @@ def main() -> None:
             [ids[w][1:-1].astype(np.int64) for w in windows])).to(dev)]
         tgt = torch.from_numpy(np.concatenate(
             [am[w][1:-1].astype(np.int64) for w in windows])).to(dev)
-        return h, e, tgt
+        hnext = torch.from_numpy(np.concatenate(
+            [np.asarray(hs[w])[1:-1] for w in windows])).to(dev)
+        return h, e, tgt, hnext
 
-    def loss_and_acc(h, e, tgt, want_acc=False):
-        lg = head_forward(fc1, fc2, norm_gpu, out_gpu, h, e)
+    def loss_and_acc(h, e, tgt, want_acc=False, hnext=None):
+        lg, hpred = head_forward(fc1, fc2, fc3, norm_gpu, out_gpu, h, e, hnext is not None)
         n = lg.shape[0]
         loss = 0.0
         for i in range(0, n, args.chunk):
             loss = loss + F.cross_entropy(lg[i:i + args.chunk], tgt[i:i + args.chunk],
                                           reduction="sum")
         loss = loss / n
+        if hnext is not None and args.state_lambda > 0:
+            # relative L2 on the state prediction (scale-free: the h rows carry
+            # the hc mixer's own scale, ~265 norm at 2560 wide)
+            loss = loss + args.state_lambda * ((hpred - hnext).pow(2).sum()
+                                               / (hnext.pow(2).sum() + 1e-9))
         if not want_acc:
             return loss, None
         return loss, acceptance(lg, tgt, topk=1)
@@ -195,7 +221,7 @@ def main() -> None:
         accs = []
         with torch.no_grad():
             for w in win_list:
-                h, e, tgt = batch([w])
+                h, e, tgt, _ = batch([w])
                 _, acc = loss_and_acc(h, e, tgt, want_acc=True)
                 accs.append(acc)
         return sum(accs) / len(accs)
@@ -232,8 +258,8 @@ def main() -> None:
     while step < args.steps:
         wl = [(step * args.batch_windows + j) % args.n_train
               for j in range(args.batch_windows)]
-        h, e, tgt = batch(wl)
-        loss, _ = loss_and_acc(h, e, tgt)
+        h, e, tgt, hnext = batch(wl)
+        loss, _ = loss_and_acc(h, e, tgt, hnext=hnext)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         opt.step()
@@ -252,7 +278,8 @@ def main() -> None:
                 # .clone(): on CPU, detach().cpu().float() returns the live tensor, so without the copy the
                 # "best" snapshot tracks fc1/fc2 and the file that ships is the last step, not the best one.
                 best = (a, {"_mtp_head.fc1.weight": fc1.detach().cpu().float().clone(),
-                            "_mtp_head.fc2.weight": fc2.detach().cpu().float().clone()})
+                            "_mtp_head.fc2.weight": fc2.detach().cpu().float().clone(),
+                            "_mtp_head.fc3.weight": fc3.detach().cpu().float().clone()})
                 best_step_best = step
             print(f"  [eval] step {step} release acceptance {a:.4f}"
                   + ("" if af is None else f" (fineweb-heldout {af:.4f})")
@@ -264,7 +291,8 @@ def main() -> None:
     # saturate long before), so the checkpoint that goes out is the best eval one, not the last one.
     if best is None or final > best[0]:
         sd = {"_mtp_head.fc1.weight": fc1.detach().cpu().float().clone(),
-              "_mtp_head.fc2.weight": fc2.detach().cpu().float().clone()}
+              "_mtp_head.fc2.weight": fc2.detach().cpu().float().clone(),
+              "_mtp_head.fc3.weight": fc3.detach().cpu().float().clone()}
         best_step = args.steps
         final_sd = final
     else:
@@ -279,6 +307,7 @@ def main() -> None:
               "n_eval_fineweb": args.n_eval_fineweb,
               "steps": args.steps, "lr": args.lr, "layers": args.layers,
               "width_mult": args.width_mult, "weight_decay": args.weight_decay,
+              "state_lambda": args.state_lambda,
               "final_accept": round(final, 4),
               "exported_accept": round(final_sd, 4),
               "exported_step": best_step,
