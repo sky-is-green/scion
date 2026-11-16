@@ -19,12 +19,21 @@ Drafter: `scion-mtp-sidecar-v1.gguf` (fc1/fc2/fc3, fp16, 108 MB).
 ## Correctness
 
 Speculative output is **token-identical to the no-draft run** for the same prompt
-and sampler (`The capital of France is` + 64 greedy tokens).
+and sampler (`The capital of France is` + 64 greedy tokens), on both the
+checkpoint path and the recurrent-snapshot path.
 
-The recurrent-snapshot rollback path (`n_rs_seq`) **must stay off for qwen4exp**:
-with it enabled the verify rollback corrupts the GDN state and the continuation
-diverges after the first rejected round. The server therefore uses the memory
-checkpoint path (`COMMON_CONTEXT_SEQ_RM_TYPE_FULL`) for this target.
+The recurrent-snapshot rollback now works for qwen4exp (engine commit
+`7e53b56be`). Two bugs kept it corrupting the state:
+
+1. the GDN **conv state** (a short shift register) had no snapshots, so a
+   rollback left the rejected tokens' history in the conv window;
+2. the window was one slot short: a rollback can undo the sampled token too
+   (`n_draft + 1`), which no snapshot plane held.
+
+Both are fixed: the conv and ssm states now write per-token planes **and** the
+pre-batch state (slot `n_tokens`), qwen4exp gets one extra window slot, and the
+server only falls back to a checkpoint when the worst-case rollback exceeds the
+window. The acceptance log shows **zero checkpoint restores** in the spec lane.
 
 ## Acceptance
 
@@ -83,28 +92,23 @@ checkpoint restores disappear.
 
 ## Speed
 
-Same prompt, `n_predict = 64`, greedy, both arms on a warm server:
+Same prompt, `n_predict = 64`, greedy, **warm page cache**, both arms warmed by
+the same cold-first-request procedure:
 
-| arm | predicted | predicted ms | tok/s |
-|---|---:|---:|---:|
-| no draft | 64 | 184.7 s | **0.341** |
-| draft-mtp | 64 | 207.2 s | **0.304** |
+| arm | predicted | tok/s |
+|---|---:|---:|
+| no draft | 2.81 s | **22.44** |
+| draft-mtp v2 + RS rollback | 3.70 s | **17.21** |
 
-**The draft lane is currently ~11% slower than no draft on this rig.** The
-acceptance gain (1.45 tokens per target step) is real, but two costs eat it:
+The draft lane is still a net loss on this host even after removing every
+checkpoint restore: the verify batch processes 4 token slots per step (1.51
+tokens returned), and with the 176B's experts host-resident (60 GB model on
+30 GB RAM) each extra token adds expert traffic. Cold-cache numbers are much
+worse for both arms (0.08-0.23 tok/s) and are not meaningful.
 
-1. every partial acceptance restores the full hybrid memory state and replays
-   the accepted prefix (the checkpoint path), and
-2. the verify batch streams experts for up to 4 tokens' routing per step, i.e.
-   more expert traffic per step than a single-token decode. On this box the
-   expert banks are memory-bound, so that traffic dominates.
+The algorithmic result that transfers to a resident host is **1.51 tokens per
+target step** on this prompt (1.81 on the chat/reasoning held-out set), i.e.
+~1.5-1.8x fewer target steps, minus draft overhead.
 
-The recurrent-snapshot rollback would remove cost 1, but it corrupts qwen4exp's
-GDN state (see Correctness), so it stays off. On a memory regime where the
-target's experts are resident (RAM or GPU slot cache with full coverage), the
-verify batch reuses the same expert weights across its tokens and the 1.4
-tokens/step should turn into a net ~1.3-1.4x. Fixing the qwen4exp RS rollback
-is the prerequisite for measuring that here.
-
-Both arms are paging expert rows on this box (30 GB RAM for a 60 GB model), so
-the absolute tok/s is a floor, not the model's capability.
+In-engine acceptance on the wiki prompt (41 rounds): 21 accepted / 122 drafted,
+mean accepted length 1.51; no-draft and draft outputs identical.
