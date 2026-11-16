@@ -93,22 +93,37 @@ checkpoint restores disappear.
 ## Speed
 
 Same prompt, `n_predict = 64`, greedy, **warm page cache**, both arms warmed by
-the same cold-first-request procedure:
+the same cold-first-request procedure.  Split: spare 17.5 GB / display 9.0 GB
+(spec), spare 16.9 GB / display 8.9 GB (baseline) - the display always carries
+the smaller share.
 
 | arm | predicted | tok/s |
 |---|---:|---:|
-| no draft | 2.81 s | **22.44** |
-| draft-mtp v2 + RS rollback | 3.70 s | **17.21** |
+| no draft | 2.80 s | **22.52** |
+| draft-mtp v2 + RS rollback | 4.29 s | **14.69** |
 
-The draft lane is still a net loss on this host even after removing every
-checkpoint restore: the verify batch processes 4 token slots per step (1.51
-tokens returned), and with the 176B's experts host-resident (60 GB model on
-30 GB RAM) each extra token adds expert traffic. Cold-cache numbers are much
-worse for both arms (0.08-0.23 tok/s) and are not meaningful.
+Outputs byte-identical.  The draft lane is a net loss on this host: the verify
+batch processes 4 token slots to return 1.53 tokens, and with the 176B's
+experts host-resident (60 GB model on 31 GB RAM) each extra token adds expert
+traffic.  Per decode: 102 ms for the 4-token verify vs 44 ms for a baseline
+token, i.e. 2.3x the work for 1.53x the output.
 
-The algorithmic result that transfers to a resident host is **1.51 tokens per
+The algorithmic result that transfers to a resident host is **1.53 tokens per
 target step** on this prompt (1.81 on the chat/reasoning held-out set), i.e.
-~1.5-1.8x fewer target steps, minus draft overhead.
+~1.5-1.8x fewer target steps minus draft overhead.
 
-In-engine acceptance on the wiki prompt (41 rounds): 21 accepted / 122 drafted,
-mean accepted length 1.51; no-draft and draft outputs identical.
+### Device order gotcha (read this before changing -ts)
+
+`-ts` is applied to llama.cpp's internal device vector, which is **PCI-ordered
+(display card first)**, while the printed names (`ROCm0`, `ROCm1`) follow HIP
+order (spare first).  Without `--device`, `-ts 0.64,0.36` puts 64% on the
+**display**.  The benchmark launches use `--device ROCm0,ROCm1` explicitly so
+the first split fraction is the spare.
+
+### All-GPU attempt (not usable on this box)
+
+Putting all 30.4 GB of GPU-eligible weights on the two cards (only the 28.8 GB
+PLE left on host) is the right split in principle, but the load stalls in the
+ROCm runtime after ~10 GB of copies (100% CPU in libhsa, twice reproduced), so
+the model never reaches `listening`.  The host-expert split above loads in
+~2 min and is what the benchmark uses.
