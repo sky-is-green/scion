@@ -1,1 +1,2 @@
 a22206a4d74eafbf31063a84610292535fb3b49af9a339963817fd04aed81e4d  Scion-FlashNext-176B-A6B-mtp-drafter.gguf
+15faa28875f592b907da7706d06c623eff85f84173afc4f83da943ee65740947  scion-mtp-sidecar-v2.gguf
