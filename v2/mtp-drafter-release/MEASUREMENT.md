@@ -57,6 +57,30 @@ The engine number matches the offline chain within the metric definition: the
 "30.5%" is P(first draft accepted), while the per-draft rate over all attempted
 drafts is 13.5% offline vs 15.5% in-engine.
 
+
+## v2 head - 360-trace corpus
+
+Trained on the combined corpus (1,728 train windows: 1,000 old + 728 new
+chat/reasoning; held out: 100 old + 100 new), 6,144 steps, warm start from v1.
+The in-run blended held-out acceptance was **0.4668** (v1 on the same blend:
+~0.343).
+
+| held-out set | P(draft 1) | P(2 \| 1) | P(3 \| 2) | P(4 \| 3) | acc/round | tok/step |
+|---|---:|---:|---:|---:|---:|---:|
+| old (wiki/code) | 30.33% | 23.80% | 22.72% | 16.39% | 0.395 | 1.395 |
+| new (chat/reasoning) | **63.06%** | 24.25% | 15.26% | 15.33% | **0.810** | **1.810** |
+
+v2 is the release candidate: it roughly doubles first-draft acceptance on the
+serving (chat/reasoning) distribution and keeps the old corpus at parity with
+v1.  Artifacts: `mtp-release-head-v2.pt`, `scion-mtp-sidecar-v2.gguf`
+(114.8 MB, round-trip verified).
+
+An in-engine 64-token run with v2 reproduced the no-draft text exactly, but the
+host is disk-bound (60 GB model / 30 GB RAM): per-step times swung from 0.05 to
+0.3 t/s, so it gives no usable speed figure.  Speed has to be measured on a
+resident host, or after the qwen4exp recurrent-snapshot rollback is fixed so the
+checkpoint restores disappear.
+
 ## Speed
 
 Same prompt, `n_predict = 64`, greedy, both arms on a warm server:

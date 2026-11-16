@@ -1,0 +1,93 @@
+{
+  "out": "../v2/mtp-drafter-release/mtp-release-head-v2.pt",
+  "gguf": "/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work/models-p310/flashnext/Scion-FlashNext-176B-A6B-Q6_K.gguf",
+  "probe_dir": "../v2/traces/mtp-probe-combined",
+  "n_train": 1728,
+  "n_eval": 200,
+  "n_eval_fineweb": 0,
+  "steps": 6144,
+  "lr": 0.001,
+  "layers": 2,
+  "width_mult": 1.0,
+  "weight_decay": 0.0,
+  "state_lambda": 1.0,
+  "final_accept": 0.4668,
+  "exported_accept": 0.4668,
+  "exported_step": 6144,
+  "final_fineweb": null,
+  "curve": [
+    {
+      "step": 512,
+      "accept": 0.4497,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 1024,
+      "accept": 0.4567,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 1536,
+      "accept": 0.4554,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 2048,
+      "accept": 0.4585,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 2560,
+      "accept": 0.4548,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 3072,
+      "accept": 0.4459,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 3584,
+      "accept": 0.4629,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 4096,
+      "accept": 0.4625,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 4608,
+      "accept": 0.453,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 5120,
+      "accept": 0.459,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 5632,
+      "accept": 0.46,
+      "accept_fineweb": null,
+      "accept_train": null
+    },
+    {
+      "step": 6144,
+      "accept": 0.4668,
+      "accept_fineweb": null,
+      "accept_train": null
+    }
+  ],
+  "wall_s": 3013.9
+}
