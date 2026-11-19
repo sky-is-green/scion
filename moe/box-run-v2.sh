@@ -12,9 +12,11 @@
 #   bash box-run-v2.sh curriculum     # worst windows + teacher traces -> mix file
 #   bash box-run-v2.sh cache          # mixed-corpus master cache
 #   bash box-run-v2.sh ref
+#   bash box-run-v2.sh pilot          # 200 steps, the cost/VRAM gate
+#   bash box-run-v2.sh pilot-export   # adapter + soup for the local eval
 #   bash box-run-v2.sh train          # cur05 (primary)
 #   bash box-run-v2.sh train-fallback # pred2.0
-#   bash box-run-v2.sh eval
+#   bash box-run-v2.sh eval           # proxy KLD/PPL only; the real subset30 is local
 #   bash box-run-v2.sh export
 #   bash box-run-v2.sh gate           # ship gate
 #
@@ -38,6 +40,8 @@ export MOE_ARTIFACTS="${MOE_ARTIFACTS:-/workspace/artifacts}"
 REPO="${REPO:-/workspace/scion}"
 SCION_COMMIT="${SCION_COMMIT:-scion-test}"     # branch or commit hash
 SCION_TARBALL="${SCION_TARBALL:-$MOE_ARTIFACTS/scion-src.tar.gz}"
+MODELS="${MODELS:-$MOE_ARTIFACTS/models}"
+BODY="${BODY:-$MODELS/Scion-35B-A3B-PQ2_0-corr.gguf}"
 Q="$MOE_ARTIFACTS/qwen35"
 MIXFILE="$Q/curric-combo.jsonl"
 CACHE="$Q/prefix-top512-tail64-cur05.pt"
@@ -45,9 +49,23 @@ REF="$Q/eval-ref-w2.pt"
 TRACES="${TRACES:-$REPO/v2/curriculum/teacher-traces.jsonl}"
 PRIMARY_TAG="cur05"
 FALLBACK_TAG="pred2.0"
+TAG="${TAG:-$PRIMARY_TAG}"
+STEPS="${STEPS:-4096}"                         # pilot overrides this (see the pilot stage)
+CKPT_EVERY="${CKPT_EVERY:-1000}"
 GGUF_PY="${GGUF_PY:-$REPO/scion-llama.cpp/gguf-py}"
 
-stage="${1:?usage: box-run-v2.sh <setup|smoke|curriculum|cache|ref|train|train-fallback|eval|export|gate>}"
+# The v2 training stack, in one place.  These are the switches EXPERIMENT-1
+# and the 176B FlashNext run proved; the 512-token pilot fits without
+# --compact-banks, but the codes must still come from the deployed GGUF
+# (--bank-gguf), otherwise the corrections train against different ternary
+# codes than the body ships with (the v1 export-audit failure).
+V2_TRAIN_FLAGS=(
+    --bank-gguf "$BODY"
+    --compact-banks --grad-checkpoint --checkpoint-mode group --expert-group-size 64
+    --verify-banks --chunked-ce --freeze-router
+)
+
+stage="${1:?usage: box-run-v2.sh <setup|smoke|curriculum|cache|ref|pilot|pilot-export|train|train-fallback|eval|export|gate>}"
 
 case "$stage" in
 curriculum)
@@ -80,11 +98,13 @@ setup)
     # fork as t aardis-llama.cpp; the scion fork now carries the same types.
     [ -d "$REPO/scion-llama.cpp" ] || git clone --depth 1 \
         https://github.com/sky-is-green/scion-llama.cpp "$REPO/scion-llama.cpp"
-    mkdir -p "$Q"
+    mkdir -p "$Q" "$MODELS"
 
+    [ -f "$BODY" ] || hf download SkyIsNotGreen/Scion-35B-A3B \
+        --include "Scion-35B-A3B-PQ2_0-corr.gguf" --local-dir "$MODELS"
     [ -f "$MOE_ARTIFACTS/empero-hf/config.json" ] || \
         hf download empero-ai/Qwen3.8-35B-A3B-Distill --local-dir "$MOE_ARTIFACTS/empero-hf"
-    du -sh "$MOE_ARTIFACTS/empero-hf"
+    du -sh "$MOE_ARTIFACTS/empero-hf" "$BODY"
     echo "REMINDER: the curriculum stage reads the packed traces from the repo."
     ;;
 smoke)
@@ -109,34 +129,45 @@ ref)
     ;;
 train)
     cd "$REPO"
+    [ -f "$BODY" ] || { echo "REFUSING: missing $BODY (--bank-gguf needs the deployed body)" >&2; exit 4; }
     # optional RCO allocation (only if the local arm won): add
     #   --alloc-file "$Q/rco-alloc-budget125.map.json"
     time python moe/qwen35_moe_proxy.py train --device-map cuda:0 --device cuda:0 \
+        "${V2_TRAIN_FLAGS[@]}" \
         --cache-file "$CACHE" --ref-file "$REF" \
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --kd-weight 2.0 --kd-tail-weight 2.0 --kd-tailcond-weight 3.0 --temp 2.0 \
         --balance bias --log-entropy \
         --corpus-file "$MIXFILE" --agentic-frac 0.05 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
-        --epochs 1 --steps 4096 --eval-every 1000 --ckpt-every 1000 --log-every 100 \
-        --tag "$PRIMARY_TAG"
+        --epochs 1 --steps "$STEPS" --eval-every "${EVAL_EVERY:-1000}" --ckpt-every "$CKPT_EVERY" --log-every 100 \
+        --tag "$TAG"
+    ;;
+pilot)
+    STEPS="${PILOT_STEPS:-200}" CKPT_EVERY="${PILOT_CKPT_EVERY:-100}" \
+    EVAL_EVERY=0 TAG=pilot exec bash "$0" train
+    ;;
+pilot-export)
+    PRIMARY_TAG=pilot FALLBACK_TAG=pilot STEPS="${PILOT_STEPS:-200}" \
+    exec bash "$0" export
     ;;
 train-fallback)
     cd "$REPO"
     time python moe/qwen35_moe_proxy.py train --device-map cuda:0 --device cuda:0 \
+        "${V2_TRAIN_FLAGS[@]}" \
         --cache-file "$CACHE" --ref-file "$REF" \
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --kd-weight 2.0 --kd-tail-weight 2.0 --kd-tailcond-weight 2.0 --temp 2.0 \
         --balance bias --log-entropy \
         --corpus-file "$MIXFILE" --agentic-frac 0.05 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
-        --epochs 1 --steps 4096 --eval-every 1000 --ckpt-every 1000 --log-every 100 \
+        --epochs 1 --steps "$STEPS" --eval-every "${EVAL_EVERY:-1000}" --ckpt-every "$CKPT_EVERY" --log-every 100 \
         --tag "$FALLBACK_TAG"
     ;;
 eval)
     cd "$REPO"
     for tag in "$PRIMARY_TAG" "$FALLBACK_TAG"; do
-        ckpt="$Q/qwen35-corr-r512-g128-step4096-$tag.pt"
+        ckpt="$Q/qwen35-corr-r512-g128-step${STEPS}-$tag.pt"
         [ -f "$ckpt" ] || { echo "missing $ckpt (run train/$tag first)"; continue; }
         time python moe/qwen35_moe_proxy.py eval --device-map cuda:0 --device cuda:0 \
             --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
@@ -146,7 +177,7 @@ eval)
 export)
     cd "$REPO"
     for tag in "$PRIMARY_TAG" "$FALLBACK_TAG"; do
-        CKPT="$Q/qwen35-corr-r512-g128-step4096-$tag.pt"
+        CKPT="$Q/qwen35-corr-r512-g128-step${STEPS}-$tag.pt"
         [ -f "$CKPT" ] || { echo "missing $CKPT"; continue; }
         SOUP="$Q/qwen35-corr-r512-g128-soup-$tag.pt"
         CKPTS=$(ls $Q/qwen35-corr-r512-g128-step*-$tag.pt 2>/dev/null || true)
