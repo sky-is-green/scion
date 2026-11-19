@@ -48,7 +48,13 @@ curl -s -H "Authorization: Bearer $RUNPOD_API_KEY" \
 
 ## Storage
 
-Network volume (portable, S3-accessible, $0.07/GB/month, first 1 TB):
+Prefer a **volume disk** unless you need the volume to outlive a terminate: it
+has no data-center or cloud-tier constraint, so it does not narrow the A100
+search. Artifacts come back with `runpodctl send/receive`, so no S3 key is
+needed either.
+
+Network volume (portable, S3-accessible, $0.07/GB/month, first 1 TB, Secure
+Cloud only):
 
 ```sh
 curl -s -X POST -H "Authorization: Bearer $RUNPOD_API_KEY" -H 'Content-Type: application/json' \
@@ -137,7 +143,25 @@ output.
 
 ## Syncing artifacts
 
-With a network volume, from this box (needs the separate Runpod S3 key pair):
+Simplest path, no extra credentials, works on either storage type. On the pod:
+
+```sh
+runpodctl send /workspace/artifacts/qwen35/qwen35-adapter-cur05-final.gguf
+# prints a code phrase
+```
+
+Then on this box:
+
+```sh
+runpodctl receive <code>
+```
+
+`send`/`receive` ride Runpod's croc relay, so they also work without an exposed
+port or SSH key. Pull the adapters, eval JSONs, training logs and
+`curric-combo.jsonl`; leave the 11 GB merged body on the volume unless needed.
+
+With a network volume instead, from this box (needs the separate Runpod S3 key
+pair):
 
 ```sh
 export AWS_ACCESS_KEY_ID=...      # user_... from the S3 API key
@@ -168,9 +192,11 @@ curl -s -X DELETE -H "Authorization: Bearer $RUNPOD_API_KEY" \
 - Delete the volume once the artifacts are synced. 150 GB at $0.07 is about
   $10.50/month, which will quietly outlive the run if forgotten.
 
-## Agent tooling (optional)
+## Agent tooling (not needed for this run)
 
-Runpod publishes skills and an MCP server for coding agents; for opencode:
+`runpodctl` already covers GPU/DC availability, pods, volumes, logs and file
+transfer; only `exec` needs REST. The skills/MCP are generic onboarding and are
+not required here. If they are ever wanted for opencode:
 
 ```sh
 npx -y skills add runpod/runpod-plugins-official --skill '*' --agent opencode --yes --global
