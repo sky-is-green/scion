@@ -17,3 +17,8 @@ byte-distill/*.bin
 decision-heads-work/states-verdict/
 decision-heads-work/overnight/scion176b-community-states/
 decision-heads-work/overnight/*.npz
+
+# pilot artifacts (large; logs/README are tracked)
+v2/pilot/*.gguf
+v2/pilot/*.pt
+v2/pilot/curric-combo.jsonl

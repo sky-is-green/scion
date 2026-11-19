@@ -1,0 +1,16 @@
+wrote /workspace/artifacts/qwen35/qwen35-corr-r512-g128-soup-pilot.pt (2-way mean of 240 tensors)
+exporting 80 branch tensors, rank 512, deploy-quant lloyd/g128, 0 gated branches
+warning: could not read eval json: [Errno 2] No such file or directory: '/workspace/artifacts/qwen35/qwen35-eval-pilot.json'
+exported 40 router deltas (rank 256, dense)
+wrote /workspace/artifacts/qwen35/qwen35-adapter-pilot-final.gguf (102.9 MB)
+exporting 80 branch tensors, rank 512, deploy-quant lloyd/g128, 0 gated branches
+warning: could not read eval json: [Errno 2] No such file or directory: '/workspace/artifacts/qwen35/qwen35-eval-pilot.json'
+exported 40 router deltas (rank 256, dense)
+wrote /workspace/artifacts/qwen35/qwen35-adapter-pilot-soup.gguf (102.9 MB)
+wrote /workspace/artifacts/qwen35/qwen35-corr-r512-g128-soup-pilot.pt (2-way mean of 240 tensors)
+exporting 80 branch tensors, rank 512, deploy-quant lloyd/g128, 0 gated branches
+warning: could not read eval json: [Errno 2] No such file or directory: '/workspace/artifacts/qwen35/qwen35-eval-pilot.json'
+exported 40 router deltas (rank 256, dense)
+wrote /workspace/artifacts/qwen35/qwen35-adapter-pilot-final.gguf (102.9 MB)
+exporting 80 branch tensors, rank 512, deploy-quant lloyd/g128, 0 gated branches
+warning: could not read eval json: [Errno 2] No such file or directory: '/workspace/artifacts/qwen35/qwen35-eval-pilot.json'

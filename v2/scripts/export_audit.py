@@ -348,8 +348,6 @@ def validate_branches(deployed: Path) -> dict:
     for t in h["tensors"]:
         if t["type"] not in (43, 142) or ".lora_" not in t["name"]:
             continue
-        if t["type"] == 142:
-            continue
         raw = read_tensor(deployed, h, t)
         codes, scales, code3 = decode_q2_0_g128(raw)
         # packed values are q*scale; the packer chooses scale = max|w| of the
