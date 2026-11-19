@@ -75,6 +75,28 @@ pod.  Measured on this box (2x 7900 XT, 30 GB RAM, NVMe streaming):
   (~$5-15 + transfer) are eliminated.  The full 360-trace corpus is also
   local now (~7-10 h of strata time) if the pilot's budget math wants it.
 
+## UPDATE 2026-11-19: pre-pod review and the trace expansion
+
+- **Runbook fixed** (`moe/box-run-v2.sh`, commit `9b82e7d`): the full-run
+  stage had lost `--bank-gguf`, the compact-bank/gradient-checkpoint stack,
+  `--chunked-ce`, `--freeze-router`, and the deployed-body fetch; it also had
+  no 200-step pilot.  It now matches `EXPERIMENT-1.md` and the prefix loop.
+- **Teacher traces: 29 -> 346.**  The 360-prompt corpus captured for the MTP
+  drafter is the same corpus the 29 packed traces came from.
+  `v2/scripts/pack_teacher_traces.py` drops the 13 traces at the teacher loop
+  gate and one short trace, leaving 158 reasoning / 98 coding / 90 tools
+  (`v2/curriculum/teacher-traces-v2.jsonl`).  The clean set is ~324k tokens
+  vs ~44k, so the 10% mix now carries ~7.6% teacher traces instead of ~1.5%.
+  This is the main capability lever for the 5/30 -> 8-12/30 goal.
+- **Loop verdict:** the recovery sentence already cuts truncations 17 -> 3 at
+  the same 5/30.  The remaining failures are wrong answers, so a better
+  injected thought is a serving improvement, not the score lever.  The design
+  and the art are in `v2/RECIPE-REVIEW-2026-11-19.md`.
+- **Account:** the key is scoped to pods/billing/catalog (no `account:read`);
+  balance is $5.50, A100 SXM 80 GB is $2.19/h with LOW stock in US-KS-2,
+  US-MD-1, US-WA-1.  Top up before the full run; the pilot alone is ~2.5 h of
+  balance including setup.
+
 ## What is measured locally (4-layer prefix, one 7900 XT 20 GB)
 
 From `v2/MEMORY-PORT.md` (real recipe geometry, rank 512 both, tail terms on):

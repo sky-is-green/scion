@@ -2,7 +2,8 @@
 # 35B v2 — one-shot box runbook (H100/H200 80 GB+).
 #
 # Recipe (2026-09-30):
-#   primary  cur05    = D_KL2 3.0 + bias + hard-window curriculum 0.05
+#   primary  cur05    = D_KL2 3.0 + bias + 10% curriculum mix
+#                        (205 hard fineweb windows + 346 clean 176B teacher traces)
 #   fallback pred2.0  = D_KL2 2.0 + bias, trained from the SAME cache
 #   (one variable between arms: --kd-tailcond-weight 3.0 vs 2.0)
 #
@@ -46,7 +47,7 @@ Q="$MOE_ARTIFACTS/qwen35"
 MIXFILE="$Q/curric-combo.jsonl"
 CACHE="$Q/prefix-top512-tail64-cur05.pt"
 REF="$Q/eval-ref-w2.pt"
-TRACES="${TRACES:-$REPO/v2/curriculum/teacher-traces.jsonl}"
+TRACES="${TRACES:-$REPO/v2/curriculum/teacher-traces-v2.jsonl}"
 PRIMARY_TAG="cur05"
 FALLBACK_TAG="pred2.0"
 TAG="${TAG:-$PRIMARY_TAG}"
@@ -119,7 +120,7 @@ cache)
         echo "cache corpus must match the trained corpus exactly." >&2; exit 4; }
     time python moe/qwen35_moe_proxy.py cache --device cuda:0 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
-        --corpus-file "$MIXFILE" --agentic-frac 0.05 \
+        --corpus-file "$MIXFILE" --agentic-frac 0.10 \
         --top-logits 512 --tail-logits 64 \
         --cache-file "$CACHE"
     ;;
@@ -138,7 +139,7 @@ train)
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --kd-weight 2.0 --kd-tail-weight 2.0 --kd-tailcond-weight 3.0 --temp 2.0 \
         --balance bias --log-entropy \
-        --corpus-file "$MIXFILE" --agentic-frac 0.05 \
+        --corpus-file "$MIXFILE" --agentic-frac 0.10 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
         --epochs 1 --steps "$STEPS" --eval-every "${EVAL_EVERY:-1000}" --ckpt-every "$CKPT_EVERY" --log-every 100 \
         --tag "$TAG"
@@ -159,7 +160,7 @@ train-fallback)
         --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
         --kd-weight 2.0 --kd-tail-weight 2.0 --kd-tailcond-weight 2.0 --temp 2.0 \
         --balance bias --log-entropy \
-        --corpus-file "$MIXFILE" --agentic-frac 0.05 \
+        --corpus-file "$MIXFILE" --agentic-frac 0.10 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
         --epochs 1 --steps "$STEPS" --eval-every "${EVAL_EVERY:-1000}" --ckpt-every "$CKPT_EVERY" --log-every 100 \
         --tag "$FALLBACK_TAG"

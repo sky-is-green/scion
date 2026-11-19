@@ -58,12 +58,23 @@ Two separate causes, and they should be decided separately:
    the curriculum mean what the docs say.  This is a code change; do not make
    it silently in the same run as a data change.
 
-**Recommendation:** before the full run, expand the trace set and raise the
-trace share.  At 512 tokens, 100 traces (~200k tokens) support a 10% trace
-mix (410 of 4096) without starving the fineweb side.  This is the highest
-expected-value change for the 5/30 -> 8-12/30 goal, because the 35B's gap to
-the 176B is exactly the behavior the traces carry: tools 3/10 vs 9/10 and
-reasoning 2/10 vs 3/10.  Coding is 0/10 for both; traces will not fix coding.
+**Recommendation (implemented in the runbook):** use the 346 clean traces
+already captured in `v2/traces/rollout360` (14 of 360 dropped: 13 at the
+teacher loop gate, 1 too short; 158 reasoning / 98 coding / 90 tools).  They
+are packed as `v2/curriculum/teacher-traces-v2.jsonl` by
+`v2/scripts/pack_teacher_traces.py`.  At 249,518 words (~324k tokens) they are
+75.6% of the mix (vs ~30% for the 29), so `--agentic-frac 0.10` gives roughly
+310 trace windows (7.6% of training) and 100 hard windows (2.4%) instead of
+~60 trace windows (1.5%).  This is the highest expected-value change for the
+5/30 -> 8-12/30 goal, because the 35B's gap to the 176B is exactly the behavior
+the traces carry: tools 3/10 vs 9/10 and reasoning 2/10 vs 3/10.  Coding is
+0/10 for both; traces will not fix coding.
+
+The 10% total curriculum mix is a deliberate deviation from the 176B's 5%:
+the teacher corpus is now large enough to fill it without starving the fineweb
+side.  If the pilot's loss or the subset eval says the trace weight is too
+high, the fallback is one variable (`agentic-frac 0.05`), not a re-run of the
+data capture.
 
 ## 3. The loop intervention question: recovery already captured most of it
 
@@ -208,8 +219,8 @@ Must be true before the pilot:
 
 Recommended but not blocking:
 
-5. Expand the teacher traces to ~100 (2-3 h local) and raise the trace share
-   to 5-10%; keep 512 windows for the pilot.  This is the score lever.
+5. Use the 346 clean teacher traces already captured (packed, loop-gated) and
+   keep the 10% mix in the runbook.  **Done** (`teacher-traces-v2.jsonl`).
 6. Keep the current recover protocol for all arms and the reference.  Do not
    change the cue and the training data in the same run.
 7. Export 2-3 checkpoints and evaluate them on subset30; do not ship the last
@@ -232,11 +243,11 @@ Open questions:
 # trace share arithmetic (tokenizer-free estimate)
 python - <<'EOF'
 import json
-rows=[json.loads(l) for l in open('v2/curriculum/teacher-traces.jsonl')]
+rows=[json.loads(l) for l in open('v2/curriculum/teacher-traces-v2.jsonl')]
 words=sum(len(r['text'].split()) for r in rows)
 trace_tokens=int(words*1.3); hard=205*512
-print('trace share of mix', trace_tokens/(trace_tokens+hard))
-print('trace share of 4096 training windows', 0.05*trace_tokens/(trace_tokens+hard))
+print('traces',len(rows),'trace share of mix', trace_tokens/(trace_tokens+hard))
+print('trace share of 4096 training windows', 0.10*trace_tokens/(trace_tokens+hard))
 EOF
 
 # the recovery reference
