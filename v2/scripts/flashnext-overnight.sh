@@ -74,8 +74,8 @@ python3 "$W/scion/v2/scripts/hard_subset.py" \
     --port 8083 \
     --label "Scion-FlashNext-176B v1" \
     --out-dir "$OUT" \
-    --max-tokens 16384 \
-    --thinking-budget 16384
+    --max-tokens 32768 \
+    --thinking-budget 32768
 rc=$?
 
 kill -TERM "$spid" 2>/dev/null
