@@ -245,7 +245,12 @@ def main():
     raw_qtype = None
     if args.dtype == "q1_0_g128":
         from gguf import GGMLQuantizationType
-        raw_qtype = GGMLQuantizationType.Q1_0_g128
+        # scion-llama.cpp names this layout Q2_0_G128 (id 142); the old Prism
+        # gguf-py called the same bytes Q1_0_g128 (id 43, which the new base uses
+        # for F8_E4M3). Prefer the current name, fall back only for old trees.
+        raw_qtype = getattr(GGMLQuantizationType, "Q2_0_G128", None)
+        if raw_qtype is None:
+            raw_qtype = GGMLQuantizationType.Q1_0_g128
     dense_dtype = np.float32 if args.dtype == "f32" else np.float16
 
     for (i, target), t in sorted(pairs.items()):

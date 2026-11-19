@@ -9,6 +9,7 @@
 # Stage by stage; everything resumable (cache/ckpts land on the volume):
 #   bash box-run-v2.sh setup
 #   bash box-run-v2.sh smoke
+#   bash box-run-v2.sh curriculum     # worst windows + teacher traces -> mix file
 #   bash box-run-v2.sh cache          # mixed-corpus master cache
 #   bash box-run-v2.sh ref
 #   bash box-run-v2.sh train          # cur05 (primary)
@@ -19,8 +20,8 @@
 #
 # Code delivery: the pod needs the session-8 tree (--alloc-file plumbing etc.).
 # Either push scion-test and set SCION_COMMIT, or drop a tarball at
-# $MOE_ARTIFACTS/scion-src.tar.gz (setup extracts it).  The corpus mix file
-# $Q/curric-combo.jsonl must be uploaded before `cache` or the stage refuses.
+# $MOE_ARTIFACTS/scion-src.tar.gz (setup extracts it).  The mix file is built on
+# the pod by the `curriculum` stage; upload $Q/teacher-traces.jsonl first.
 set -euo pipefail
 
 export PIP_BREAK_SYSTEM_PACKAGES="${PIP_BREAK_SYSTEM_PACKAGES:-1}"
@@ -43,11 +44,17 @@ CACHE="$Q/prefix-top512-tail64-cur05.pt"
 REF="$Q/eval-ref-w2.pt"
 PRIMARY_TAG="cur05"
 FALLBACK_TAG="pred2.0"
-GGUF_PY="${GGUF_PY:-$REPO/taardis-llama.cpp/gguf-py}"
+GGUF_PY="${GGUF_PY:-$REPO/scion-llama.cpp/gguf-py}"
 
-stage="${1:?usage: box-run-v2.sh <setup|smoke|cache|ref|train|train-fallback|eval|export|gate>}"
+stage="${1:?usage: box-run-v2.sh <setup|smoke|curriculum|cache|ref|train|train-fallback|eval|export|gate>}"
 
 case "$stage" in
+curriculum)
+    cd "$REPO"
+    time python moe/build_curriculum.py --device cuda:0 \
+        --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
+        --top 205 --traces "$Q/teacher-traces.jsonl" --out "$MIXFILE"
+    ;;
 setup)
     nvidia-smi
     python -c "import torch; assert torch.cuda.is_available(); print('torch', torch.__version__, torch.cuda.get_device_name(0))"
@@ -68,14 +75,16 @@ setup)
         [ -d "$REPO" ] || git clone https://github.com/sky-is-green/scion "$REPO"
         git -C "$REPO" fetch --all && git -C "$REPO" checkout "$SCION_COMMIT"
     fi
-    [ -d "$REPO/taardis-llama.cpp" ] || git clone -b q1_0_g128-port \
-        https://github.com/CodeMasterCody3D/prism-ml-llama.cpp "$REPO/taardis-llama.cpp"
+    # gguf-py with the Scion types (142/143/146).  This used to clone the Prism
+    # fork as t aardis-llama.cpp; the scion fork now carries the same types.
+    [ -d "$REPO/scion-llama.cpp" ] || git clone --depth 1 \
+        https://github.com/sky-is-green/scion-llama.cpp "$REPO/scion-llama.cpp"
     mkdir -p "$Q"
 
     [ -f "$MOE_ARTIFACTS/empero-hf/config.json" ] || \
         hf download empero-ai/Qwen3.8-35B-A3B-Distill --local-dir "$MOE_ARTIFACTS/empero-hf"
     du -sh "$MOE_ARTIFACTS/empero-hf"
-    echo "REMINDER: upload $MIXFILE before the cache stage (or that stage fails hard)."
+    echo "REMINDER: upload $Q/teacher-traces.jsonl, then run the curriculum stage."
     ;;
 smoke)
     cd "$REPO"
@@ -85,7 +94,7 @@ smoke)
     ;;
 cache)
     cd "$REPO"
-    [ -f "$MIXFILE" ] || { echo "REFUSING: $MIXFILE missing — upload it first; the"
+    [ -f "$MIXFILE" ] || { echo "REFUSING: $MIXFILE missing — run the curriculum stage first; the"
         echo "cache corpus must match the trained corpus exactly." >&2; exit 4; }
     time python moe/qwen35_moe_proxy.py cache --device cuda:0 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \

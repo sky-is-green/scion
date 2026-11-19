@@ -86,6 +86,14 @@ Common flags for both arms (the **one variable** between them is
 - **Mix file**: `curric-combo.jsonl` (fineweb-edu + hard-window curriculum),
   `--agentic-frac 0.05`. The cache **refuses** to build without it — the cache
   corpus must equal the trained corpus.
+  - Built on the pod by the `curriculum` stage (`moe/build_curriculum.py`): it
+    scores the same 4096 windows `cache` will use, keeps the worst 205 by mean
+    cross-entropy, and appends `$Q/teacher-traces.jsonl`. Deviation from the
+    original recipe: loss-ranked, not full-vocab-KLD-ranked, because the KLD
+    instrument parks ~4 GB of host log-probs per window and cannot reach 205
+    windows on this box.
+  - `teacher-traces.jsonl` is packed from `v2/traces/flashnext` (29 of the 30;
+    PT-000 has no `choices`).
 - **Cache**: `--windows 4096 --corpus-chars 50000000 --seq 512 --seed 0
   --top-logits 512 --tail-logits 64`. Fields: `idx/val/w/router/tidx/tlp`
   (`w` = per-token teacher support mass, required by the tail terms; `tidx/tlp`

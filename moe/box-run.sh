@@ -37,7 +37,7 @@ REF="$Q/eval-ref-w2.pt"
 CKPT="$Q/qwen35-corr-r512-g128-step4096.pt"
 ADAPTER="$Q/qwen35-adapter.lora.gguf"
 # TAARDIS fork's gguf-py is what writes the compact q1_0_g128 adapter tensors
-GGUF_PY="${GGUF_PY:-$REPO/taardis-llama.cpp/gguf-py}"
+GGUF_PY="${GGUF_PY:-$REPO/scion-llama.cpp/gguf-py}"
 
 stage="${1:?usage: box-run.sh <setup|smoke|cache|ref|train|eval|export>}"
 
@@ -65,8 +65,8 @@ setup)
     pip install "triton==3.8.0" || echo "WARN: triton pin failed"
 
     [ -d "$REPO" ] || git clone https://github.com/sky-is-green/scion "$REPO"
-    [ -d "$REPO/taardis-llama.cpp" ] || git clone -b q1_0_g128-port \
-        https://github.com/CodeMasterCody3D/prism-ml-llama.cpp "$REPO/taardis-llama.cpp"
+    [ -d "$REPO/scion-llama.cpp" ] || git clone --depth 1 \
+        https://github.com/sky-is-green/scion-llama.cpp "$REPO/scion-llama.cpp"
 
     mkdir -p "$Q"
     [ -f "$MOE_ARTIFACTS/empero-hf/config.json" ] || \
