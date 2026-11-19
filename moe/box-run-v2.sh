@@ -21,7 +21,7 @@
 # Code delivery: the pod needs the session-8 tree (--alloc-file plumbing etc.).
 # Either push scion-test and set SCION_COMMIT, or drop a tarball at
 # $MOE_ARTIFACTS/scion-src.tar.gz (setup extracts it).  The mix file is built on
-# the pod by the `curriculum` stage; upload $Q/teacher-traces.jsonl first.
+# the pod by the `curriculum` stage from the repo's packed teacher traces.
 set -euo pipefail
 
 export PIP_BREAK_SYSTEM_PACKAGES="${PIP_BREAK_SYSTEM_PACKAGES:-1}"
@@ -42,6 +42,7 @@ Q="$MOE_ARTIFACTS/qwen35"
 MIXFILE="$Q/curric-combo.jsonl"
 CACHE="$Q/prefix-top512-tail64-cur05.pt"
 REF="$Q/eval-ref-w2.pt"
+TRACES="${TRACES:-$REPO/v2/curriculum/teacher-traces.jsonl}"
 PRIMARY_TAG="cur05"
 FALLBACK_TAG="pred2.0"
 GGUF_PY="${GGUF_PY:-$REPO/scion-llama.cpp/gguf-py}"
@@ -51,9 +52,9 @@ stage="${1:?usage: box-run-v2.sh <setup|smoke|curriculum|cache|ref|train|train-f
 case "$stage" in
 curriculum)
     cd "$REPO"
-    time python moe/build_curriculum.py --device cuda:0 \
+    time python moe/build_curriculum.py --device-map cuda:0 --device cuda:0 \
         --windows 4096 --corpus-chars 50000000 --seq 512 --seed 0 \
-        --top 205 --traces "$Q/teacher-traces.jsonl" --out "$MIXFILE"
+        --top 205 --traces "$TRACES" --out "$MIXFILE"
     ;;
 setup)
     nvidia-smi
@@ -84,7 +85,7 @@ setup)
     [ -f "$MOE_ARTIFACTS/empero-hf/config.json" ] || \
         hf download empero-ai/Qwen3.8-35B-A3B-Distill --local-dir "$MOE_ARTIFACTS/empero-hf"
     du -sh "$MOE_ARTIFACTS/empero-hf"
-    echo "REMINDER: upload $Q/teacher-traces.jsonl, then run the curriculum stage."
+    echo "REMINDER: the curriculum stage reads the packed traces from the repo."
     ;;
 smoke)
     cd "$REPO"

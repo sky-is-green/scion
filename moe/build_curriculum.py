@@ -35,6 +35,10 @@ from qwen35_moe_proxy import load_full, model_logits  # noqa: E402
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--device-map", default="cuda:0",
+                    help="passed to from_pretrained; use auto for a 2-card pod")
+    ap.add_argument("--max-memory", default="",
+                    help='per-device caps for device_map auto, e.g. "0:44GiB,1:44GiB"')
     ap.add_argument("--windows", type=int, default=4096)
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--corpus-chars", type=int, default=50_000_000)
