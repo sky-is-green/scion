@@ -23,6 +23,10 @@ Add entries as we go. Each file follows the same shape: citation, claim,
 method, numbers, what transfers to v2, what does not, experiments we could
 run, open questions.
 
+The 2026-11-19 wide pass (loop mechanism, intervention, Antidoom/FTPO,
+sampling) is summarized in
+[../RECIPE-REVIEW-2026-11-19.md](../RECIPE-REVIEW-2026-11-19.md), section 5.
+
 ## Cross-cutting notes so far
 
 - **Fixed-response supervision is a recurring flaw.** Right On Q (exposure
