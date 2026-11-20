@@ -193,6 +193,9 @@ def main():
     ap.add_argument("--branch-quant", choices=["g128", "rank", "none"], default="g128",
                     help="deployed branch format the checkpoint was trained with "
                          "('none' exports the raw fp32 masters)")
+    ap.add_argument("--device", default="cpu",
+                    help="torch device for the Lloyd quantizer (cpu or cuda); the "
+                         "tensors are moved back to CPU before GGUF packing")
     ap.add_argument("--routers", action="store_true",
                     help="also export the trained router deltas as exact rank<=64 LoRA "
                          "pairs on ffn_gate_inp (needs --base-model)")
@@ -260,7 +263,10 @@ def main():
             # Phase C: fold the gates before quantization; (D_w B)(A D_r) is
             # still rank-r, so the container below is unchanged.
             down, up = fold_gates(down, up, g.get("read"), g.get("write"))
+        dev = torch.device(args.device)
+        down, up = down.to(dev), up.to(dev)
         down, up = deploy_weights(down, up, args.branch_quant, args.deploy_quant)
+        down, up = down.cpu(), up.cpu()
         # gguf-py reverses dims on write: passing [rank, in] / [out, rank]
         # stores ne [in, rank] / [rank, out], matching the reference adapters.
         add_factor(w, f"blk.{i}.{target}.lora_a", down, args.dtype, raw_qtype)
