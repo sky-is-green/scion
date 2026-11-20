@@ -1,0 +1,25 @@
+{
+  "label": "Scion-35B v2 gateup4 + v1 corrections",
+  "n": 30,
+  "correct": 12,
+  "accuracy": 40.0,
+  "by_family": {
+    "reasoning": {
+      "n": 10,
+      "correct": 3
+    },
+    "coding": {
+      "n": 10,
+      "correct": 0
+    },
+    "tools": {
+      "n": 10,
+      "correct": 9
+    }
+  },
+  "truncated": 10,
+  "median_wall_s": 177.9,
+  "mean_decode_tok_s": 53.33,
+  "temperature": 0.6,
+  "seed": 1001
+}
