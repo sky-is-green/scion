@@ -150,6 +150,11 @@ The 4-layer adapter only has tensors for layers 0–3; merging into the full v1
 body replaces those branches and leaves the rest unchanged.  This proves the
 training-time `bits=4` path, the exporter and the merge/audit, not capability.
 
+Local result (1 step, synthetic cache): `10.59 GiB` peak, 8 exported branch
+tensors, 16 adapter tensors merged, and the audit still reports **160 tensors
+/ 209,715,200 weights / 0 code3 / 0 bad scales**.  The training log shows the
+four `alloc-file` entries at 4-bit and four at 2-bit as intended.
+
 ## Compact-bank support (pod path)
 
 `read_bank_blocks(..., with_bits=True)` reads type 147 as Q4 nibbles/scales,
@@ -229,5 +234,12 @@ Run the compact tests before the pod:
 - 4-layer hot map: done (350/360 prompts).
 - Full `down4` body: first (bf16 dense) build 14.14 GiB; the v1-dense rebuild
   (~12.1 GiB) is running locally.
-- 4-layer train/export/merge: pending the body build (shares CPU).
+- 4-layer train/export/merge/audit: **passed** (1 step, 10.59 GiB peak,
+  160-tensor branch audit clean).
+- HIP binaries: the incremental build after the enum change is inconsistent
+  (stock Q4_0 model loads also crash); a clean `--clean-first` rebuild is
+  running.  The CPU build loads the v2 model and generates.
+- The older `Scion-35B-A3B-PQ2_0-corr.gguf` is rejected by the current
+  llama.cpp GGUF reader (`ffn_moe_out.weight.lora_b` offset mismatch); use the
+  v2 merged model or the new contiguous hot/cold body for llama.cpp checks.
 - Pod: **not started**; balance **$9.50**.

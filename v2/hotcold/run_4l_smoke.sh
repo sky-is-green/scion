@@ -29,7 +29,7 @@ MOE_ARTIFACTS="$W/models-p310/empero-prefix" \
 echo "== export"
 PYTHONPATH="$GG" "$PY" moe/export_branches_lora.py \
   --load "$CKPT" --arch qwen35moe --target both --dtype q1_0_g128 \
-  --out "$ADAPTER"
+  --recipe "hotcold 4-layer smoke" --out "$ADAPTER"
 
 echo "== merge into the v1 body (replace the 4-layer branches only)"
 PYTHONPATH="$GG" "$PY" moe/merge_adapter_into_body.py \
