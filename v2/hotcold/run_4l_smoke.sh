@@ -12,7 +12,7 @@ PY="$W/.envs/scion-rocm/bin/python"
 GG="$W/scion-llama.cpp/gguf-py"
 BODY="$W/models-p310/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf"
 CACHE=/tmp/opencode/qwen35-hotcold-cache.pt
-TAG=hotcold4l
+TAG=hotcold4l-gateup4
 CKPT="$SCION/moe/artifacts/qwen35/qwen35-corr-r512-g128-step2-${TAG}.pt"
 ADAPTER=/tmp/opencode/${TAG}-adapter.gguf
 MERGED=/tmp/opencode/${TAG}-merged.gguf
@@ -22,7 +22,7 @@ cd "$SCION"
 echo "== train 2 steps (Q4 layers 0-1, TQ1 layers 2-3)"
 MOE_ARTIFACTS="$W/models-p310/empero-prefix" \
   "$PY" moe/qwen35_moe_proxy.py train --prefix-layers 4 --device cuda:0 \
-  --alloc-file v2/hotcold/alloc-4l.json --cache-file "$CACHE" \
+  --alloc-file v2/hotcold/alloc-4l-gateup4.json --cache-file "$CACHE" \
   --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
   --steps 2 --tag "$TAG"
 

@@ -55,12 +55,13 @@ is 10.558 GiB (all experts 2.125 bpw).
 | all TQ1 (v1-like) | 1.75 | 7.99 | 10.58 |
 | down4 (down Q4, gate/up TQ1) | 2.54 | 9.52 | **12.02** (measured) |
 | half layers all-Q4 | 2.94 | 11.02 | 13.61 |
-| gateup4 | 3.41 | 12.79 | 15.38 |
+| gateup4 | 3.41 | 12.79 | **14.99** (measured) |
 | all Q4 | 4.125 | 15.48 | 18.07 |
 
-`down4` is the first build: it protects the expert output projection (1/3 of
-expert weights) and stays at 12.1 GiB, leaving 6 GiB of the 18 GiB display
-budget for context/KV.
+`gateup4` is the recommended body: it protects the gate/up feature
+computation (2/3 of expert weights) and measures **14.99 GiB**, with the
+display card at **12.37 GB** and the spare at 6.52 GB under the 0.75/0.25
+split.  `down4` (12.02 GiB) is the size-safe fallback.
 
 ## Local body build
 
@@ -75,8 +76,8 @@ cd .../work/scion
 HIP_VISIBLE_DEVICES=1 .../.envs/scion-rocm/bin/python moe/build_hotcold_body.py \
   --src .../models-p310/bf16/Qwen3.8-35B-A3B-Distill-BF16.gguf \
   --dense-src .../models-p310/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf \
-  --out v2/hotcold/Scion-35B-A3B-v2-down4.gguf \
-  --policy down4 --device cuda:0
+  --out v2/hotcold/Scion-35B-A3B-v2-gateup4.gguf \
+  --policy gateup4 --device cuda:0
 ```
 
 `--device cuda:0` runs the Q4 packer and the 8-iteration Lloyd rule on the
@@ -85,8 +86,9 @@ One-tensor and small-array checks are byte-identical between the two.  Running
 two CPU exporters at once swaps the 30 GB box and is much slower.
 
 Without `--dense-src` the non-expert tensors are copied from the bf16 base and
-the file is **14.14 GiB**; with it the expected size is ~12.1 GiB.  The first
-(dense=bf16) build is a valid model but not the one to ship.
+the file is **14.14 GiB**; with it `down4` is 12.02 GiB and `gateup4` is
+14.99 GiB.  The first (dense=bf16) build is a valid model but not the one to
+ship.
 
 `--policy gateup4|half|third|all4|all2` and `--alloc-file` are supported.
 Single-tensor checks (byte layout + dequant against the Q4/TQ1 reference):
@@ -158,7 +160,9 @@ training-time `bits=4` path, the exporter and the merge/audit, not capability.
 Local result (1 step, synthetic cache): `10.59 GiB` peak, 8 exported branch
 tensors, 16 adapter tensors merged, and the audit still reports **160 tensors
 / 209,715,200 weights / 0 code3 / 0 bad scales**.  The training log shows the
-four `alloc-file` entries at 4-bit and four at 2-bit as intended.
+four `alloc-file` entries at 4-bit and four at 2-bit as intended.  The exact
+`gateup4` alloc (Q4 gate_up, TQ1 down) also completed a 1-step run at
+10.59 GiB peak.
 
 ## Compact-bank support (pod path)
 
@@ -177,7 +181,7 @@ Run the compact tests before the pod:
 ## Pod runbook (stop before this)
 
 1. Top up to ~$25 (A100 SXM 80 GB, $2.19/h, EUR-IS-1, 150 GB volume).
-2. Upload `Scion-35B-A3B-v2-down4.gguf` (12.1 GiB) and the synthetic/real
+2. Upload `Scion-35B-A3B-v2-gateup4.gguf` (14.99 GiB) and the synthetic/real
    cache if available (`runpodctl send`), or rebuild the cache on the pod.
 3. Setup: the v2 full-run `v2/scripts/box-run-v2.sh` equivalents; install
    the fork, `torch`, `transformers`, `safetensors`, `datasets`; put the full
@@ -189,29 +193,28 @@ Run the compact tests before the pod:
 6. Train 4096 steps:
    ```bash
    python moe/qwen35_moe_proxy.py train --device cuda:0 \
-     --bank-gguf /workspace/artifacts/Scion-35B-A3B-v2-down4.gguf \
+     --bank-gguf /workspace/artifacts/Scion-35B-A3B-v2-gateup4.gguf \
      --seed-routers --compact-banks --grad-checkpoint --checkpoint-mode group \
      --expert-group-size 64 --quant lloyd --branch-quant g128 \
      --branch-target both --rank 512 --freeze-router \
      --cache-file .../cache.pt --ref-file .../ref.pt \
-     --steps 4096 --tag hotcold-down4
+     --steps 4096 --tag hotcold-gateup4
    ```
    `--seed-routers` copies the v1 F32 routers/shared-expert gates from the
    body.  The v2 run trained against the base router while deploying a
    different one; this removes that confound.
-   Expected ~6.4–6.9 s/step (same 14 GiB compact footprint; Q4 banks add
-   ~2 GiB), 7.5–8 h, **~$18–20** plus setup/cache (~$4–6).
+   Expected ~6.5–7.0 s/step (gateup4 compact banks ~16–18 GiB), 7.5–8.5 h,
+   **~$18–22** plus setup/cache (~$4–6).  Balance is $9.50; top up ~$12–15.
 7. Export with `--device cuda` (the CPU Lloyd export was the 4 h incident):
    ```bash
    python moe/export_branches_lora.py --load .../step4096.pt --arch qwen35moe \
      --target both --dtype q1_0_g128 --device cuda --out .../adapter.gguf
    ```
-8. Pull the adapter via `runpodctl send`; merge into the **down4 body** with
-   `--replace`; zero nothing (the router was frozen and the body already has
-   the BF16 router the branches saw); run `v2/scripts/export_audit.py
-   --branches-only`; then local subset30.  The 4-layer smoke merges into the
-   v1 body only because it has tensors for every layer; a real adapter must
-   not be merged onto the v1 expert weights.
+8. Pull the adapter via `runpodctl send`; merge into the **gateup4 body** with
+   `--replace`; zero nothing (the router was seeded from the same body); run
+   `v2/scripts/export_audit.py --branches-only`; then local subset30.  The
+   4-layer smoke merges into the v1 body only because it has tensors for every
+   layer; a real adapter must not be merged onto the v1 expert weights.
 9. Terminate the pod/volume after the pull.
 
 ## Papers / next levers
@@ -253,25 +256,43 @@ Run the compact tests before the pod:
 `llama-perplexity` on `/tmp/opencode/ppl.txt` (11 KB of rollout prompts,
 4 x 512-token chunks, batch 128) with the ROCm 7.2.4 runtime:
 
-- v1 reference (`Scion-35B-A3B-Q2_0_G128-corr-v1.gguf`): **PPL 2.4445**.
-- v2 cur05 merged model: **PPL 2.5243**.
-- first `down4` build: **NaN** (the source-offset bug above; 2176 Inf TQ1
-  scales).  Rebuild pending.
-- v2 merged model loads/generates on the same build (91.6 tok/s prompt,
-  49.3 tok/s generation with `-ngl 99` on one 7900 XT).
+| model | experts | corrections | size | PPL |
+|---|---|---|---:|---:|
+| v1 reference | Q2_0_G128 | v1 embedded | 10.56 GiB | 2.4445 |
+| v2 cur05 | Q2_0_G128 | v2 embedded (zero router) | 10.56 GiB | 2.5243 |
+| down4 | Q4 down + TQ1 gate/up | none | 12.02 GiB | 2.6837 |
+| all2 | TQ1 all | none | 9.06 GiB | 2.9251 |
+| **gateup4** | **Q4 gate/up + TQ1 down** | none | **14.99 GiB** | **2.3413** |
+
+`gateup4` is the winner: **2.3413 PPL**, better than the v1 model that has
+correction branches (2.4445), with **no corrections at all**.  Protecting the
+gate/up projections is worth much more than protecting `down`: `gateup4`
+beats `down4` by 0.342 PPL for +2.97 GiB, and beats all-TQ1 by 0.584.  The
+Q4-down-only body is still 0.241 better than all-TQ1, but the gate/up result
+is the one to train.
+
+VRAM check with `-ts 0.75,0.25`, 40k context, `gateup4`:
+**display card 12.37 GB, spare 6.52 GB** (both 20.5 GB cards); server healthy.
+The display-card limit is ~18 GB, so the 15 GiB body has ~5.6 GB of headroom.
+
+Generation: gateup4 109.3 tok/s prompt / 81.1 tok/s generation; down4 151.3 /
+89.2; v2 91.6 / 49.3 on the same short prompt.
 
 ## Current state
 
 - `Q4_0_G128` type/kernel/GGUF/Python codec: done; CPU tests pass; HIP builds.
 - 4-layer hot map: done (350/360 prompts).
-- Full `down4` body: **12.02 GiB**, 733 tensors (40 Q4_0_G128 down, 80
-  TQ1_0_G128 gate/up, 312 Q8_0 + 301 F32 dense/router), no embedded adapter.
-  **The first 12.02 GiB file is invalid**: the exporter read the bf16 source at
+- **`gateup4` body: 14.99 GiB, PPL 2.3413** — the recommended pod body.
+  733 tensors (80 Q4_0_G128 gate/up, 40 TQ1_0_G128 down, 312 Q8_0 + 301 F32
+  dense/router), no embedded adapter.  Validated on layers 0/20/39: finite
+  scales and **0.0** source-encode difference.
+- `down4` body: **12.02 GiB**, PPL 2.6837, size-safe fallback (40 Q4 down,
+  80 TQ1 gate/up).
+- `all2` control: **9.06 GiB**, all experts TQ1, PPL 2.9251, same dense/router.
+- The first 12.02 GiB file was invalid: the exporter read the bf16 source at
   `GGUFReader.data_offset + t.data_offset`, but `t.data_offset` is already
   absolute, so every expert read was shifted by ~11 MB.  That produced Inf TQ1
-  scales and NaN PPL.  The read is now `f.seek(t.data_offset)`; `down4` and an
-  `all2` control are being rebuilt.  `v2/hotcold/validate_body.py` checks
-  finite scales and source-equality on sample tensors.
+  scales and NaN PPL.  Fixed; the GPU rebuild is the valid file above.
 - 4-layer train/export/merge/audit: **passed** (1 step, 10.59 GiB peak,
   160-tensor branch audit clean).
 - HIP binaries: a clean `--clean-first` rebuild is done.  The earlier crashes
@@ -282,4 +303,7 @@ Run the compact tests before the pod:
 - The older `Scion-35B-A3B-PQ2_0-corr.gguf` is rejected by the current
   llama.cpp GGUF reader (`ffn_moe_out.weight.lora_b` offset mismatch); use the
   v2 merged model or the new contiguous hot/cold body for llama.cpp checks.
+- **Recommended pod body: `gateup4`** (14.99 GiB, PPL 2.3413, display card
+  12.37 GB at 0.75/0.25, 40k ctx).  The correction run is the remaining paid
+  step; the 4-layer training/export/merge/audit path is proven.
 - Pod: **not started**; balance **$9.50**.
