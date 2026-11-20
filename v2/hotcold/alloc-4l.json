@@ -1,0 +1,10 @@
+{
+  "blk.0.ffn_gate_up_exps": 4,
+  "blk.0.ffn_down_exps": 4,
+  "blk.1.ffn_gate_up_exps": 4,
+  "blk.1.ffn_down_exps": 4,
+  "blk.2.ffn_gate_up_exps": 2,
+  "blk.2.ffn_down_exps": 2,
+  "blk.3.ffn_gate_up_exps": 2,
+  "blk.3.ffn_down_exps": 2
+}

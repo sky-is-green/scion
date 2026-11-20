@@ -36,6 +36,8 @@ from pathlib import Path
 import numpy as np
 
 TYPE_Q2_0_G128 = 142
+TYPE_TQ1_0_G128 = 143
+TYPE_Q4_0_G128 = 147
 TYPE_Q1_0_G128 = 43
 
 
@@ -115,40 +117,85 @@ def _decode_ternary_blocks(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
     return codes, scales
 
 
-def read_bank_blocks(path: Path, layer: int, kind: str) -> tuple[np.ndarray, np.ndarray]:
-    """The deployed container verbatim: (codes, scales) per 128-weight group.
+def _decode_q4_blocks(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
+    """Q4_0_G128: fp16 scale + 64 bytes of nibbles per 128 weights."""
+    blocks = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 66)
+    scales = blocks[:, :2].copy().view("<f2").reshape(-1).astype(np.float32)
+    qb = blocks[:, 2:]
+    codes = np.empty((blocks.shape[0], 128), dtype=np.int8)
+    codes[:, :64] = (qb & 0x0F).astype(np.int8) - 8
+    codes[:, 64:] = (qb >> 4).astype(np.int8) - 8
+    return codes, scales
 
-    Returns ``codes`` uint8 ``[E, out, ng, 32]`` (four 2-bit codes per byte,
-    ``q + 1`` little-endian within the byte -- the same layout
-    ``qwen35_moe_proxy.pack_ternary_codes`` writes) and ``scales`` fp16
-    ``[E, out, ng]``, where ``ng = in / 128``.  Groups run along the last
-    (contiguous) dim, so a Q2_0_g128 block sequence maps 1:1 onto the HF
-    ``[E, out, in]`` bank layout with the group axis fastest.  Decoding these
-    buffers is therefore *bit-identical* to the deployed dequantisation: this
-    is the source for the compact-bank training container.
+
+def _decode_tq1_blocks(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
+    """TQ1_0_G128: 24 qs + 2 qh bytes + fp16 scale per 128 weights."""
+    blocks = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 28)
+    qs = blocks[:, :24]
+    qh = blocks[:, 24:26]
+    scales = blocks[:, 26:28].copy().view("<f2").reshape(-1).astype(np.float32)
+    from ptq1_0 import unpack_trits_ptq1_0
+    import torch
+    trits = unpack_trits_ptq1_0(torch.from_numpy(qs.copy()),
+                                torch.from_numpy(qh.copy())).numpy()
+    return trits.astype(np.int8), scales
+
+
+def read_bank_blocks(path: Path, layer: int, kind: str,
+                     with_bits: bool = False) -> tuple:
+    """The deployed container as packed training codes.
+
+    Returns ``(codes, scales)`` by default, or ``(codes, scales, bits)`` with
+    ``with_bits=True``.  ``bits=2`` means the 2-bit ternary layout
+    (``[..., ng, 32]`` uint8); ``bits=4`` means Q4_0_G128 nibbles
+    (``[..., ng, 64]`` uint8).  TQ1_0_G128 is converted to the equivalent
+    2-bit ternary codes (same trits and scales), so the training decode is
+    bit-identical to the deployed container.
     """
     h = read_header(path)
     name = f"blk.{layer}.ffn_{kind}_exps.weight"
     t = next((x for x in h["tensors"] if x["name"] == name), None)
     if t is None:
         raise KeyError(f"{name} not in {path}")
-    if t["type"] not in (TYPE_Q2_0_G128, TYPE_Q1_0_G128):
-        raise ValueError(f"{name} has type {t['type']}, expected ternary g128")
+    if t["type"] not in (TYPE_Q2_0_G128, TYPE_TQ1_0_G128,
+                         TYPE_Q4_0_G128, TYPE_Q1_0_G128):
+        raise ValueError(f"{name} has type {t['type']}, expected a Scion g128 "
+                         "expert container")
     if t["n"] % 128:
         raise ValueError(f"{name}: {t['n']} weights is not a multiple of 128")
     ne0, ne1, ne2 = t["dims"]          # [in, out, E]
     if ne0 % 128:
         raise ValueError(f"{name}: last dim {ne0} is not a multiple of 128")
     ng = ne0 // 128
-    nb = t["n"] // 128 * 34
+    bpg = {TYPE_Q4_0_G128: 66, TYPE_TQ1_0_G128: 28}.get(t["type"], 34)
+    nb = t["n"] // 128 * bpg
     with open(path, "rb") as f:
         f.seek(h["data_start"] + t["offset"])
         raw = f.read(nb)
     if len(raw) != nb:
         raise SystemExit(f"{name}: short read ({len(raw)} of {nb} bytes)")
-    blocks = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 34)
-    scales = blocks[:, :2].copy().view("<f2").reshape(ne2, ne1, ng)
-    qb = blocks[:, 2:].reshape(ne2, ne1, ng, 32)
+
+    if t["type"] == TYPE_Q4_0_G128:
+        blocks = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 66)
+        scales = blocks[:, :2].copy().view("<f2").reshape(ne2, ne1, ng)
+        qb = blocks[:, 2:].reshape(ne2, ne1, ng, 64)
+        bits = 4
+    elif t["type"] == TYPE_TQ1_0_G128:
+        trits, scales = _decode_tq1_blocks(raw)
+        from qwen35_moe_proxy import pack_ternary_codes
+        import torch
+        codes = pack_ternary_codes(
+            torch.from_numpy(trits.reshape(ne2, ne1, ne0))).numpy()
+        qb = codes.reshape(ne2, ne1, ng, 32)
+        scales = scales.reshape(ne2, ne1, ng)
+        bits = 2
+    else:
+        blocks = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 34)
+        scales = blocks[:, :2].copy().view("<f2").reshape(ne2, ne1, ng)
+        qb = blocks[:, 2:].reshape(ne2, ne1, ng, 32)
+        bits = 2
+    if with_bits:
+        return qb.copy(), scales.copy(), bits
     return qb.copy(), scales.copy()
 
 
@@ -159,13 +206,21 @@ def read_bank(path: Path, layer: int, kind: str) -> np.ndarray:
     t = next((x for x in h["tensors"] if x["name"] == name), None)
     if t is None:
         raise KeyError(f"{name} not in {path}")
-    if t["type"] not in (TYPE_Q2_0_G128, TYPE_Q1_0_G128):
-        raise ValueError(f"{name} has type {t['type']}, expected ternary g128")
-    nb = t["n"] // 128 * 34
+    if t["type"] not in (TYPE_Q2_0_G128, TYPE_TQ1_0_G128,
+                         TYPE_Q4_0_G128, TYPE_Q1_0_G128):
+        raise ValueError(f"{name} has type {t['type']}, expected a Scion g128 "
+                         "expert container")
+    bpg = {TYPE_Q4_0_G128: 66, TYPE_TQ1_0_G128: 28}.get(t["type"], 34)
+    nb = t["n"] // 128 * bpg
     with open(path, "rb") as f:
         f.seek(h["data_start"] + t["offset"])
         raw = f.read(nb)
-    codes, scales = _decode_ternary_blocks(raw)
+    if t["type"] == TYPE_Q4_0_G128:
+        codes, scales = _decode_q4_blocks(raw)
+    elif t["type"] == TYPE_TQ1_0_G128:
+        codes, scales = _decode_tq1_blocks(raw)
+    else:
+        codes, scales = _decode_ternary_blocks(raw)
     ne0, ne1, ne2 = t["dims"]
     vals = codes.astype(np.float32) * scales[:, None]
     return vals.reshape(ne2, ne1, ne0)
@@ -218,9 +273,10 @@ def main() -> None:
     for il in (int(x) for x in args.layers.split(",") if x):
         for kind in ("gate", "up", "down"):
             a = read_bank(Path(args.gguf), il, kind)
-            codes, scales = read_bank_blocks(Path(args.gguf), il, kind)
+            codes, scales, bits = read_bank_blocks(
+                Path(args.gguf), il, kind, with_bits=True)
             print(f"layer {il} {kind}: {a.shape} {a.dtype} "
-                  f"min={a.min():.4g} max={a.max():.4g}; blocks "
+                  f"min={a.min():.4g} max={a.max():.4g}; {bits}-bit blocks "
                   f"codes {codes.shape} {codes.dtype} scales {scales.shape} "
                   f"{scales.dtype}")
 

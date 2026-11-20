@@ -538,6 +538,37 @@ def decode_ternary(codes: torch.Tensor, scales: torch.Tensor,
     return deq if dtype is None else deq.to(dtype)
 
 
+def pack_q4_halves(c: torch.Tensor, group: int = 128) -> torch.Tensor:
+    """Pack symmetric int8 codes in [-7, 7] as Q4_0_G128 nibbles.
+
+    ``c`` is ``[..., k]``; the result is ``[..., k // 2]`` with the low nibble
+    = element j and the high nibble = element j + group/2 (standard Q4_0
+    order, matching the C++/HIP kernel).
+    """
+    if c.shape[-1] % group:
+        raise ValueError(f"last dim {c.shape[-1]} is not a multiple of {group}")
+    g = c.reshape(*c.shape[:-1], -1, group)
+    lo = (g[..., :group // 2] + 8).to(torch.uint8)
+    hi = (g[..., group // 2:] + 8).to(torch.uint8)
+    return (lo | (hi << 4)).reshape(*c.shape[:-1], c.shape[-1] // 2)
+
+
+def decode_q4(codes: torch.Tensor, scales: torch.Tensor,
+              dtype: torch.dtype | None = None) -> torch.Tensor:
+    """Decode Q4_0_G128 nibbles + fp16 group scales.
+
+    ``codes`` is ``[..., ng, group // 2]`` (low nibble = element j, high =
+    j + group/2) and ``scales`` ``[..., ng]``.  Matches the C++ kernel and
+    ``q4_0_g128.decode_np`` exactly.
+    """
+    lo = (codes & 0x0F).float() - 8.0
+    hi = (codes >> 4).float() - 8.0
+    vals = torch.cat([lo, hi], dim=-1)
+    deq = vals * scales.float().unsqueeze(-1)
+    deq = deq.reshape(*deq.shape[:-2], -1)
+    return deq if dtype is None else deq.to(dtype)
+
+
 class CompactBank(nn.Module):
     """A frozen expert bank in its *deployed* form: 2-bit codes + fp16 scales.
 
@@ -550,20 +581,24 @@ class CompactBank(nn.Module):
     """
 
     def __init__(self, codes: torch.Tensor, scales: torch.Tensor, group: int,
-                 out_dtype: torch.dtype):
+                 out_dtype: torch.dtype, bits: int = 2):
         super().__init__()
         self.register_buffer("codes", codes, persistent=False)
         self.register_buffer("scales", scales, persistent=False)
         self.group = int(group)
         self.out_dtype = out_dtype
+        self.bits = int(bits)
+        if self.bits not in (2, 4):
+            raise ValueError(f"CompactBank bits must be 2 or 4, got {bits}")
 
     @classmethod
     def from_tensor(cls, w: torch.Tensor, group: int = 128, kind: str = "lloyd",
-                    chunk: int = 8) -> "CompactBank":
+                    chunk: int = 8, bits: int = 2) -> "CompactBank":
         """Encode an ``[E, rows, cols]`` bank (the no-GGUF host path).
 
-        Chunked over the expert dim so the encode transient stays small next to
-        the resident model.
+        ``bits=2`` uses the Lloyd ternary rule; ``bits=4`` uses the deployable
+        symmetric g128 rule (same bytes as Q4_0_G128).  Chunked over the expert
+        dim so the encode transient stays small next to the resident model.
         """
         w = w.detach()
         if w.dim() != 3:
@@ -571,6 +606,21 @@ class CompactBank(nn.Module):
         last = w.shape[-1]
         g = group if (group > 0 and last % group == 0) else last
         ng = last // g
+        if bits == 4:
+            from rco_alloc import int_codes
+            codes = torch.empty(w.shape[0], w.shape[1], ng, g // 2,
+                                dtype=torch.uint8, device=w.device)
+            scales = torch.empty(w.shape[0], w.shape[1], ng, dtype=torch.float16,
+                                 device=w.device)
+            for s in range(0, w.shape[0], chunk):
+                part = w[s:s + chunk].float()
+                c, a = int_codes(part, 4, g)
+                packed = pack_q4_halves(c, g)
+                codes[s:s + chunk] = packed.reshape(
+                    part.shape[0], part.shape[1], ng, g // 2)
+                scales[s:s + chunk] = a.reshape(
+                    part.shape[0], part.shape[1], ng)
+            return cls(codes, scales, g, w.dtype, bits=4)
         codes = torch.empty(w.shape[0], w.shape[1], ng, g // 4,
                             dtype=torch.uint8, device=w.device)
         scales = torch.empty(w.shape[0], w.shape[1], ng, dtype=torch.float16,
@@ -579,10 +629,14 @@ class CompactBank(nn.Module):
             c, a = _encode_slice(w[s:s + chunk].float(), g, kind)
             codes[s:s + chunk] = c
             scales[s:s + chunk] = a
-        return cls(codes, scales, g, w.dtype)
+        return cls(codes, scales, g, w.dtype, bits=2)
+
+    def _decode(self, codes, scales, dtype):
+        fn = decode_q4 if self.bits == 4 else decode_ternary
+        return fn(codes, scales, dtype)
 
     def decode_expert(self, e: int, dtype: torch.dtype | None = None) -> torch.Tensor:
-        return decode_ternary(self.codes[e], self.scales[e], dtype or self.out_dtype)
+        return self._decode(self.codes[e], self.scales[e], dtype or self.out_dtype)
 
     def decode_experts(self, idx_list, dtype: torch.dtype | None = None,
                        chunk: int = 8) -> torch.Tensor:
@@ -599,28 +653,29 @@ class CompactBank(nn.Module):
                           dtype=dtype or self.out_dtype,
                           device=self.codes.device)
         for i in range(0, n, max(1, int(chunk))):
-            out[i:i + chunk] = decode_ternary(
+            out[i:i + chunk] = self._decode(
                 self.codes[idx[i:i + chunk]], self.scales[idx[i:i + chunk]],
                 dtype or self.out_dtype)
         return out
 
     def decode_all(self, dtype: torch.dtype | None = None) -> torch.Tensor:
-        return decode_ternary(self.codes, self.scales, dtype or self.out_dtype)
+        return self._decode(self.codes, self.scales, dtype or self.out_dtype)
 
     def nbytes(self) -> int:
         return (self.codes.numel() * self.codes.element_size()
                 + self.scales.numel() * self.scales.element_size())
 
     def param_numel(self) -> int:
-        """The dense parameter count the bank represents (codes are 2 bits)."""
-        return self.codes.numel() * 4
+        """The dense parameter count the bank represents."""
+        return self.codes.numel() * (8 // self.bits)
 
 
 def compact_banks_from_blocks(gu_codes: torch.Tensor, gu_scales: torch.Tensor,
                               dn_codes: torch.Tensor, dn_scales: torch.Tensor,
                               group: int, out_dtype: torch.dtype,
                               up_codes: torch.Tensor | None = None,
-                              up_scales: torch.Tensor | None = None
+                              up_scales: torch.Tensor | None = None,
+                              gu_bits: int = 2, dn_bits: int = 2
                               ) -> tuple["CompactBank", "CompactBank"]:
     """Build the (gate_up, down) compact pair from deployed GGUF blocks.
 
@@ -634,8 +689,8 @@ def compact_banks_from_blocks(gu_codes: torch.Tensor, gu_scales: torch.Tensor,
     if up_codes is not None:
         gu_codes = torch.cat([gu_codes, up_codes], dim=1)
         gu_scales = torch.cat([gu_scales, up_scales], dim=1)
-    return (CompactBank(gu_codes, gu_scales, group, out_dtype),
-            CompactBank(dn_codes, dn_scales, group, out_dtype))
+    return (CompactBank(gu_codes, gu_scales, group, out_dtype, bits=gu_bits),
+            CompactBank(dn_codes, dn_scales, group, out_dtype, bits=dn_bits))
 
 
 def _compact_expert_mlp(experts, current_state, expert_idx):
@@ -854,9 +909,18 @@ def _verify_bank_vs_params(bank: CompactBank, params: torch.Tensor, group: int,
                         f"compact decode differs from the seeded dense bank on "
                         f"expert {e} (max |diff| "
                         f"{float((bank.decode_expert(e).float() - params[e].float()).abs().max())})")
-        enc_codes, _ = _encode_slice(params[e0:e0 + chunk].float(), group, kind)
-        mism += int((unpack_ternary_codes(enc_codes)
-                     != unpack_ternary_codes(bank.codes[e0:e0 + chunk])).sum())
+        if bank.bits == 4:
+            from rco_alloc import int_codes
+            c, _ = int_codes(params[e0:e0 + chunk].float(), 4, group)
+            enc = pack_q4_halves(c, group).reshape(
+                bank.codes[e0:e0 + chunk].shape)
+            mism += int((enc != bank.codes[e0:e0 + chunk]).sum())
+        else:
+            enc_codes, _ = _encode_slice(params[e0:e0 + chunk].float(),
+                                         group, kind)
+            mism += int((unpack_ternary_codes(enc_codes)
+                         != unpack_ternary_codes(
+                             bank.codes[e0:e0 + chunk])).sum())
     return mism
 
 
@@ -897,14 +961,21 @@ def compact_banks_from_gguf(model, args, verify: bool = False) -> int:
                 device=m.down_proj.device, dtype=m.down_proj.dtype))
         del gu_np, down_np
         # 2. the compact container: the same file's codes+scales, verbatim
-        gu_codes, gu_scales = read_bank_blocks(path, li, "gate")
-        up_codes, up_scales = read_bank_blocks(path, li, "up")
-        dn_codes, dn_scales = read_bank_blocks(path, li, "down")
+        gu_codes, gu_scales, gu_bits = read_bank_blocks(
+            path, li, "gate", with_bits=True)
+        up_codes, up_scales, up_bits = read_bank_blocks(
+            path, li, "up", with_bits=True)
+        dn_codes, dn_scales, dn_bits = read_bank_blocks(
+            path, li, "down", with_bits=True)
+        if gu_bits != up_bits:
+            raise ValueError(f"layer {li}: gate is {gu_bits}-bit but up is "
+                             f"{up_bits}-bit; the fused bank needs one type")
         bank_gu, bank_dn = compact_banks_from_blocks(
             torch.from_numpy(gu_codes), torch.from_numpy(gu_scales),
             torch.from_numpy(dn_codes), torch.from_numpy(dn_scales),
             args.group, m.gate_up_proj.dtype,
-            torch.from_numpy(up_codes), torch.from_numpy(up_scales))
+            torch.from_numpy(up_codes), torch.from_numpy(up_scales),
+            gu_bits=gu_bits, dn_bits=dn_bits)
         del gu_codes, up_codes, gu_scales, up_scales, dn_codes, dn_scales
         if enc_dev is not None:
             bank_gu = bank_gu.to(enc_dev)
