@@ -258,6 +258,31 @@ The remaining weakness is coding: **0/10**, nine of them truncated.  A fresh
 correction run could target coding, but it is now an optional improvement,
 not a gate risk.
 
+## Hy4 AMA answers (2026-11-20)
+
+- **Down is more sensitive in general** because of activation outliers; they
+  allocate bits with Hessian-based sensitivity.  They prefer **per-tensor**
+  allocation over per-expert mixed precision because inference engines stack
+  experts as one matrix; per-tensor is also more portable.  This confirms our
+  per-tensor choice and closes the per-expert split branch.
+- **QAT trains the router** with the rest of the model and keeps it stable.
+  They prefer **full-parameter QAT**; they have not run LoRA, so no adapter
+  advice.
+- They expect **reasoning depth, long-context tracking and tool-call
+  reliability** to degrade first; **2-bit PTQ breaks well before ternary QAT**.
+- **Engram** is a separate n-gram table per layer, not counted in the 12B
+  active parameters; they maximize capability within the memory budget.
+
+Our direct check of the down-sensitivity rule on the 35B:
+`down4 + v1 corrections` PPL **2.2797** vs `gateup4 + v1 corrections` **2.0402**.
+Gate/up is the more sensitive projection here, so the general rule is
+architecture-dependent (their down lives in the LatentMoE space; ours is
+2048->512).  `all4` is the remaining free body test.
+
+The 12/30 pass is a PTQ body plus transferred LoRA corrections, not their QAT
+recipe.  If coding (0/10) is the goal, full-parameter QAT with router training
+is the lever the team points to; it is optional now that the gate is passed.
+
 ## Known confounds
 
 - **Per-tensor, not per-expert**: see the format note at the top.  The hot
