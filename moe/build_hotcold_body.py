@@ -119,7 +119,13 @@ def copy_metadata(reader, writer) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True)
+    ap.add_argument("--src", required=True,
+                    help="bf16 base GGUF; expert rows are read from here")
+    ap.add_argument("--dense-src", default="",
+                    help="optional qwen35moe body GGUF whose non-expert tensors "
+                         "are copied verbatim (e.g. the v1 deployed body).  This "
+                         "keeps the v1 router/dense quantization and avoids "
+                         "shipping 5 GiB of BF16 non-expert weights.")
     ap.add_argument("--out", required=True)
     ap.add_argument("--alloc-file", default="")
     ap.add_argument("--policy", default="down4",
@@ -138,30 +144,38 @@ def main() -> None:
 
     src = Path(args.src)
     reader = gguf.GGUFReader(src)
+    dense_reader = (gguf.GGUFReader(args.dense_src)
+                    if args.dense_src else reader)
+    src_by_name = {t.name: t for t in reader.tensors}
     arch = reader.fields["general.architecture"].contents()
     writer = gguf.GGUFWriter(args.out, arch=arch)
     copy_metadata(reader, writer)
 
     infos = []
-    for t in reader.tensors:
+    for t in dense_reader.tensors:
         if args.only_tensor and t.name != args.only_tensor:
+            continue
+        # The dense source may be a deployed body with embedded corrections;
+        # the new body starts without them (they are retrained).
+        if ".lora_a" in t.name or ".lora_b" in t.name:
             continue
         bits = tensor_bits(t.name, alloc, args.policy)
         if bits is None:
             infos.append((t, None, t.data.shape, t.data.dtype, t.data.nbytes,
-                          t.tensor_type))
+                          t.tensor_type, t))
         else:
-            ne0, ne1, ne2 = [int(x) for x in t.shape]
+            st = src_by_name[t.name]
+            ne0, ne1, ne2 = [int(x) for x in st.shape]
             ng = ne0 // args.group
             b = 66 if bits == 4 else 28
             # numpy order is [E, out, row_bytes]; GGUF stores dims reversed
             shape = (ne2, ne1, ng * b)
-            infos.append((t, bits, shape, np.dtype(np.uint8),
-                          int(np.prod(shape)), 147 if bits == 4 else 143))
+            infos.append((st, bits, shape, np.dtype(np.uint8),
+                          int(np.prod(shape)), 147 if bits == 4 else 143, st))
         if args.limit and len(infos) >= args.limit:
             break
 
-    for _t, _bits, shape, dtype, nbytes, raw_type in infos:
+    for _t, _bits, shape, dtype, nbytes, raw_type, _st in infos:
         writer.add_tensor_info(_t.name, shape, dtype, nbytes,
                                raw_dtype=gguf.GGMLQuantizationType(raw_type))
     writer.write_header_to_file()
@@ -169,17 +183,17 @@ def main() -> None:
     writer.write_ti_data_to_file()
 
     total = 0
-    for n, (t, bits, shape, dtype, nbytes, raw_type) in enumerate(infos):
+    for n, (t, bits, shape, dtype, nbytes, raw_type, st) in enumerate(infos):
         if bits is None:
             payload = t.data
         else:
-            ne0, ne1, ne2 = [int(x) for x in t.shape]
+            ne0, ne1, ne2 = [int(x) for x in st.shape]
             with open(src, "rb") as f:
-                f.seek(reader.data_offset + t.data_offset)
+                f.seek(reader.data_offset + st.data_offset)
                 raw = f.read(ne0 * ne1 * ne2 * 2)
             if len(raw) != ne0 * ne1 * ne2 * 2:
                 raise SystemExit(f"{t.name}: short read")
-            w = bf16_bytes_to_f32(raw, t.tensor_type).reshape(ne2, ne1, ne0)
+            w = bf16_bytes_to_f32(raw, st.tensor_type).reshape(ne2, ne1, ne0)
             blocks = quantize_tensor(w, bits, args.group)
             payload = blocks.reshape(-1)
             print(f"[{n+1}/{len(infos)}] {t.name}: {bits}-bit "

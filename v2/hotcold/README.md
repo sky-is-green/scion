@@ -64,16 +64,24 @@ budget for context/KV.
 
 ## Local body build
 
-Source: `models-p310/bf16/Qwen3.8-35B-A3B-Distill-BF16.gguf` (65 GB, local).
-The exporter streams one tensor at a time, so 30 GB RAM is enough.
+Source: `models-p310/bf16/Qwen3.8-35B-A3B-Distill-BF16.gguf` (65 GB, local)
+for the expert rows, and the v1 deployed body for the non-expert tensors (so
+the v1 router/shared expert/Q8 dense quantization is preserved and the file
+does not carry 5 GiB of BF16 non-experts).  The exporter streams one tensor at
+a time, so 30 GB RAM is enough.
 
 ```bash
 cd .../work/scion
 OMP_NUM_THREADS=8 .../.envs/scion-rocm/bin/python moe/build_hotcold_body.py \
   --src .../models-p310/bf16/Qwen3.8-35B-A3B-Distill-BF16.gguf \
+  --dense-src .../models-p310/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf \
   --out v2/hotcold/Scion-35B-A3B-v2-down4.gguf \
   --policy down4
 ```
+
+Without `--dense-src` the non-expert tensors are copied from the bf16 base and
+the file is **14.14 GiB**; with it the expected size is ~12.1 GiB.  The first
+(dense=bf16) build is a valid model but not the one to ship.
 
 `--policy gateup4|half|third|all4|all2` and `--alloc-file` are supported.
 Single-tensor checks (byte layout + dequant against the Q4/TQ1 reference):
@@ -172,12 +180,15 @@ Run the compact tests before the pod:
    ```bash
    python moe/qwen35_moe_proxy.py train --device cuda:0 \
      --bank-gguf /workspace/artifacts/Scion-35B-A3B-v2-down4.gguf \
-     --compact-banks --grad-checkpoint --checkpoint-mode group \
+     --seed-routers --compact-banks --grad-checkpoint --checkpoint-mode group \
      --expert-group-size 64 --quant lloyd --branch-quant g128 \
      --branch-target both --rank 512 --freeze-router \
      --cache-file .../cache.pt --ref-file .../ref.pt \
      --steps 4096 --tag hotcold-down4
    ```
+   `--seed-routers` copies the v1 F32 routers/shared-expert gates from the
+   body.  The v2 run trained against the base router while deploying a
+   different one; this removes that confound.
    Expected ~6.4–6.9 s/step (same 14 GiB compact footprint; Q4 banks add
    ~2 GiB), 7.5–8 h, **~$18–20** plus setup/cache (~$4–6).
 7. Export with `--device cuda` (the CPU Lloyd export was the 4 h incident):
@@ -185,10 +196,12 @@ Run the compact tests before the pod:
    python moe/export_branches_lora.py --load .../step4096.pt --arch qwen35moe \
      --target both --dtype q1_0_g128 --device cuda --out .../adapter.gguf
    ```
-8. Pull the adapter via `runpodctl send`; merge into the **v1 body** with
-   `--replace`; zero nothing (the router was frozen, the v1 router tensors are
-   already the deployed ones); run `v2/scripts/export_audit.py
-   --branches-only`; then local subset30.
+8. Pull the adapter via `runpodctl send`; merge into the **down4 body** with
+   `--replace`; zero nothing (the router was frozen and the body already has
+   the BF16 router the branches saw); run `v2/scripts/export_audit.py
+   --branches-only`; then local subset30.  The 4-layer smoke merges into the
+   v1 body only because it has tensors for every layer; a real adapter must
+   not be merged onto the v1 expert weights.
 9. Terminate the pod/volume after the pull.
 
 ## Papers / next levers
@@ -214,6 +227,7 @@ Run the compact tests before the pod:
 
 - `Q4_0_G128` type/kernel/GGUF/Python codec: done; CPU tests pass; HIP builds.
 - 4-layer hot map: done (350/360 prompts).
-- Full `down4` body: building locally at the time of writing.
+- Full `down4` body: first (bf16 dense) build 14.14 GiB; the v1-dense rebuild
+  (~12.1 GiB) is running locally.
 - 4-layer train/export/merge: pending the body build (shares CPU).
 - Pod: **not started**; balance **$9.50**.

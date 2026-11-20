@@ -226,6 +226,69 @@ def read_bank(path: Path, layer: int, kind: str) -> np.ndarray:
     return vals.reshape(ne2, ne1, ne0)
 
 
+def _read_float_tensor(path: Path, h: dict, name: str) -> np.ndarray:
+    t = next((x for x in h["tensors"] if x["name"] == name), None)
+    if t is None:
+        raise KeyError(f"{name} not in {path}")
+    n = int(t["n"])
+    if t["type"] == 0:      # F32
+        dt, scale = np.float32, 4
+    elif t["type"] == 1:    # F16
+        dt, scale = np.float16, 2
+    elif t["type"] == 30:   # BF16
+        dt, scale = np.uint16, 2
+    else:
+        raise ValueError(f"{name} has type {t['type']}; the router seed expects "
+                         "F32/F16/BF16")
+    with open(path, "rb") as f:
+        f.seek(h["data_start"] + t["offset"])
+        raw = f.read(n * scale)
+    if len(raw) != n * scale:
+        raise SystemExit(f"{name}: short read")
+    a = np.frombuffer(raw, dtype=dt)
+    if t["type"] == 30:
+        a = (a.astype(np.uint32) << 16).view(np.float32)
+    else:
+        a = a.astype(np.float32)
+    dims = t["dims"]        # GGUF order, last dim fastest
+    return a.reshape(*reversed(dims))
+
+
+def seed_routers(model, gguf: str, layers: list[int] | None = None,
+                 verbose: bool = True) -> int:
+    """Copy the deployed F32 routers + shared-expert gates into the model.
+
+    The hot/cold body keeps the v1 trained routers; seeding them makes the
+    correction training see the same router the deployed file will use (the
+    v2 run trained against the base router and the mismatch was a confound).
+    """
+    import torch
+    from qwen35_moe_proxy import text_layers
+
+    path = Path(gguf)
+    h = read_header(path)
+    n_layer = int(h["kv"].get("qwen35moe.block_count", 0))
+    want = set(layers if layers is not None else range(n_layer))
+    done = 0
+    for il, layer in enumerate(text_layers(model)):
+        if il not in want:
+            continue
+        w = _read_float_tensor(path, h, f"blk.{il}.ffn_gate_inp.weight")
+        g = _read_float_tensor(path, h, f"blk.{il}.ffn_gate_inp_shexp.weight")
+        with torch.no_grad():
+            layer.mlp.gate.weight.copy_(
+                torch.from_numpy(w).to(device=layer.mlp.gate.weight.device,
+                                       dtype=layer.mlp.gate.weight.dtype))
+            layer.mlp.shared_expert_gate.weight.copy_(
+                torch.from_numpy(g).reshape(1, -1).to(
+                    device=layer.mlp.shared_expert_gate.weight.device,
+                    dtype=layer.mlp.shared_expert_gate.weight.dtype))
+        done += 1
+        if verbose:
+            print(f"seeded router layer {il}", flush=True)
+    return done
+
+
 def seed_model_banks(model, gguf: str, layers: list[int] | None = None,
                      verbose: bool = True) -> int:
     """Copy deployed ternary banks into a loaded ``qwen3_5_moe`` model.

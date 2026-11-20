@@ -1341,6 +1341,11 @@ def stage_train(args):
         n_seeded = seed_model_banks(model, args.bank_gguf)
         print(f"seeded {n_seeded} expert banks from {args.bank_gguf} "
               f"(deployed codes are now the training-time codes)", flush=True)
+    if getattr(args, "seed_routers", False) and getattr(args, "bank_gguf", ""):
+        from seed_banks_from_gguf import seed_routers
+        n_r = seed_routers(model, args.bank_gguf)
+        print(f"seeded {n_r} routers from {args.bank_gguf} "
+              f"(training and deployment use the same router)", flush=True)
     n_tr = build_student(model, args)
     print(f"trainable {n_tr/1e6:.2f}M (branches + routers) target {args.branch_target}",
           flush=True)
@@ -1700,6 +1705,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="seed the frozen expert banks from a deployed qwen35moe "
                          "GGUF before quantising (makes training-time codes equal "
                          "the deployed codes; see moe/seed_banks_from_gguf.py)")
+    ap.add_argument("--seed-routers", action="store_true",
+                    help="also copy ffn_gate_inp / shared-expert gates from "
+                         "--bank-gguf (the hot/cold body ships the v1 routers; "
+                         "seeding them removes the v2 train/deploy confound)")
     ap.add_argument("--compact-banks", action="store_true",
                     help="P2 port: store the frozen banks in deployed form (2-bit "
                          "codes + fp16 scale per group) and decode per-expert in "
