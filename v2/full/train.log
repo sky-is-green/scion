@@ -1,0 +1,82 @@
+Loading weights:   0%|          | 0/1026 [00:00<?, ?it/s]Loading weights:   0%|          | 1/1026 [00:00<02:47,  6.11it/s]Loading weights:   1%|▏         | 13/1026 [00:00<00:28, 35.73it/s]Loading weights:   3%|▎         | 32/1026 [00:00<00:17, 56.05it/s]Loading weights:   5%|▍         | 50/1026 [00:00<00:15, 62.61it/s]Loading weights:   6%|▌         | 58/1026 [00:01<00:18, 51.31it/s]Loading weights:   8%|▊         | 82/1026 [00:01<00:11, 84.13it/s]Loading weights:   9%|▉         | 94/1026 [00:01<00:11, 81.22it/s]Loading weights:  10%|█         | 104/1026 [00:01<00:13, 66.10it/s]Loading weights:  12%|█▏        | 119/1026 [00:01<00:14, 63.89it/s]Loading weights:  12%|█▏        | 127/1026 [00:02<00:16, 54.50it/s]Loading weights:  15%|█▍        | 151/1026 [00:02<00:10, 85.20it/s]Loading weights:  16%|█▌        | 163/1026 [00:02<00:10, 83.22it/s]Loading weights:  17%|█▋        | 174/1026 [00:02<00:12, 69.98it/s]Loading weights:  18%|█▊        | 188/1026 [00:02<00:12, 66.59it/s]Loading weights:  19%|█▉        | 196/1026 [00:03<00:15, 52.52it/s]Loading weights:  21%|██▏       | 220/1026 [00:03<00:09, 82.06it/s]Loading weights:  23%|██▎       | 232/1026 [00:03<00:09, 80.10it/s]Loading weights:  24%|██▎       | 243/1026 [00:03<00:11, 68.55it/s]Loading weights:  25%|██▌       | 257/1026 [00:03<00:11, 64.39it/s]Loading weights:  26%|██▌       | 265/1026 [00:04<00:13, 55.59it/s]Loading weights:  28%|██▊       | 290/1026 [00:04<00:10, 70.55it/s]Loading weights:  30%|███       | 308/1026 [00:04<00:09, 72.02it/s]Loading weights:  32%|███▏      | 326/1026 [00:04<00:09, 72.76it/s]Loading weights:  33%|███▎      | 334/1026 [00:05<00:11, 62.71it/s]Loading weights:  35%|███▍      | 358/1026 [00:05<00:07, 90.60it/s]Loading weights:  36%|███▌      | 370/1026 [00:05<00:07, 90.48it/s]Loading weights:  37%|███▋      | 381/1026 [00:05<00:08, 74.02it/s]Loading weights:  38%|███▊      | 394/1026 [00:05<00:09, 67.22it/s]Loading weights:  39%|███▉      | 404/1026 [00:05<00:10, 60.37it/s]Loading weights:  42%|████▏     | 428/1026 [00:06<00:08, 73.85it/s]Loading weights:  43%|████▎     | 446/1026 [00:06<00:07, 75.60it/s]Loading weights:  45%|████▌     | 464/1026 [00:06<00:08, 67.03it/s]Loading weights:  46%|████▌     | 472/1026 [00:07<00:09, 57.88it/s]Loading weights:  48%|████▊     | 496/1026 [00:07<00:06, 79.98it/s]Loading weights:  49%|████▉     | 506/1026 [00:07<00:06, 78.74it/s]Loading weights:  50%|█████     | 515/1026 [00:07<00:08, 57.72it/s]Loading weights:  52%|█████▏    | 533/1026 [00:07<00:07, 62.76it/s]Loading weights:  53%|█████▎    | 542/1026 [00:08<00:08, 57.75it/s]Loading weights:  55%|█████▌    | 565/1026 [00:08<00:05, 81.64it/s]Loading weights:  56%|█████▌    | 575/1026 [00:08<00:05, 78.57it/s]Loading weights:  57%|█████▋    | 584/1026 [00:08<00:06, 64.42it/s]Loading weights:  59%|█████▊    | 602/1026 [00:08<00:06, 68.20it/s]Loading weights:  59%|█████▉    | 610/1026 [00:09<00:07, 59.35it/s]Loading weights:  62%|██████▏   | 635/1026 [00:09<00:05, 74.92it/s]Loading weights:  64%|██████▎   | 653/1026 [00:09<00:04, 76.02it/s]Loading weights:  65%|██████▌   | 671/1026 [00:09<00:04, 76.25it/s]Loading weights:  66%|██████▌   | 679/1026 [00:09<00:05, 65.40it/s]Loading weights:  86%|████████▌ | 879/1026 [00:10<00:00, 380.97it/s]Loading weights: 100%|██████████| 1026/1026 [00:10<00:00, 101.71it/s]
+compact banks (from Scion-35B-A3B-PQ2_0-corr.gguf): 1/40 layers encoded
+compact banks (from Scion-35B-A3B-PQ2_0-corr.gguf): 8/40 layers encoded
+compact banks (from Scion-35B-A3B-PQ2_0-corr.gguf): 16/40 layers encoded
+compact banks (from Scion-35B-A3B-PQ2_0-corr.gguf): 24/40 layers encoded
+compact banks (from Scion-35B-A3B-PQ2_0-corr.gguf): 32/40 layers encoded
+compact banks (from Scion-35B-A3B-PQ2_0-corr.gguf): 40/40 layers encoded
+memory[build_student] expert codes 7.50 GiB + scales 0.47 GiB (dense bf16 would be 60.0 GiB), branches 0.000 GiB, routers 0.039 GiB, other params 5.35 GiB -> resident ~13.36 GiB
+memory[build_student] cuda allocated 13.36 GiB reserved 13.64 GiB peak 66.39 GiB
+router arm: frozen (0.00M trainable router weights)
+trainable 209.72M (branches + routers) target both
+memory[train] expert codes 7.50 GiB + scales 0.47 GiB (dense bf16 would be 60.0 GiB), branches 0.781 GiB, routers 0.039 GiB, other params 5.35 GiB -> resident ~14.14 GiB
+memory[train] cuda allocated 14.14 GiB reserved 14.23 GiB peak 66.39 GiB
+router balance: bias on 40 gates (delta 0.001, z 0.001)
+gradient checkpointing: group size 64 on 40 modules
+gradient checkpointing (group): 40 experts modules
+/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py:3195: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+gradient checkpointing (decoder layers): enabled
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (11048676 > 262144). Running this sequence through the model will result in indexing errors
+corpus: 410/4096 windows from /workspace/artifacts/qwen35/curric-combo.jsonl
+loaded eval refs from /workspace/artifacts/qwen35/eval-ref-w2.pt
+memory[step1] expert codes 7.50 GiB + scales 0.47 GiB (dense bf16 would be 60.0 GiB), branches 0.781 GiB, routers 0.039 GiB, other params 5.35 GiB -> resident ~14.14 GiB
+memory[step1] cuda allocated 14.17 GiB reserved 16.55 GiB peak 66.39 GiB
+/workspace/scion/moe/qwen35_moe_proxy.py:1508: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:835.)
+  extra += (f" mass s {float(w_s.mean()):.4f}"
+step 100 lm 2.3776 kd 0.4629 tail 0.0050 total 3.3276 H 2.178 peak 0.5277 mass s 0.9742 t 0.9855 tcond 0.0047 loadH 4.407 seqvar 0.00006
+step 200 lm 2.6528 kd 0.5014 tail 0.0097 total 3.6964 H 2.566 peak 0.4777 mass s 0.9591 t 0.9795 tcond 0.0071 loadH 4.574 seqvar 0.00006
+step 300 lm 2.2605 kd 0.4841 tail 0.0115 total 3.2790 H 2.382 peak 0.5282 mass s 0.9531 t 0.9745 tcond 0.0091 loadH 4.590 seqvar 0.00006
+step 400 lm 3.2929 kd 0.3542 tail 0.0083 total 4.0458 H 2.943 peak 0.4406 mass s 0.9456 t 0.9683 tcond 0.0092 loadH 4.519 seqvar 0.00006
+step 500 lm 1.8577 kd 1.0771 tail 0.0088 total 4.0429 H 1.712 peak 0.6121 mass s 0.9792 t 0.9931 tcond 0.0044 loadH 4.094 seqvar 0.00006
+step 600 lm 2.7189 kd 0.3402 tail 0.0050 total 3.4246 H 2.586 peak 0.4713 mass s 0.9663 t 0.9804 tcond 0.0051 loadH 4.203 seqvar 0.00006
+step 700 lm 1.6723 kd 1.2775 tail 0.0202 total 4.2901 H 1.462 peak 0.6772 mass s 0.9654 t 0.9905 tcond 0.0075 loadH 4.333 seqvar 0.00006
+step 800 lm 1.9683 kd 0.3689 tail 0.0044 total 2.7306 H 1.959 peak 0.5646 mass s 0.9753 t 0.9855 tcond 0.0053 loadH 4.529 seqvar 0.00006
+step 900 lm 2.9096 kd 0.2879 tail 0.0063 total 3.5196 H 2.809 peak 0.4387 mass s 0.9549 t 0.9735 tcond 0.0071 loadH 4.691 seqvar 0.00006
+step 1000 lm 1.4508 kd 0.3625 tail 0.0019 total 2.1879 H 1.371 peak 0.6747 mass s 0.9867 t 0.9921 tcond 0.0028 loadH 4.464 seqvar 0.00006
+  [eval] step 1000 ppl 8.19 router_agree 0.6767 load_cv 2.280 peak 20.57 cold 31.0% dead 57.4
+saved /workspace/artifacts/qwen35/qwen35-corr-r512-g128-step1000-cur05.pt
+step 1100 lm 2.8430 kd 0.3443 tail 0.0091 total 3.5705 H 2.922 peak 0.4358 mass s 0.9493 t 0.9729 tcond 0.0069 loadH 4.620 seqvar 0.00006
+step 1200 lm 2.5258 kd 0.4674 tail 0.0194 total 3.5220 H 2.474 peak 0.5004 mass s 0.9537 t 0.9780 tcond 0.0075 loadH 4.795 seqvar 0.00006
+step 1300 lm 2.9941 kd 0.6222 tail 0.0207 total 4.3141 H 2.791 peak 0.4761 mass s 0.9345 t 0.9722 tcond 0.0114 loadH 4.634 seqvar 0.00006
+step 1400 lm 2.5203 kd 0.4172 tail 0.0082 total 3.3959 H 2.454 peak 0.4987 mass s 0.9614 t 0.9802 tcond 0.0083 loadH 4.799 seqvar 0.00006
+step 1500 lm 1.4945 kd 0.4533 tail 0.0023 total 2.4121 H 1.494 peak 0.6175 mass s 0.9900 t 0.9943 tcond 0.0021 loadH 4.308 seqvar 0.00006
+step 1600 lm 3.0491 kd 0.3997 tail 0.0094 total 3.8918 H 2.774 peak 0.4619 mass s 0.9495 t 0.9721 tcond 0.0081 loadH 4.746 seqvar 0.00006
+step 1700 lm 2.4560 kd 0.3911 tail 0.0057 total 3.2603 H 2.221 peak 0.5223 mass s 0.9754 t 0.9882 tcond 0.0036 loadH 4.752 seqvar 0.00006
+step 1800 lm 2.6901 kd 0.3691 tail 0.0098 total 3.4675 H 2.641 peak 0.4869 mass s 0.9531 t 0.9766 tcond 0.0066 loadH 4.756 seqvar 0.00006
+step 1900 lm 2.6900 kd 0.3781 tail 0.0074 total 3.4748 H 2.465 peak 0.4732 mass s 0.9715 t 0.9872 tcond 0.0046 loadH 4.739 seqvar 0.00006
+step 2000 lm 2.1893 kd 0.6021 tail 0.0159 total 3.4535 H 2.272 peak 0.5682 mass s 0.9468 t 0.9760 tcond 0.0094 loadH 4.873 seqvar 0.00006
+  [eval] step 2000 ppl 8.35 router_agree 0.6250 load_cv 2.218 peak 20.13 cold 29.9% dead 54.7
+saved /workspace/artifacts/qwen35/qwen35-corr-r512-g128-step2000-cur05.pt
+step 2100 lm 2.4429 kd 0.5386 tail 0.0099 total 3.5607 H 2.471 peak 0.5038 mass s 0.9600 t 0.9806 tcond 0.0070 loadH 4.767 seqvar 0.00006
+step 2200 lm 1.8244 kd 1.0019 tail 0.0158 total 3.8916 H 1.673 peak 0.6282 mass s 0.9610 t 0.9848 tcond 0.0106 loadH 4.474 seqvar 0.00006
+step 2300 lm 2.9510 kd 0.5875 tail 0.0174 total 4.1958 H 2.824 peak 0.4688 mass s 0.9416 t 0.9758 tcond 0.0116 loadH 4.376 seqvar 0.00006
+step 2400 lm 2.8373 kd 0.4014 tail 0.0115 total 3.6854 H 2.938 peak 0.4247 mass s 0.9510 t 0.9767 tcond 0.0074 loadH 4.614 seqvar 0.00006
+step 2500 lm 2.3163 kd 0.6865 tail 0.0124 total 3.7393 H 2.112 peak 0.5596 mass s 0.9630 t 0.9842 tcond 0.0084 loadH 4.746 seqvar 0.00006
+step 2600 lm 2.5780 kd 0.5937 tail 0.0216 total 3.8404 H 2.536 peak 0.5059 mass s 0.9437 t 0.9771 tcond 0.0106 loadH 4.877 seqvar 0.00006
+step 2700 lm 2.4455 kd 0.4546 tail 0.0081 total 3.3886 H 2.362 peak 0.5165 mass s 0.9651 t 0.9833 tcond 0.0059 loadH 4.725 seqvar 0.00006
+step 2800 lm 2.0239 kd 0.6183 tail 0.0106 total 3.2986 H 2.061 peak 0.5528 mass s 0.9692 t 0.9880 tcond 0.0057 loadH 4.677 seqvar 0.00006
+step 2900 lm 2.4212 kd 0.4838 tail 0.0088 total 3.4352 H 2.240 peak 0.5376 mass s 0.9599 t 0.9779 tcond 0.0096 loadH 5.020 seqvar 0.00006
+step 3000 lm 2.6054 kd 0.4967 tail 0.0105 total 3.6468 H 2.346 peak 0.5228 mass s 0.9561 t 0.9783 tcond 0.0090 loadH 4.561 seqvar 0.00006
+  [eval] step 3000 ppl 8.31 router_agree 0.6099 load_cv 2.210 peak 20.28 cold 29.3% dead 53.9
+saved /workspace/artifacts/qwen35/qwen35-corr-r512-g128-step3000-cur05.pt
+step 3100 lm 2.6626 kd 0.5036 tail 0.0144 total 3.7261 H 2.609 peak 0.4986 mass s 0.9457 t 0.9740 tcond 0.0091 loadH 5.073 seqvar 0.00006
+step 3200 lm 2.4393 kd 0.7120 tail 0.0126 total 3.9077 H 2.271 peak 0.5358 mass s 0.9622 t 0.9842 tcond 0.0063 loadH 4.878 seqvar 0.00006
+step 3300 lm 2.3856 kd 0.4244 tail 0.0088 total 3.2716 H 2.314 peak 0.5285 mass s 0.9628 t 0.9819 tcond 0.0065 loadH 4.803 seqvar 0.00006
+step 3400 lm 2.5707 kd 0.4092 tail 0.0071 total 3.4293 H 2.425 peak 0.5107 mass s 0.9601 t 0.9770 tcond 0.0087 loadH 4.948 seqvar 0.00006
+step 3500 lm 2.2969 kd 0.7705 tail 0.0186 total 3.9067 H 2.256 peak 0.5388 mass s 0.9513 t 0.9807 tcond 0.0106 loadH 4.551 seqvar 0.00006
+step 3600 lm 1.1676 kd 0.4421 tail 0.0019 total 2.0622 H 1.147 peak 0.7103 mass s 0.9903 t 0.9946 tcond 0.0022 loadH 4.615 seqvar 0.00006
+step 3700 lm 1.5059 kd 0.4630 tail 0.0022 total 2.4442 H 1.502 peak 0.6357 mass s 0.9883 t 0.9933 tcond 0.0026 loadH 4.250 seqvar 0.00006
+step 3800 lm 2.4629 kd 0.5535 tail 0.0134 total 3.6326 H 2.404 peak 0.5403 mass s 0.9437 t 0.9690 tcond 0.0119 loadH 5.042 seqvar 0.00006
+step 3900 lm 2.1109 kd 0.4578 tail 0.0067 total 3.0500 H 1.891 peak 0.5637 mass s 0.9787 t 0.9919 tcond 0.0033 loadH 4.211 seqvar 0.00006
+step 4000 lm 2.2236 kd 0.4698 tail 0.0099 total 3.2060 H 2.186 peak 0.5625 mass s 0.9597 t 0.9791 tcond 0.0077 loadH 4.957 seqvar 0.00006
+  [eval] step 4000 ppl 8.28 router_agree 0.5980 load_cv 2.210 peak 20.34 cold 29.6% dead 54.2
+saved /workspace/artifacts/qwen35/qwen35-corr-r512-g128-step4000-cur05.pt
+saved /workspace/artifacts/qwen35/qwen35-corr-r512-g128-step4096-cur05.pt
+training done
+
+real	469m15.307s
+user	479m5.040s
+sys	10m53.142s

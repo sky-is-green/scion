@@ -1,0 +1,2 @@
+exporting 80 branch tensors, rank 512, deploy-quant lloyd/g128, 0 gated branches
+wrote /workspace/artifacts/qwen35/qwen35-adapter-cur05-soup.gguf (55.7 MB)

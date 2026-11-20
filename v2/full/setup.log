@@ -1,0 +1,324 @@
+Thu Nov 19 17:38:15 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 595.112.07             Driver Version: 595.112.07     CUDA Version: 13.2     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:10:00.0 Off |                    0 |
+| N/A   26C    P0             63W /  400W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+torch 2.8.0+cu128 NVIDIA A100-SXM4-80GB
+               total        used        free      shared  buff/cache   available
+Mem:            1007         113         127          14         789         893
+mfs#eur-is-1-2.runpod.net:9421  837T  422T  416T  51% /workspace
+Collecting transformers==5.5.0
+  Downloading transformers-5.5.0-py3-none-any.whl.metadata (32 kB)
+Collecting accelerate==1.15.0
+  Downloading accelerate-1.15.0-py3-none-any.whl.metadata (19 kB)
+Collecting datasets==4.3.0
+  Downloading datasets-4.3.0-py3-none-any.whl.metadata (18 kB)
+Collecting safetensors==0.8.0
+  Downloading safetensors-0.8.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.2 kB)
+Collecting huggingface_hub==1.32.0
+  Downloading huggingface_hub-1.32.0-py3-none-any.whl.metadata (16 kB)
+Collecting tokenizers==0.22.2
+  Downloading tokenizers-0.22.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.3 kB)
+Collecting numpy==2.5.2
+  Downloading numpy-2.5.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (6.6 kB)
+Requirement already satisfied: packaging>=20.0 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.0) (25.0)
+Requirement already satisfied: pyyaml>=5.1 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.0) (6.0.3)
+Collecting regex>=2025.10.22 (from transformers==5.5.0)
+  Downloading regex-2026.11.19-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (40 kB)
+Collecting typer (from transformers==5.5.0)
+  Downloading typer-0.29.2-py3-none-any.whl.metadata (16 kB)
+Collecting tqdm>=4.27 (from transformers==5.5.0)
+  Downloading tqdm-4.70.1-py3-none-any.whl.metadata (57 kB)
+Collecting click<9.0.0,>=8.4.2 (from huggingface_hub==1.32.0)
+  Downloading click-8.5.1-py3-none-any.whl.metadata (2.6 kB)
+Requirement already satisfied: filelock>=3.10.0 in /usr/local/lib/python3.12/dist-packages (from huggingface_hub==1.32.0) (3.20.0)
+Requirement already satisfied: fsspec>=2023.5.0 in /usr/local/lib/python3.12/dist-packages (from huggingface_hub==1.32.0) (2024.6.1)
+Collecting hf-xet<2.0.0,>=1.5.2 (from huggingface_hub==1.32.0)
+  Downloading hf_xet-1.8.0-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Requirement already satisfied: httpx<1,>=0.23.0 in /usr/local/lib/python3.12/dist-packages (from huggingface_hub==1.32.0) (0.28.1)
+Requirement already satisfied: typing-extensions>=4.1.0 in /usr/local/lib/python3.12/dist-packages (from huggingface_hub==1.32.0) (4.15.0)
+Requirement already satisfied: psutil in /usr/local/lib/python3.12/dist-packages (from accelerate==1.15.0) (7.1.0)
+Requirement already satisfied: torch>=2.0.0 in /usr/local/lib/python3.12/dist-packages (from accelerate==1.15.0) (2.8.0+cu128)
+Collecting pyarrow>=21.0.0 (from datasets==4.3.0)
+  Downloading pyarrow-26.0.1-cp312-cp312-manylinux_2_28_x86_64.whl.metadata (3.0 kB)
+Collecting dill<0.4.1,>=0.3.0 (from datasets==4.3.0)
+  Downloading dill-0.4.0-py3-none-any.whl.metadata (10 kB)
+Collecting pandas (from datasets==4.3.0)
+  Downloading pandas-3.1.1-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (16 kB)
+Requirement already satisfied: requests>=2.32.2 in /usr/local/lib/python3.12/dist-packages (from datasets==4.3.0) (2.32.5)
+Collecting xxhash (from datasets==4.3.0)
+  Downloading xxhash-4.1.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (18 kB)
+Collecting multiprocess<0.70.17 (from datasets==4.3.0)
+  Downloading multiprocess-0.70.16-py312-none-any.whl.metadata (7.2 kB)
+Collecting aiohttp!=4.0.0a0,!=4.0.0a1 (from fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0)
+  Downloading aiohttp-3.14.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (8.3 kB)
+Requirement already satisfied: anyio in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface_hub==1.32.0) (4.11.0)
+Requirement already satisfied: certifi in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface_hub==1.32.0) (2025.10.5)
+Requirement already satisfied: httpcore==1.* in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface_hub==1.32.0) (1.0.9)
+Requirement already satisfied: idna in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface_hub==1.32.0) (3.10)
+Requirement already satisfied: h11>=0.16 in /usr/local/lib/python3.12/dist-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface_hub==1.32.0) (0.16.0)
+Collecting aiohappyeyeballs>=2.5.0 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0)
+  Downloading aiohappyeyeballs-2.7.1-py3-none-any.whl.metadata (5.9 kB)
+Collecting aiosignal>=1.4.0 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0)
+  Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+Requirement already satisfied: attrs>=17.3.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0) (25.4.0)
+Collecting frozenlist>=1.1.1 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0)
+  Downloading frozenlist-1.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (20 kB)
+Collecting multidict<8.0,>=4.5 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0)
+  Downloading multidict-7.2.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (6.1 kB)
+Collecting propcache>=0.2.0 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0)
+  Downloading propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (25 kB)
+Collecting yarl<2.0,>=1.25.1 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.9.0,>=2023.1.0->datasets==4.3.0)
+  Downloading yarl-1.25.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (111 kB)
+Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.12/dist-packages (from requests>=2.32.2->datasets==4.3.0) (3.4.3)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /usr/local/lib/python3.12/dist-packages (from requests>=2.32.2->datasets==4.3.0) (2.5.0)
+Requirement already satisfied: setuptools in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (80.9.0)
+Requirement already satisfied: sympy>=1.13.3 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (1.13.3)
+Requirement already satisfied: networkx in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (3.3)
+Requirement already satisfied: jinja2 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (3.1.6)
+Requirement already satisfied: nvidia-cuda-nvrtc-cu12==12.8.93 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (12.8.93)
+Requirement already satisfied: nvidia-cuda-runtime-cu12==12.8.90 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (12.8.90)
+Requirement already satisfied: nvidia-cuda-cupti-cu12==12.8.90 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (12.8.90)
+Requirement already satisfied: nvidia-cudnn-cu12==9.10.2.21 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (9.10.2.21)
+Requirement already satisfied: nvidia-cublas-cu12==12.8.4.1 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (12.8.4.1)
+Requirement already satisfied: nvidia-cufft-cu12==11.3.3.83 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (11.3.3.83)
+Requirement already satisfied: nvidia-curand-cu12==10.3.9.90 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (10.3.9.90)
+Requirement already satisfied: nvidia-cusolver-cu12==11.7.3.90 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (11.7.3.90)
+Requirement already satisfied: nvidia-cusparse-cu12==12.5.8.93 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (12.5.8.93)
+Requirement already satisfied: nvidia-cusparselt-cu12==0.7.1 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (0.7.1)
+Requirement already satisfied: nvidia-nccl-cu12==2.27.3 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (2.27.3)
+Requirement already satisfied: nvidia-nvtx-cu12==12.8.90 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (12.8.90)
+Requirement already satisfied: nvidia-nvjitlink-cu12==12.8.93 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (12.8.93)
+Requirement already satisfied: nvidia-cufile-cu12==1.13.1.3 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (1.13.1.3)
+Requirement already satisfied: triton==3.4.0 in /usr/local/lib/python3.12/dist-packages (from torch>=2.0.0->accelerate==1.15.0) (3.4.0)
+Requirement already satisfied: mpmath<1.4,>=1.1.0 in /usr/local/lib/python3.12/dist-packages (from sympy>=1.13.3->torch>=2.0.0->accelerate==1.15.0) (1.3.0)
+Requirement already satisfied: sniffio>=1.1 in /usr/local/lib/python3.12/dist-packages (from anyio->httpx<1,>=0.23.0->huggingface_hub==1.32.0) (1.3.1)
+Requirement already satisfied: MarkupSafe>=2.0 in /usr/local/lib/python3.12/dist-packages (from jinja2->torch>=2.0.0->accelerate==1.15.0) (3.0.3)
+Requirement already satisfied: python-dateutil>=2.9.0 in /usr/local/lib/python3.12/dist-packages (from pandas->datasets==4.3.0) (2.9.0.post0)
+Requirement already satisfied: six>=1.5 in /usr/lib/python3/dist-packages (from python-dateutil>=2.9.0->pandas->datasets==4.3.0) (1.16.0)
+Collecting pydantic>=2.5.3 (from typer->transformers==5.5.0)
+  Downloading pydantic-2.14.4-py3-none-any.whl.metadata (143 kB)
+Collecting shellingham>=1.3.0 (from typer->transformers==5.5.0)
+  Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+Collecting rich>=13.8.0 (from typer->transformers==5.5.0)
+  Downloading rich-15.0.0-py3-none-any.whl.metadata (18 kB)
+Collecting annotated-doc>=0.0.2 (from typer->transformers==5.5.0)
+  Downloading annotated_doc-0.0.7-py3-none-any.whl.metadata (6.4 kB)
+Collecting annotated-types>=0.6.0 (from pydantic>=2.5.3->typer->transformers==5.5.0)
+  Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.50.5 (from pydantic>=2.5.3->typer->transformers==5.5.0)
+  Downloading pydantic_core-2.50.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (6.6 kB)
+Collecting typing-extensions>=4.1.0 (from huggingface_hub==1.32.0)
+  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting typing-inspection>=0.4.4 (from pydantic>=2.5.3->typer->transformers==5.5.0)
+  Downloading typing_inspection-0.4.5-py3-none-any.whl.metadata (2.6 kB)
+Collecting markdown-it-py>=2.2.0 (from rich>=13.8.0->typer->transformers==5.5.0)
+  Downloading markdown_it_py-4.3.0-py3-none-any.whl.metadata (7.9 kB)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.12/dist-packages (from rich>=13.8.0->typer->transformers==5.5.0) (2.19.2)
+Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=13.8.0->typer->transformers==5.5.0)
+  Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+Downloading transformers-5.5.0-py3-none-any.whl (10.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.2/10.2 MB 35.1 MB/s  0:00:00
+Downloading huggingface_hub-1.32.0-py3-none-any.whl (842 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 842.9/842.9 kB 14.5 MB/s  0:00:00
+Downloading tokenizers-0.22.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 31.7 MB/s  0:00:00
+Downloading accelerate-1.15.0-py3-none-any.whl (394 kB)
+Downloading datasets-4.3.0-py3-none-any.whl (506 kB)
+Downloading safetensors-0.8.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (516 kB)
+Downloading numpy-2.5.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.7/16.7 MB 91.3 MB/s  0:00:00
+Downloading click-8.5.1-py3-none-any.whl (126 kB)
+Downloading dill-0.4.0-py3-none-any.whl (119 kB)
+Downloading hf_xet-1.8.0-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 46.9 MB/s  0:00:00
+Downloading multiprocess-0.70.16-py312-none-any.whl (146 kB)
+Downloading aiohttp-3.14.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (1.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 26.8 MB/s  0:00:00
+Downloading multidict-7.2.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (516 kB)
+Downloading yarl-1.25.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (117 kB)
+Downloading aiohappyeyeballs-2.7.1-py3-none-any.whl (15 kB)
+Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+Downloading frozenlist-1.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (242 kB)
+Downloading propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (250 kB)
+Downloading pyarrow-26.0.1-cp312-cp312-manylinux_2_28_x86_64.whl (55.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 55.0/55.0 MB 142.3 MB/s  0:00:00
+Downloading regex-2026.11.19-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (809 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 809.2/809.2 kB 9.9 MB/s  0:00:00
+Downloading tqdm-4.70.1-py3-none-any.whl (80 kB)
+Downloading pandas-3.1.1-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (12.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 90.2 MB/s  0:00:00
+Downloading typer-0.29.2-py3-none-any.whl (121 kB)
+Downloading annotated_doc-0.0.7-py3-none-any.whl (5.3 kB)
+Downloading pydantic-2.14.4-py3-none-any.whl (494 kB)
+Downloading pydantic_core-2.50.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (2.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.3/2.3 MB 38.5 MB/s  0:00:00
+Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+Downloading rich-15.0.0-py3-none-any.whl (310 kB)
+Downloading markdown_it_py-4.3.0-py3-none-any.whl (96 kB)
+Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Downloading typing_inspection-0.4.5-py3-none-any.whl (14 kB)
+Downloading xxhash-4.1.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (472 kB)
+Installing collected packages: xxhash, typing-extensions, tqdm, shellingham, safetensors, regex, pyarrow, propcache, numpy, multidict, mdurl, hf-xet, frozenlist, dill, click, annotated-types, annotated-doc, aiohappyeyeballs, yarl, typing-inspection, pydantic-core, pandas, multiprocess, markdown-it-py, aiosignal, rich, pydantic, aiohttp, typer, huggingface_hub, tokenizers, datasets, accelerate, transformers
+  Attempting uninstall: typing-extensions
+    Found existing installation: typing_extensions 4.15.0
+    Uninstalling typing_extensions-4.15.0:
+      Successfully uninstalled typing_extensions-4.15.0
+  Attempting uninstall: numpy
+    Found existing installation: numpy 2.1.2
+    Uninstalling numpy-2.1.2:
+      Successfully uninstalled numpy-2.1.2
+
+Successfully installed accelerate-1.15.0 aiohappyeyeballs-2.7.1 aiohttp-3.14.5 aiosignal-1.4.0 annotated-doc-0.0.7 annotated-types-0.8.0 click-8.5.1 datasets-4.3.0 dill-0.4.0 frozenlist-1.8.0 hf-xet-1.8.0 huggingface_hub-1.32.0 markdown-it-py-4.3.0 mdurl-0.1.2 multidict-7.2.1 multiprocess-0.70.16 numpy-2.5.2 pandas-3.1.1 propcache-0.5.4 pyarrow-26.0.1 pydantic-2.14.4 pydantic-core-2.50.5 regex-2026.11.19 rich-15.0.0 safetensors-0.8.0 shellingham-1.5.4 tokenizers-0.22.2 tqdm-4.70.1 transformers-5.5.0 typer-0.29.2 typing-extensions-4.16.0 typing-inspection-0.4.5 xxhash-4.1.0 yarl-1.25.1
+Collecting ninja
+  Downloading ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (5.4 kB)
+Requirement already satisfied: setuptools in /usr/local/lib/python3.12/dist-packages (80.9.0)
+Collecting wheel
+  Downloading wheel-0.48.0-py3-none-any.whl.metadata (2.3 kB)
+Requirement already satisfied: packaging>=24.0 in /usr/local/lib/python3.12/dist-packages (from wheel) (25.0)
+Downloading ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (183 kB)
+Downloading wheel-0.48.0-py3-none-any.whl (33 kB)
+Installing collected packages: wheel, ninja
+
+Successfully installed ninja-1.13.2 wheel-0.48.0
+Collecting causal-conv1d
+  Downloading causal_conv1d-1.7.0.tar.gz (30 kB)
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting flash-linear-attention
+  Downloading flash_linear_attention-0.6.0-py3-none-any.whl.metadata (44 kB)
+Requirement already satisfied: torch in /usr/local/lib/python3.12/dist-packages (from causal-conv1d) (2.8.0+cu128)
+Requirement already satisfied: packaging in /usr/local/lib/python3.12/dist-packages (from causal-conv1d) (25.0)
+Requirement already satisfied: ninja in /usr/local/lib/python3.12/dist-packages (from causal-conv1d) (1.13.2)
+Collecting fla-core==0.6.0 (from flash-linear-attention)
+  Downloading fla_core-0.6.0-py3-none-any.whl.metadata (44 kB)
+Collecting transformers<6,>=5.6.2 (from flash-linear-attention)
+  Downloading transformers-5.23.0-py3-none-any.whl.metadata (31 kB)
+Collecting einops (from fla-core==0.6.0->flash-linear-attention)
+  Downloading einops-0.8.2-py3-none-any.whl.metadata (13 kB)
+Requirement already satisfied: huggingface-hub<3.0,>=1.31.0 in /usr/local/lib/python3.12/dist-packages (from transformers<6,>=5.6.2->flash-linear-attention) (1.32.0)
+Requirement already satisfied: numpy>=1.17 in /usr/local/lib/python3.12/dist-packages (from transformers<6,>=5.6.2->flash-linear-attention) (2.5.2)
+Requirement already satisfied: pyyaml>=5.1 in /usr/local/lib/python3.12/dist-packages (from transformers<6,>=5.6.2->flash-linear-attention) (6.0.3)
+Requirement already satisfied: regex>=2025.10.22 in /usr/local/lib/python3.12/dist-packages (from transformers<6,>=5.6.2->flash-linear-attention) (2026.11.19)
+Collecting tokenizers<0.24.0,>=0.23.1 (from transformers<6,>=5.6.2->flash-linear-attention)
+  Downloading tokenizers-0.23.3-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (9.8 kB)
+Requirement already satisfied: typer in /usr/local/lib/python3.12/dist-packages (from transformers<6,>=5.6.2->flash-linear-attention) (0.29.2)
+Requirement already satisfied: safetensors>=0.8.0 in /usr/local/lib/python3.12/dist-packages (from transformers<6,>=5.6.2->flash-linear-attention) (0.8.0)
+Requirement already satisfied: tqdm>=4.60 in /usr/local/lib/python3.12/dist-packages (from transformers<6,>=5.6.2->flash-linear-attention) (4.70.1)
+Requirement already satisfied: click<9.0.0,>=8.4.2 in /usr/local/lib/python3.12/dist-packages (from huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (8.5.1)
+Requirement already satisfied: filelock>=3.10.0 in /usr/local/lib/python3.12/dist-packages (from huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (3.20.0)
+Requirement already satisfied: fsspec>=2023.5.0 in /usr/local/lib/python3.12/dist-packages (from huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (2024.6.1)
+Requirement already satisfied: hf-xet<2.0.0,>=1.5.2 in /usr/local/lib/python3.12/dist-packages (from huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (1.8.0)
+Requirement already satisfied: httpx<1,>=0.23.0 in /usr/local/lib/python3.12/dist-packages (from huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (0.28.1)
+Requirement already satisfied: typing-extensions>=4.1.0 in /usr/local/lib/python3.12/dist-packages (from huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (4.16.0)
+Requirement already satisfied: anyio in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (4.11.0)
+Requirement already satisfied: certifi in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (2025.10.5)
+Requirement already satisfied: httpcore==1.* in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (1.0.9)
+Requirement already satisfied: idna in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (3.10)
+Requirement already satisfied: h11>=0.16 in /usr/local/lib/python3.12/dist-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (0.16.0)
+Requirement already satisfied: sniffio>=1.1 in /usr/local/lib/python3.12/dist-packages (from anyio->httpx<1,>=0.23.0->huggingface-hub<3.0,>=1.31.0->transformers<6,>=5.6.2->flash-linear-attention) (1.3.1)
+Requirement already satisfied: setuptools in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (80.9.0)
+Requirement already satisfied: sympy>=1.13.3 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (1.13.3)
+Requirement already satisfied: networkx in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (3.3)
+Requirement already satisfied: jinja2 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (3.1.6)
+Requirement already satisfied: nvidia-cuda-nvrtc-cu12==12.8.93 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (12.8.93)
+Requirement already satisfied: nvidia-cuda-runtime-cu12==12.8.90 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (12.8.90)
+Requirement already satisfied: nvidia-cuda-cupti-cu12==12.8.90 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (12.8.90)
+Requirement already satisfied: nvidia-cudnn-cu12==9.10.2.21 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (9.10.2.21)
+Requirement already satisfied: nvidia-cublas-cu12==12.8.4.1 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (12.8.4.1)
+Requirement already satisfied: nvidia-cufft-cu12==11.3.3.83 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (11.3.3.83)
+Requirement already satisfied: nvidia-curand-cu12==10.3.9.90 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (10.3.9.90)
+Requirement already satisfied: nvidia-cusolver-cu12==11.7.3.90 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (11.7.3.90)
+Requirement already satisfied: nvidia-cusparse-cu12==12.5.8.93 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (12.5.8.93)
+Requirement already satisfied: nvidia-cusparselt-cu12==0.7.1 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (0.7.1)
+Requirement already satisfied: nvidia-nccl-cu12==2.27.3 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (2.27.3)
+Requirement already satisfied: nvidia-nvtx-cu12==12.8.90 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (12.8.90)
+Requirement already satisfied: nvidia-nvjitlink-cu12==12.8.93 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (12.8.93)
+Requirement already satisfied: nvidia-cufile-cu12==1.13.1.3 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (1.13.1.3)
+Requirement already satisfied: triton==3.4.0 in /usr/local/lib/python3.12/dist-packages (from torch->causal-conv1d) (3.4.0)
+Requirement already satisfied: mpmath<1.4,>=1.1.0 in /usr/local/lib/python3.12/dist-packages (from sympy>=1.13.3->torch->causal-conv1d) (1.3.0)
+Requirement already satisfied: MarkupSafe>=2.0 in /usr/local/lib/python3.12/dist-packages (from jinja2->torch->causal-conv1d) (3.0.3)
+Requirement already satisfied: pydantic>=2.5.3 in /usr/local/lib/python3.12/dist-packages (from typer->transformers<6,>=5.6.2->flash-linear-attention) (2.14.4)
+Requirement already satisfied: shellingham>=1.3.0 in /usr/local/lib/python3.12/dist-packages (from typer->transformers<6,>=5.6.2->flash-linear-attention) (1.5.4)
+Requirement already satisfied: rich>=13.8.0 in /usr/local/lib/python3.12/dist-packages (from typer->transformers<6,>=5.6.2->flash-linear-attention) (15.0.0)
+Requirement already satisfied: annotated-doc>=0.0.2 in /usr/local/lib/python3.12/dist-packages (from typer->transformers<6,>=5.6.2->flash-linear-attention) (0.0.7)
+Requirement already satisfied: annotated-types>=0.6.0 in /usr/local/lib/python3.12/dist-packages (from pydantic>=2.5.3->typer->transformers<6,>=5.6.2->flash-linear-attention) (0.8.0)
+Requirement already satisfied: pydantic-core==2.50.5 in /usr/local/lib/python3.12/dist-packages (from pydantic>=2.5.3->typer->transformers<6,>=5.6.2->flash-linear-attention) (2.50.5)
+Requirement already satisfied: typing-inspection>=0.4.4 in /usr/local/lib/python3.12/dist-packages (from pydantic>=2.5.3->typer->transformers<6,>=5.6.2->flash-linear-attention) (0.4.5)
+Requirement already satisfied: markdown-it-py>=2.2.0 in /usr/local/lib/python3.12/dist-packages (from rich>=13.8.0->typer->transformers<6,>=5.6.2->flash-linear-attention) (4.3.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.12/dist-packages (from rich>=13.8.0->typer->transformers<6,>=5.6.2->flash-linear-attention) (2.19.2)
+Requirement already satisfied: mdurl~=0.1 in /usr/local/lib/python3.12/dist-packages (from markdown-it-py>=2.2.0->rich>=13.8.0->typer->transformers<6,>=5.6.2->flash-linear-attention) (0.1.2)
+Downloading flash_linear_attention-0.6.0-py3-none-any.whl (403 kB)
+Downloading fla_core-0.6.0-py3-none-any.whl (1.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.1/1.1 MB 8.0 MB/s  0:00:00
+Downloading transformers-5.23.0-py3-none-any.whl (13.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.3/13.3 MB 58.7 MB/s  0:00:00
+Downloading tokenizers-0.23.3-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.4/3.4 MB 49.6 MB/s  0:00:00
+Downloading einops-0.8.2-py3-none-any.whl (65 kB)
+Building wheels for collected packages: causal-conv1d
+  Building wheel for causal-conv1d (pyproject.toml): started
+  Building wheel for causal-conv1d (pyproject.toml): finished with status 'done'
+  Created wheel for causal-conv1d: filename=causal_conv1d-1.7.0-cp312-cp312-linux_x86_64.whl size=196377090 sha256=a1fcd5d022b67ddfc9e1c291f890004c1c081a03d66b532f6eebe31219168e0e
+  Stored in directory: /workspace/.cache/pip/wheels/6f/0b/1b/e063b1e314a5ff0783e450525921cb8f5c48fbb03639bad6ba
+Successfully built causal-conv1d
+Installing collected packages: einops, fla-core, tokenizers, causal-conv1d, transformers, flash-linear-attention
+  Attempting uninstall: tokenizers
+    Found existing installation: tokenizers 0.22.2
+    Uninstalling tokenizers-0.22.2:
+      Successfully uninstalled tokenizers-0.22.2
+  Attempting uninstall: transformers
+    Found existing installation: transformers 5.5.0
+    Uninstalling transformers-5.5.0:
+      Successfully uninstalled transformers-5.5.0
+
+Successfully installed causal-conv1d-1.7.0 einops-0.8.2 fla-core-0.6.0 flash-linear-attention-0.6.0 tokenizers-0.23.3 transformers-5.23.0
+Collecting triton==3.8.0
+  Downloading triton-3.8.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (978 bytes)
+Downloading triton-3.8.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (248.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 248.0/248.0 MB 121.7 MB/s  0:00:02
+Installing collected packages: triton
+  Attempting uninstall: triton
+    Found existing installation: triton 3.4.0
+    Uninstalling triton-3.4.0:
+      Successfully uninstalled triton-3.4.0
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+torch 2.8.0+cu128 requires triton==3.4.0; platform_system == "Linux" and platform_machine == "x86_64", but you have triton 3.8.0 which is incompatible.
+Successfully installed triton-3.8.0
+Already on 'scion-test'
+Your branch is up to date with 'origin/scion-test'.
+Cloning into '/workspace/scion/scion-llama.cpp'...
+Updating files:   1% (57/4173)Updating files:   2% (84/4173)Updating files:   2% (111/4173)Updating files:   3% (126/4173)Updating files:   4% (167/4173)Updating files:   5% (209/4173)Updating files:   5% (224/4173)Updating files:   6% (251/4173)Updating files:   6% (280/4173)Updating files:   7% (293/4173)Updating files:   8% (334/4173)Updating files:   8% (335/4173)Updating files:   9% (376/4173)Updating files:   9% (394/4173)Updating files:  10% (418/4173)Updating files:  10% (442/4173)Updating files:  11% (460/4173)Updating files:  11% (488/4173)Updating files:  12% (501/4173)Updating files:  12% (540/4173)Updating files:  13% (543/4173)Updating files:  14% (585/4173)Updating files:  14% (599/4173)Updating files:  15% (626/4173)Updating files:  15% (656/4173)Updating files:  16% (668/4173)Updating files:  16% (709/4173)Updating files:  17% (710/4173)Updating files:  18% (752/4173)Updating files:  18% (759/4173)Updating files:  19% (793/4173)Updating files:  19% (813/4173)Updating files:  20% (835/4173)Updating files:  20% (868/4173)Updating files:  21% (877/4173)Updating files:  22% (919/4173)Updating files:  22% (925/4173)Updating files:  23% (960/4173)Updating files:  23% (979/4173)Updating files:  24% (1002/4173)Updating files:  24% (1037/4173)Updating files:  25% (1044/4173)Updating files:  26% (1085/4173)Updating files:  26% (1096/4173)Updating files:  27% (1127/4173)Updating files:  27% (1153/4173)Updating files:  28% (1169/4173)Updating files:  28% (1209/4173)Updating files:  29% (1211/4173)Updating files:  30% (1252/4173)Updating files:  30% (1265/4173)Updating files:  31% (1294/4173)Updating files:  31% (1323/4173)Updating files:  32% (1336/4173)Updating files:  33% (1378/4173)Updating files:  33% (1387/4173)Updating files:  34% (1419/4173)Updating files:  34% (1458/4173)Updating files:  35% (1461/4173)Updating files:  36% (1503/4173)Updating files:  36% (1514/4173)Updating files:  37% (1545/4173)Updating files:  37% (1569/4173)Updating files:  38% (1586/4173)Updating files:  39% (1628/4173)Updating files:  39% (1632/4173)Updating files:  40% (1670/4173)Updating files:  40% (1686/4173)Updating files:  41% (1711/4173)Updating files:  41% (1744/4173)Updating files:  42% (1753/4173)Updating files:  43% (1795/4173)Updating files:  43% (1797/4173)Updating files:  44% (1837/4173)Updating files:  44% (1854/4173)Updating files:  45% (1878/4173)Updating files:  45% (1895/4173)Updating files:  46% (1920/4173)Updating files:  46% (1944/4173)Updating files:  47% (1962/4173)Updating files:  48% (2004/4173)Updating files:  49% (2045/4173)Updating files:  49% (2057/4173)Updating files:  50% (2087/4173)Updating files:  50% (2110/4173)Updating files:  51% (2129/4173)Updating files:  51% (2160/4173)Updating files:  52% (2170/4173)Updating files:  52% (2211/4173)Updating files:  53% (2212/4173)Updating files:  54% (2254/4173)Updating files:  54% (2261/4173)Updating files:  55% (2296/4173)Updating files:  55% (2306/4173)Updating files:  56% (2337/4173)Updating files:  56% (2378/4173)Updating files:  57% (2379/4173)Updating files:  58% (2421/4173)Updating files:  58% (2431/4173)Updating files:  59% (2463/4173)Updating files:  59% (2487/4173)Updating files:  60% (2504/4173)Updating files:  60% (2541/4173)Updating files:  61% (2546/4173)Updating files:  62% (2588/4173)Updating files:  62% (2595/4173)Updating files:  63% (2629/4173)Updating files:  63% (2651/4173)Updating files:  64% (2671/4173)Updating files:  64% (2707/4173)Updating files:  65% (2713/4173)Updating files:  66% (2755/4173)Updating files:  66% (2766/4173)Updating files:  67% (2796/4173)Updating files:  67% (2820/4173)Updating files:  68% (2838/4173)Updating files:  68% (2874/4173)Updating files:  69% (2880/4173)Updating files:  70% (2922/4173)Updating files:  70% (2930/4173)Updating files:  71% (2963/4173)Updating files:  71% (2990/4173)Updating files:  72% (3005/4173)Updating files:  72% (3046/4173)Updating files:  73% (3047/4173)Updating files:  74% (3089/4173)Updating files:  74% (3099/4173)Updating files:  75% (3130/4173)Updating files:  75% (3155/4173)Updating files:  76% (3172/4173)Updating files:  76% (3208/4173)Updating files:  77% (3214/4173)Updating files:  78% (3255/4173)Updating files:  78% (3265/4173)Updating files:  79% (3297/4173)Updating files:  79% (3327/4173)Updating files:  80% (3339/4173)Updating files:  81% (3381/4173)Updating files:  82% (3422/4173)Updating files:  82% (3436/4173)Updating files:  83% (3464/4173)Updating files:  83% (3486/4173)Updating files:  84% (3506/4173)Updating files:  84% (3540/4173)Updating files:  85% (3548/4173)Updating files:  86% (3589/4173)Updating files:  86% (3592/4173)Updating files:  87% (3631/4173)Updating files:  87% (3644/4173)Updating files:  88% (3673/4173)Updating files:  88% (3700/4173)Updating files:  89% (3714/4173)Updating files:  89% (3755/4173)Updating files:  90% (3756/4173)Updating files:  91% (3798/4173)Updating files:  91% (3809/4173)Updating files:  92% (3840/4173)Updating files:  92% (3862/4173)Updating files:  93% (3881/4173)Updating files:  93% (3916/4173)Updating files:  94% (3923/4173)Updating files:  95% (3965/4173)Updating files:  95% (3969/4173)Updating files:  96% (4007/4173)Updating files:  96% (4021/4173)Updating files:  97% (4048/4173)Updating files:  97% (4081/4173)Updating files:  98% (4090/4173)Updating files:  99% (4132/4173)Updating files:  99% (4138/4173)Updating files: 100% (4173/4173)Updating files: 100% (4173/4173), done.
+[90mHint: A new version of huggingface_hub (2.4.0) is available! You are using version 1.32.0.
+To update, run: hf update[0m
+[90mHint: The `hf-cli` skill is not installed. Run `hf skills add -g --claude` to teach your AI agents how to use the `hf` CLI.[0m
+Fetching 1 files:   0%|          | 0/1 [00:00<?, ?it/s]Fetching 1 files: 100%|██████████| 1/1 [00:56<00:00, 56.55s/it]Fetching 1 files: 100%|██████████| 1/1 [00:56<00:00, 56.55s/it]
+[32m✓ Downloaded[0m
+  path: /workspace/artifacts/models
+Fetching 34 files:   0%|          | 0/34 [00:00<?, ?it/s]Still waiting to acquire lock on /workspace/artifacts/empero-hf/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)
+Still waiting to acquire lock on /workspace/artifacts/empero-hf/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)
+Still waiting to acquire lock on /workspace/artifacts/empero-hf/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 34 files:   3%|▎         | 1/34 [00:00<00:19,  1.68it/s]Fetching 34 files:  15%|█▍        | 5/34 [00:00<00:03,  7.74it/s]Fetching 34 files:  18%|█▊        | 6/34 [00:19<00:03,  7.74it/s]Fetching 34 files:  21%|██        | 7/34 [00:27<02:16,  5.05s/it]Fetching 34 files:  24%|██▎       | 8/34 [00:38<02:46,  6.40s/it]Fetching 34 files:  26%|██▋       | 9/34 [00:42<02:25,  5.80s/it]Fetching 34 files:  29%|██▉       | 10/34 [00:43<01:49,  4.55s/it]Fetching 34 files:  32%|███▏      | 11/34 [00:44<01:23,  3.63s/it]Fetching 34 files:  35%|███▌      | 12/34 [00:45<01:08,  3.11s/it]Fetching 34 files:  38%|███▊      | 13/34 [00:52<01:28,  4.19s/it]Fetching 34 files:  41%|████      | 14/34 [00:54<01:07,  3.38s/it]Fetching 34 files:  44%|████▍     | 15/34 [01:01<01:27,  4.63s/it]Fetching 34 files:  47%|████▋     | 16/34 [01:11<01:51,  6.18s/it]Fetching 34 files:  50%|█████     | 17/34 [01:19<01:51,  6.55s/it]Fetching 34 files:  53%|█████▎    | 18/34 [01:23<01:35,  5.96s/it]Fetching 34 files:  56%|█████▌    | 19/34 [01:24<01:06,  4.41s/it]Fetching 34 files:  59%|█████▉    | 20/34 [01:26<00:51,  3.70s/it]Fetching 34 files:  62%|██████▏   | 21/34 [01:29<00:46,  3.57s/it]Fetching 34 files:  65%|██████▍   | 22/34 [01:31<00:35,  2.94s/it]Fetching 34 files:  71%|███████   | 24/34 [01:33<00:19,  1.99s/it]Fetching 34 files:  74%|███████▎  | 25/34 [01:33<00:14,  1.57s/it]Fetching 34 files:  76%|███████▋  | 26/34 [01:33<00:09,  1.23s/it]Fetching 34 files:  79%|███████▉  | 27/34 [01:34<00:07,  1.09s/it]Fetching 34 files:  82%|████████▏ | 28/34 [01:34<00:05,  1.16it/s]Fetching 34 files:  85%|████████▌ | 29/34 [01:35<00:03,  1.39it/s]Fetching 34 files:  88%|████████▊ | 30/34 [01:38<00:06,  1.51s/it]Fetching 34 files:  91%|█████████ | 31/34 [01:40<00:04,  1.55s/it]Fetching 34 files:  94%|█████████▍| 32/34 [01:40<00:02,  1.20s/it]Fetching 34 files:  97%|█████████▋| 33/34 [01:41<00:01,  1.01s/it]Fetching 34 files: 100%|██████████| 34/34 [01:41<00:00,  1.01it/s]Fetching 34 files: 100%|██████████| 34/34 [01:41<00:00,  3.00s/it]
+[32m✓ Downloaded[0m
+  path: /workspace/artifacts/empero-hf
+68G	/workspace/artifacts/empero-hf
+11G	/workspace/artifacts/models/Scion-35B-A3B-PQ2_0-corr.gguf
+REMINDER: the curriculum stage reads the packed traces from the repo.
