@@ -277,7 +277,12 @@ Our direct check of the down-sensitivity rule on the 35B:
 `down4 + v1 corrections` PPL **2.2797** vs `gateup4 + v1 corrections` **2.0402**.
 Gate/up is the more sensitive projection here, so the general rule is
 architecture-dependent (their down lives in the LatentMoE space; ours is
-2048->512).  `all4` is the remaining free body test.
+2048->512).
+
+An all-Q4 body (17.96 GiB) validates and generates coherently on CPU, but its
+GPU PPL is garbage (1e7) on this fork, single- and two-GPU.  The all-Q4 expert
+path is not usable without a kernel fix, so it is not a candidate; `gateup4`
+stands.
 
 The 12/30 pass is a PTQ body plus transferred LoRA corrections, not their QAT
 recipe.  If coding (0/10) is the goal, full-parameter QAT with router training
@@ -311,6 +316,7 @@ is the lever the team points to; it is optional now that the gate is passed.
 | all2 | TQ1 all | none | 9.06 GiB | 2.9251 |
 | **gateup4** | **Q4 gate/up + TQ1 down** | none | **14.99 GiB** | **2.3413** |
 | gateup4 + v1 corr | Q4 gate/up + TQ1 down | v1 embedded | 15.09 GiB | **2.0402** |
+| down4 + v1 corr | Q4 down + TQ1 gate/up | v1 embedded | 12.12 GiB | 2.2797 |
 
 `gateup4` is the winner: **2.3413 PPL**, better than the v1 model that has
 correction branches (2.4445), with **no corrections at all**.  Protecting the
