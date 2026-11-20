@@ -124,12 +124,13 @@ the pod; the 4-layer map is a ranking/codec check only.
 
 Synthetic 2-record cache (same format as `build_trace_cache.py`):
 `ids [512] int32`, `idx [511,64] int32`, `val/w [511,64] fp16`.
-Alloc file for the prefix (Q4 on layers 0–1, TQ1 on 2–3):
+Alloc file for the prefix (exact gateup4: Q4 gate_up on layers 0–1, TQ1
+down; TQ1 on 2–3):
 
 ```json
 {
- "blk.0.ffn_gate_up_exps": 4, "blk.0.ffn_down_exps": 4,
- "blk.1.ffn_gate_up_exps": 4, "blk.1.ffn_down_exps": 4,
+ "blk.0.ffn_gate_up_exps": 4, "blk.0.ffn_down_exps": 2,
+ "blk.1.ffn_gate_up_exps": 4, "blk.1.ffn_down_exps": 2,
  "blk.2.ffn_gate_up_exps": 2, "blk.2.ffn_down_exps": 2,
  "blk.3.ffn_gate_up_exps": 2, "blk.3.ffn_down_exps": 2
 }
@@ -138,14 +139,15 @@ Alloc file for the prefix (Q4 on layers 0–1, TQ1 on 2–3):
 ```bash
 MOE_ARTIFACTS=.../models-p310/empero-prefix \
   python moe/qwen35_moe_proxy.py train --prefix-layers 4 --device cuda:0 \
-  --alloc-file v2/hotcold/alloc-4l.json \
+  --alloc-file v2/hotcold/alloc-4l-gateup4.json \
   --cache-file /tmp/opencode/qwen35-hotcold-cache.pt \
   --quant lloyd --branch-quant g128 --branch-target both --rank 512 \
-  --steps 2 --tag hotcold4l
+  --steps 2 --tag hotcold4l-gateup4
 
 PYTHONPATH=.../scion-llama.cpp/gguf-py python moe/export_branches_lora.py \
-  --load .../qwen35-corr-r512-g128-step2-hotcold4l.pt --arch qwen35moe \
-  --target both --dtype q1_0_g128 --out /tmp/hotcold4l.gguf
+  --load .../qwen35-corr-r512-g128-step2-hotcold4l-gateup4.pt --arch qwen35moe \
+  --target both --dtype q1_0_g128 --recipe "hotcold 4-layer smoke" \
+  --out /tmp/hotcold4l.gguf
 PYTHONPATH=.../scion-llama.cpp/gguf-py python moe/merge_adapter_into_body.py \
   --body .../Scion-35B-A3B-PQ2_0-corr.gguf --adapter /tmp/hotcold4l.gguf \
   --out /tmp/hotcold4l-merged.gguf --replace
