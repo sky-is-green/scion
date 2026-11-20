@@ -53,7 +53,7 @@ is 10.558 GiB (all experts 2.125 bpw).
 | policy | expert bits | expert GiB | total GiB |
 |---|---|---:|---:|
 | all TQ1 (v1-like) | 1.75 | 7.99 | 10.58 |
-| down4 (down Q4, gate/up TQ1) | 2.54 | 9.52 | 12.11 |
+| down4 (down Q4, gate/up TQ1) | 2.54 | 9.52 | **12.02** (measured) |
 | half layers all-Q4 | 2.94 | 11.02 | 13.61 |
 | gateup4 | 3.41 | 12.79 | 15.38 |
 | all Q4 | 4.125 | 15.48 | 18.07 |
@@ -228,17 +228,52 @@ Run the compact tests before the pod:
 - **AngelSlim**: INT4 GPTQ/AWQ/GPTAQ and a MIX-STQ1_0 ternary build; useful
   reference for mixed-precision recipes, but its GGUF path is per-tensor too.
 
+## Known confounds
+
+- **Per-tensor, not per-expert**: see the format note at the top.  The hot
+  budget is spent on whole `down` tensors, not the top-load experts.
+- **Dense train/deploy mismatch**: the trainer loads the full HF checkpoint
+  in bf16; the body ships the v1 Q8_0/F32 dense tensors.  This is the same
+  mismatch the v2 run had.  `--seed-routers` fixes the router half; seeding
+  the dense tensors (or shipping a bf16-dense body, 14.14 GiB) is the next
+  consistency fix if the expert change shows a signal.
+- **4-layer map, not 40-layer**: the load calibration only covers layers 0–3
+  and 350/360 prompts.  The full map must be regenerated with `--layers 40`.
+- **Coverage is modest**: top 41/256 experts cover 46.6% of routed events at
+  4 layers; the per-tensor body does not depend on that number, but a future
+  per-expert split should not assume 16% is enough.
+
+## PPL / coherence
+
+`llama-perplexity` on `/tmp/opencode/ppl.txt` (11 KB of rollout prompts,
+4 x 512-token chunks, batch 128) with the ROCm 7.2.4 runtime:
+
+- v1 reference (`Scion-35B-A3B-Q2_0_G128-corr-v1.gguf`): **PPL 2.4445**.
+- v2 cur05 merged model: **PPL 2.5243**.
+- first `down4` build: **NaN** (the source-offset bug above; 2176 Inf TQ1
+  scales).  Rebuild pending.
+- v2 merged model loads/generates on the same build (91.6 tok/s prompt,
+  49.3 tok/s generation with `-ngl 99` on one 7900 XT).
+
 ## Current state
 
 - `Q4_0_G128` type/kernel/GGUF/Python codec: done; CPU tests pass; HIP builds.
 - 4-layer hot map: done (350/360 prompts).
-- Full `down4` body: first (bf16 dense) build 14.14 GiB; the v1-dense rebuild
-  (~12.1 GiB) is running locally.
+- Full `down4` body: **12.02 GiB**, 733 tensors (40 Q4_0_G128 down, 80
+  TQ1_0_G128 gate/up, 312 Q8_0 + 301 F32 dense/router), no embedded adapter.
+  **The first 12.02 GiB file is invalid**: the exporter read the bf16 source at
+  `GGUFReader.data_offset + t.data_offset`, but `t.data_offset` is already
+  absolute, so every expert read was shifted by ~11 MB.  That produced Inf TQ1
+  scales and NaN PPL.  The read is now `f.seek(t.data_offset)`; `down4` and an
+  `all2` control are being rebuilt.  `v2/hotcold/validate_body.py` checks
+  finite scales and source-equality on sample tensors.
 - 4-layer train/export/merge/audit: **passed** (1 step, 10.59 GiB peak,
   160-tensor branch audit clean).
-- HIP binaries: the incremental build after the enum change is inconsistent
-  (stock Q4_0 model loads also crash); a clean `--clean-first` rebuild is
-  running.  The CPU build loads the v2 model and generates.
+- HIP binaries: a clean `--clean-first` rebuild is done.  The earlier crashes
+  were **not** the build: running without
+  `LD_LIBRARY_PATH=.../work/rocm-7.2.4/opt/rocm/lib:.../work/rocm-7.2.4/usr/lib`
+  loads the wrong ROCm runtime and dies inside `ggml_backend_cuda_synchronize`.
+  With the 7.2.4 path, v2 loads at 91.6 tok/s prompt / 49.3 tok/s generation.
 - The older `Scion-35B-A3B-PQ2_0-corr.gguf` is rejected by the current
   llama.cpp GGUF reader (`ffn_moe_out.weight.lora_b` offset mismatch); use the
   v2 merged model or the new contiguous hot/cold body for llama.cpp checks.

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Compare the v1 body and the hot/cold body on the same text, then generate.
+# Compare the v1 model and the hot/cold body on the same text, then generate.
 # This is a kernel/coherence check, not a capability gate: the hot/cold body
-# has no correction adapter yet; the reference is the merged v2 model (the
-# older v1 body file is rejected by the current llama.cpp GGUF reader).
+# has no correction adapter yet, while the v1 reference has its embedded
+# corrections and v1 routers.  The older PQ2_0-corr file is rejected by the
+# current llama.cpp GGUF reader; the Q2_0_G128-corr-v1 file loads.
 set -euo pipefail
 
 W=/run/media/penis/cbfa1404-241a-484e-9136-de07ee2fa8ad/work
 BIN="$W/scion-llama.cpp/build-hip/bin"
-V1="$W/scion/v2/full/Scion-35B-A3B-v2-cur05.gguf"
+V1="$W/models-p310/scion-strata/Scion-35B-A3B-Q2_0_G128-corr-v1.gguf"
 HC="$W/scion/v2/hotcold/Scion-35B-A3B-v2-down4.gguf"
 TXT=/tmp/opencode/ppl.txt
 OUT=/tmp/opencode/hotcold-body-check

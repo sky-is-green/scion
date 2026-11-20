@@ -189,7 +189,9 @@ def main() -> None:
         else:
             ne0, ne1, ne2 = [int(x) for x in st.shape]
             with open(src, "rb") as f:
-                f.seek(reader.data_offset + st.data_offset)
+                # GGUFReader's data_offset is absolute; adding reader.data_offset
+                # again shifts every expert read by ~11 MB (the data section start).
+                f.seek(st.data_offset)
                 raw = f.read(ne0 * ne1 * ne2 * 2)
             if len(raw) != ne0 * ne1 * ne2 * 2:
                 raise SystemExit(f"{t.name}: short read")
