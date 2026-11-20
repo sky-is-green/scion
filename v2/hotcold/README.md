@@ -265,6 +265,7 @@ Run the compact tests before the pod:
 | down4 | Q4 down + TQ1 gate/up | none | 12.02 GiB | 2.6837 |
 | all2 | TQ1 all | none | 9.06 GiB | 2.9251 |
 | **gateup4** | **Q4 gate/up + TQ1 down** | none | **14.99 GiB** | **2.3413** |
+| gateup4 + v1 corr | Q4 gate/up + TQ1 down | v1 embedded | 15.09 GiB | **2.0402** |
 
 `gateup4` is the winner: **2.3413 PPL**, better than the v1 model that has
 correction branches (2.4445), with **no corrections at all**.  Protecting the
@@ -277,8 +278,38 @@ VRAM check with `-ts 0.75,0.25`, 40k context, `gateup4`:
 **display card 12.37 GB, spare 6.52 GB** (both 20.5 GB cards); server healthy.
 The display-card limit is ~18 GB, so the 15 GiB body has ~5.6 GB of headroom.
 
+The **v1 corrections transfer** to gateup4: merging the extracted v1 adapter
+(`v2/hotcold/extract_adapter.py`) gives **PPL 2.0402**, better than either the
+v1 model (2.4445) or gateup4 without corrections (2.3413).  subset30 on this
+merged model is running; it is the free capability pre-check before the pod.
+
 Generation: gateup4 109.3 tok/s prompt / 81.1 tok/s generation; down4 151.3 /
 89.2; v2 91.6 / 49.3 on the same short prompt.
+
+The display-card budget is per card: at `-ts 0.75,0.25` even an all-Q4 body
+(18.07 GiB total) would put ~13.6 GiB on the display card, under the ~18 GiB
+cap.  All-Q4 is the next local body if gateup4 + v1 corrections lands short of
+the gate.
+
+## Free capability pre-check
+
+Before paying for 4096 corrections, the v1 adapter is a free probe of whether
+the body is compatible with the correction site:
+
+```bash
+PYTHONPATH=.../gguf-py python v2/hotcold/extract_adapter.py \
+  --src .../Scion-35B-A3B-Q2_0_G128-corr-v1.gguf \
+  --out /tmp/opencode/v1-adapter.gguf
+
+PYTHONPATH=.../gguf-py python moe/merge_adapter_into_body.py \
+  --body v2/hotcold/Scion-35B-A3B-v2-gateup4.gguf \
+  --adapter /tmp/opencode/v1-adapter.gguf \
+  --out v2/hotcold/Scion-35B-A3B-v2-gateup4-v1corr.gguf --replace
+```
+
+Serve it with `-ts 0.75,0.25`, 40k ctx (display card 12.45 GB, spare 6.55 GB)
+and run `v2/scripts/hard_subset.py --port 8083`.  The v1 reference is 5/30;
+the first ten items are the early signal (v1: 2/10, R21 + T04).
 
 ## Current state
 
