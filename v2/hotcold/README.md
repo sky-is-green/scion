@@ -238,6 +238,26 @@ Run the compact tests before the pod:
 - **AngelSlim**: INT4 GPTQ/AWQ/GPTAQ and a MIX-STQ1_0 ternary build; useful
   reference for mixed-precision recipes, but its GGUF path is per-tensor too.
 
+## subset30 result: 12/30 (gate passed, no pod training)
+
+`gateup4 + v1 corrections`, frozen protocol (T=0.6, seed 1001, 32k budget,
+recovery sentence):
+
+| family | correct |
+|---|---:|
+| reasoning | **3/10** (R21, R29, R11) |
+| coding | **0/10** (all fail; 9 truncate at 32k) |
+| tools | **9/10** (T04, T09, T01, T29, T02, T25, T30, T18, T13; T03 fails) |
+| **total** | **12/30** |
+
+Reference: v1 **5/30**, v2 **1/10**, gate **8/30**.  This is well above the
+gate and the first configuration that clears it.  The v1 corrections transfer
+to the Q4 gate/up body; no new training was needed.
+
+The remaining weakness is coding: **0/10**, nine of them truncated.  A fresh
+correction run could target coding, but it is now an optional improvement,
+not a gate risk.
+
 ## Known confounds
 
 - **Per-tensor, not per-expert**: see the format note at the top.  The hot
@@ -336,7 +356,9 @@ the first ten items are the early signal (v1: 2/10, R21 + T04).
 - The older `Scion-35B-A3B-PQ2_0-corr.gguf` is rejected by the current
   llama.cpp GGUF reader (`ffn_moe_out.weight.lora_b` offset mismatch); use the
   v2 merged model or the new contiguous hot/cold body for llama.cpp checks.
-- **Recommended pod body: `gateup4`** (14.99 GiB, PPL 2.3413, display card
-  12.37 GB at 0.75/0.25, 40k ctx).  The correction run is the remaining paid
-  step; the 4-layer training/export/merge/audit path is proven.
+- **Release candidate: `Scion-35B-A3B-v2-gateup4-v1corr.gguf`** — 15.09 GiB,
+  PPL 2.0402, subset30 **12/30**.  The v1 corrections are embedded and the
+  body is 12.37 GB on the display card at 0.75/0.25 with 40k context.
+- **The pod is not needed for the gate.**  A fresh correction run is optional
+  and would be aimed at coding (0/10), not at the 8/30 gate.
 - Pod: **not started**; balance **$9.50**.
