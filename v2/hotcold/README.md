@@ -72,12 +72,17 @@ a time, so 30 GB RAM is enough.
 
 ```bash
 cd .../work/scion
-OMP_NUM_THREADS=8 .../.envs/scion-rocm/bin/python moe/build_hotcold_body.py \
+HIP_VISIBLE_DEVICES=1 .../.envs/scion-rocm/bin/python moe/build_hotcold_body.py \
   --src .../models-p310/bf16/Qwen3.8-35B-A3B-Distill-BF16.gguf \
   --dense-src .../models-p310/scion-strata/Scion-35B-A3B-PQ2_0-corr.gguf \
   --out v2/hotcold/Scion-35B-A3B-v2-down4.gguf \
-  --policy down4
+  --policy down4 --device cuda:0
 ```
+
+`--device cuda:0` runs the Q4 packer and the 8-iteration Lloyd rule on the
+GPU and copies only the packed bytes back; the CPU path is the reference.
+One-tensor and small-array checks are byte-identical between the two.  Running
+two CPU exporters at once swaps the 30 GB box and is much slower.
 
 Without `--dense-src` the non-expert tensors are copied from the bf16 base and
 the file is **14.14 GiB**; with it the expected size is ~12.1 GiB.  The first

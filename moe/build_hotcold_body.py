@@ -77,12 +77,45 @@ def bf16_bytes_to_f32(raw: bytes, src_type: int) -> np.ndarray:
     raise ValueError(f"expert source type {src_type} is not BF16/F16")
 
 
-def quantize_tensor(w: np.ndarray, bits: int, group: int = 128) -> np.ndarray:
-    """Quantise ``[E, out, in]`` float32 to block bytes ``[E, out, ng*b]``."""
+def quantize_tensor(w: np.ndarray, bits: int, group: int = 128,
+                    device: str = "cpu") -> np.ndarray:
+    """Quantise ``[E, out, in]`` float32 to block bytes ``[E, out, ng*b]``.
+
+    ``--device cuda`` runs the Q4 packer / Lloyd ternary iterations on the GPU
+    and copies only the packed bytes back; the CPU path is the reference.
+    """
     e, rows, cols = w.shape
     if cols % group:
         raise ValueError(f"row width {cols} is not a multiple of {group}")
     ng = cols // group
+    use_gpu = str(device).startswith("cuda") and torch.cuda.is_available()
+    if use_gpu:
+        from qwen35_moe_proxy import _encode_slice
+        tw = torch.from_numpy(w).to(device)
+        out = np.empty((e, rows, ng * (66 if bits == 4 else 28)),
+                       dtype=np.uint8)
+        # Bound the GPU temporaries; the Lloyd rule holds several group-sized
+        # float tensors per chunk.
+        chunk = max(1, (128 << 20) // max(rows * cols * 4, 1))
+        with torch.inference_mode():
+            for s in range(0, e, chunk):
+                part = tw[s:s + chunk]
+                if bits == 4:
+                    blocks, _ = Q4.quantize_grouped_torch(part, group)
+                    out[s:s + chunk] = blocks.cpu().numpy().reshape(
+                        -1, rows, ng * 66)
+                elif bits == 2:
+                    codes, scales = _encode_slice(part, group, "lloyd")
+                    qs, qh, sc = ptq1_0.repack_bank_ptq1_0(codes, scales, group)
+                    blk = ptq1_0.pack_block_bytes(qs, qh, sc)
+                    out[s:s + chunk] = blk.reshape(
+                        -1, rows, ng * 28).cpu().numpy()
+                else:
+                    raise ValueError(f"unsupported bits {bits}")
+        del tw
+        torch.cuda.empty_cache()
+        return out
+
     if bits == 4:
         out = np.empty((e, rows, ng * 66), dtype=np.uint8)
         chunk = max(1, (64 << 20) // max(rows * cols * 4, 1))
@@ -131,6 +164,9 @@ def main() -> None:
     ap.add_argument("--policy", default="down4",
                     choices=["down4", "gateup4", "half", "third", "all4", "all2"])
     ap.add_argument("--group", type=int, default=128)
+    ap.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu",
+                    help="cuda:0 runs the packer/Lloyd iterations on the GPU; "
+                         "cpu is the reference path")
     ap.add_argument("--only-tensor", default="",
                     help="write just this tensor (codec/layout check)")
     ap.add_argument("--limit", type=int, default=0,
@@ -141,6 +177,7 @@ def main() -> None:
     if args.alloc_file:
         alloc = json.loads(Path(args.alloc_file).read_text())
         print(f"alloc: {len(alloc)} entries", flush=True)
+    print(f"quantizer device: {args.device}", flush=True)
 
     src = Path(args.src)
     reader = gguf.GGUFReader(src)
@@ -196,7 +233,7 @@ def main() -> None:
             if len(raw) != ne0 * ne1 * ne2 * 2:
                 raise SystemExit(f"{t.name}: short read")
             w = bf16_bytes_to_f32(raw, st.tensor_type).reshape(ne2, ne1, ne0)
-            blocks = quantize_tensor(w, bits, args.group)
+            blocks = quantize_tensor(w, bits, args.group, args.device)
             payload = blocks.reshape(-1)
             print(f"[{n+1}/{len(infos)}] {t.name}: {bits}-bit "
                   f"{payload.nbytes/1e6:.1f} MB", flush=True)
