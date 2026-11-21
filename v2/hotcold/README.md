@@ -310,6 +310,24 @@ down on top of Q4 gate/up.
 The release remains `gateup4 + v1 corrections` (12/30).  The standard-Q4_0
 partial is the candidate if its subset10 holds up.
 
+## Coding repair profile (2026-11-21)
+
+`v2/scripts/coding_repair.py` on the release (T=0.3, 8k thinking budget,
+one failing-assertion feedback turn):
+
+- **1/10** correct.  C11 passes on the **first** turn (it was false in the
+  earlier 8k probe, so this is profile variance, not a repair win).
+- **0/9 repaired**: every failed item was sent its assertion and rewritten
+  code, and every one still failed.  C05's repair turn looped to 32k with no
+  code block.  Typical remaining errors are edge-case assertions (C09),
+  queue ordering (C30), route matching (C03), DSU counts (C24), atomic
+  rollback (C27), ferry scheduling (C22), recursive-descent syntax (C01),
+  and a None comparison (C26).
+- More feedback turns are not promising: the rewrites often reach the
+  thinking budget and still miss the same edge case.  Coding remains the
+  release's weak family (0/10 frozen, 1/10 with the coding profile); tools
+  (9/10) and reasoning (3/10) carry the 12/30.
+
 ## Full-TQ1 tests (2026-11-21)
 
 - The v1 reference's Q2_0_G128 expert banks and TQ1_0_G128 encode the same
@@ -332,6 +350,15 @@ partial is the candidate if its subset10 holds up.
   items it passed in the old 5/30 run (T29, T03, T25, R11 pass; T18 now
   fails).  So the old 5/30 was slightly stale, and TQ1's 4/30 is genuine
   near-parity with today's v1, not a regression from the container.
+
+Item-level comparison, gateup4+v1corr (12/30) vs v1 (5/30) and TQ1 (4/30):
+
+- v1 passes: T29, T03, T25, T18, R11.
+- gateup4 passes: R21, R29, T04, T09, T01, T29, T02, T25, T30, T18, T13, R11.
+  It **gains 8** (R21, R29, T04, T09, T01, T02, T30, T13) and loses 1 (T03):
+  net +7, all in tools plus two reasoning items.
+- TQ1 passes: T29, T03, T02, T13.  It gains T02/T13 but loses T25/T18/R11:
+  net -1.  Coding is 0/10 in every variant.
 - `Scion-35B-A3B-v2-all2.gguf`: 9.06 GiB, all experts TQ1, no corrections,
   PPL 2.9251.  The honest full-TQ1-without-v1-QAT control; subset10 pending.
 
