@@ -49,6 +49,10 @@ def tensor_bits(name: str, alloc: dict, policy: str) -> int | None:
         return None
     if name in alloc:
         return int(alloc[name])
+    # Trainer alloc files use the bank names without the GGUF ``.weight`` suffix.
+    stem = name[:-len(".weight")] if name.endswith(".weight") else name
+    if stem in alloc:
+        return int(alloc[stem])
     m = re.match(r"blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight$", name)
     if not m:
         return None
@@ -88,6 +92,20 @@ def quantize_tensor(w: np.ndarray, bits: int, group: int = 128,
     if cols % group:
         raise ValueError(f"row width {cols} is not a multiple of {group}")
     ng = cols // group
+    if bits == 40:
+        # standard Q4_0 (32-element blocks, type 2); used for the down
+        # projection so it is a different type from the custom Q4 gate/up.
+        # The standard gguf-py quantizer is CPU-only, so this branch runs on
+        # the host regardless of --device.
+        from gguf.quants import quantize
+        rb = cols // 32 * 18
+        out = np.empty((e, rows, rb), dtype=np.uint8)
+        chunk = max(1, (64 << 20) // max(rows * cols * 4, 1))
+        for s in range(0, e, chunk):
+            q = quantize(w[s:s + chunk].reshape(-1, cols),
+                         gguf.GGMLQuantizationType.Q4_0)
+            out[s:s + chunk] = q.reshape(-1, rows, rb)
+        return out
     use_gpu = str(device).startswith("cuda") and torch.cuda.is_available()
     if use_gpu:
         from qwen35_moe_proxy import _encode_slice
@@ -204,11 +222,16 @@ def main() -> None:
             st = src_by_name[t.name]
             ne0, ne1, ne2 = [int(x) for x in st.shape]
             ng = ne0 // args.group
-            b = 66 if bits == 4 else 28
+            if bits == 40:
+                row_bytes = ne0 // 32 * 18
+                raw_type = 2
+            else:
+                row_bytes = ng * (66 if bits == 4 else 28)
+                raw_type = 147 if bits == 4 else 143
             # numpy order is [E, out, row_bytes]; GGUF stores dims reversed
-            shape = (ne2, ne1, ng * b)
+            shape = (ne2, ne1, row_bytes)
             infos.append((st, bits, shape, np.dtype(np.uint8),
-                          int(np.prod(shape)), 147 if bits == 4 else 143, st))
+                          int(np.prod(shape)), raw_type, st))
         if args.limit and len(infos) >= args.limit:
             break
 

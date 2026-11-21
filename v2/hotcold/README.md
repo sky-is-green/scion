@@ -288,6 +288,28 @@ The 12/30 pass is a PTQ body plus transferred LoRA corrections, not their QAT
 recipe.  If coding (0/10) is the goal, full-parameter QAT with router training
 is the lever the team points to; it is optional now that the gate is passed.
 
+## Body additions and adaptive tests (2026-11-21)
+
+The `down4` test was a **substitution**: Q4 down instead of Q4 gate/up.  It
+lost (first-10 1/10, PPL 2.2797).  The **addition** test is different: Q4
+down on top of Q4 gate/up.
+
+- Partial down (last 20 layers), custom Q4_0_G128 down: **CPU PPL 1.9270**,
+  better than gateup4's 2.0402.  The fork's GPU path produces garbage when
+  Q4 gate/up and Q4 down are both type 147, even at 20/40 layers.
+- Standard Q4_0 down (type 2) on the same 20 layers: **GPU PPL 1.9307**,
+  16.81 GiB, display 13.4 GB at 0.75/0.25.  The mixed types avoid the broken
+  same-type path and the standard Q4_0 kernel works.  This is the deployable
+  form of the down addition; subset10 is running.
+- v2 corrections on gateup4 + base router: **PPL 2.3035**, worse than v1
+  2.0402.  The v2 branches are the problem, not the body.
+- Top-k override on the release: 8 = 2.0402, 16 = 2.0996, 24 = 2.2084.
+  Zero-shot extra experts hurt; adaptive active capacity needs a trained
+  budget router, not a metadata override.
+
+The release remains `gateup4 + v1 corrections` (12/30).  The standard-Q4_0
+partial is the candidate if its subset10 holds up.
+
 ## Known confounds
 
 - **Per-tensor, not per-expert**: see the format note at the top.  The hot
