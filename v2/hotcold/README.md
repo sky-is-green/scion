@@ -328,9 +328,10 @@ partial is the candidate if its subset10 holds up.
   variance, not a broken path.  Full TQ1 is **not** a release candidate:
   4/30 is far below the 8/30 floor and the 12/30 release.  The 9.15 GiB
   saving costs ~8 capability points, so the Q4 gate/up is worth its 6 GiB.
-  The remaining question is only the stale baseline: v1's 5/30 ran on the
-  Nov 19 binary, before the Nov 20 rebuild; a five-item v1 recheck is the
-  control.
+  **Baseline recheck** on the current binary: v1 gets **4/5** on the five
+  items it passed in the old 5/30 run (T29, T03, T25, R11 pass; T18 now
+  fails).  So the old 5/30 was slightly stale, and TQ1's 4/30 is genuine
+  near-parity with today's v1, not a regression from the container.
 - `Scion-35B-A3B-v2-all2.gguf`: 9.06 GiB, all experts TQ1, no corrections,
   PPL 2.9251.  The honest full-TQ1-without-v1-QAT control; subset10 pending.
 
