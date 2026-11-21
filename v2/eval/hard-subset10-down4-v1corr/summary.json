@@ -1,0 +1,25 @@
+{
+  "label": "Scion-35B v2 down4 + v1 corrections first10",
+  "n": 10,
+  "correct": 1,
+  "accuracy": 10.0,
+  "by_family": {
+    "reasoning": {
+      "n": 4,
+      "correct": 1
+    },
+    "coding": {
+      "n": 5,
+      "correct": 0
+    },
+    "tools": {
+      "n": 1,
+      "correct": 0
+    }
+  },
+  "truncated": 3,
+  "median_wall_s": 110.8,
+  "mean_decode_tok_s": 67.11,
+  "temperature": 0.6,
+  "seed": 1001
+}

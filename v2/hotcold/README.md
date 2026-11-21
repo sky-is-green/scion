@@ -370,8 +370,10 @@ the first ten items are the early signal (v1: 2/10, R21 + T04).
   733 tensors (80 Q4_0_G128 gate/up, 40 TQ1_0_G128 down, 312 Q8_0 + 301 F32
   dense/router), no embedded adapter.  Validated on layers 0/20/39: finite
   scales and **0.0** source-encode difference.
-- `down4` body: **12.02 GiB**, PPL 2.6837, size-safe fallback (40 Q4 down,
-  80 TQ1 gate/up).
+- `down4` body: **12.02 GiB**, PPL 2.6837, **first-10 1/10** (R21 only;
+  T04 and R29 lost) versus gateup4 3/10.  The substitution test is clear:
+  Q4 gate/up is the valuable projection; Q4 down instead of it is worse.
+  It is not a release candidate.
 - `all2` control: **9.06 GiB**, all experts TQ1, PPL 2.9251, same dense/router.
 - The first 12.02 GiB file was invalid: the exporter read the bf16 source at
   `GGUFReader.data_offset + t.data_offset`, but `t.data_offset` is already
