@@ -79,7 +79,7 @@ def main() -> None:
             blk = blk.reshape(ne2, ne1, ng_row * 28).numpy().astype(np.uint8)
             writer.add_tensor_info(name, blk.shape, blk.dtype,
                                    blk.nbytes,
-                                   raw_dtype=GGMLQuantizationType.PTQ1_0)
+                                   raw_dtype=GGMLQuantizationType.TQ1_0_G128)
             payloads.append(blk)
             print(f"transcoded {name}: {dims} -> {blk.nbytes/1e6:.1f} MB",
                   flush=True)

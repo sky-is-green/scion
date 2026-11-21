@@ -310,6 +310,21 @@ down on top of Q4 gate/up.
 The release remains `gateup4 + v1 corrections` (12/30).  The standard-Q4_0
 partial is the candidate if its subset10 holds up.
 
+## Full-TQ1 tests (2026-11-21)
+
+- The v1 reference's Q2_0_G128 expert banks and TQ1_0_G128 encode the same
+  ternary weights, so Q2 -> TQ1 is a **lossless repack** (34 -> 28 bytes per
+  128).  `v2/scripts/transcode_experts_ptq1_0.py` does the repack; the script
+  needed the fork's current enum name `TQ1_0_G128` (the old `PTQ1_0` alias is
+  gone).
+- `Scion-35B-A3B-v1-tq1.gguf`: **9.15 GiB**, 120 type-143 banks and the 160
+  v1 correction tensors kept at 142.  Sample parity on
+  `blk.0.ffn_gate_exps.weight`: trits equal, scales equal, dequantized values
+  bit-equal.  PPL and first-10 pending; expected to reproduce v1 (2.4445,
+  2/10 first-ten / 5/30).
+- `Scion-35B-A3B-v2-all2.gguf`: 9.06 GiB, all experts TQ1, no corrections,
+  PPL 2.9251.  The honest full-TQ1-without-v1-QAT control; subset10 pending.
+
 ## Known confounds
 
 - **Per-tensor, not per-expert**: see the format note at the top.  The hot

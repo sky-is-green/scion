@@ -65,7 +65,7 @@ def main() -> None:
         raw = ptq1_0.pack_block_bytes(qs, qh, s)   # [E, out, ng, 28]
         raw = raw.reshape(ne2, ne1, ng_row * 28).numpy().astype(np.uint8)
         print(f"{name}: {t['dims']} -> {raw.shape} ({raw.nbytes/1e6:.1f} MB)")
-        writer.add_tensor(name, raw, raw_dtype=GGMLQuantizationType.PTQ1_0)
+        writer.add_tensor(name, raw, raw_dtype=GGMLQuantizationType.TQ1_0_G128)
         del codes, scales, c, s, qs, qh, raw
 
     writer.write_header_to_file()
