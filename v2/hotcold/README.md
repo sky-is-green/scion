@@ -321,7 +321,16 @@ partial is the candidate if its subset10 holds up.
   v1 correction tensors kept at 142.  Sample parity on
   `blk.0.ffn_gate_exps.weight`: trits equal, scales equal, dequantized values
   bit-equal.  **GPU PPL 2.4468** vs v1 2.4445 (0.1% kernel accumulation, not
-  a weight difference).  First-10 running.
+  a weight difference); batch-1 PPL 2.4472 vs 2.4495.
+  **Behavioral result: 4/30** (tools 4/10: T29, T03, T02, T13; reasoning
+  0/10; coding 0/10; 15 truncated) vs v1's 5/30 (T29, T03, T25, T18, R11).
+  TQ1 loses T25/T18/R11 and gains T02/T13, i.e. parity within sampling
+  variance, not a broken path.  Full TQ1 is **not** a release candidate:
+  4/30 is far below the 8/30 floor and the 12/30 release.  The 9.15 GiB
+  saving costs ~8 capability points, so the Q4 gate/up is worth its 6 GiB.
+  The remaining question is only the stale baseline: v1's 5/30 ran on the
+  Nov 19 binary, before the Nov 20 rebuild; a five-item v1 recheck is the
+  control.
 - `Scion-35B-A3B-v2-all2.gguf`: 9.06 GiB, all experts TQ1, no corrections,
   PPL 2.9251.  The honest full-TQ1-without-v1-QAT control; subset10 pending.
 
@@ -402,7 +411,10 @@ PYTHONPATH=.../gguf-py python moe/merge_adapter_into_body.py \
 
 Serve it with `-ts 0.75,0.25`, 40k ctx (display card 12.45 GB, spare 6.55 GB)
 and run `v2/scripts/hard_subset.py --port 8083`.  The v1 reference is 5/30;
-the first ten items are the early signal (v1: 2/10, R21 + T04).
+the first ten items are **not** a reliable early signal: v1 itself scores
+**0/10** on them, and all five v1 passes (T29, T03, T25, T18, R11) are in
+items 11–30.  gateup4's 3/10 (R21, R29, T04) is a real gain over v1 on the
+same ten, but a candidate that matches 0/10 has not yet lost anything v1 had.
 
 ## Current state
 
