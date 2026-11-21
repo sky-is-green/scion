@@ -360,7 +360,10 @@ Item-level comparison, gateup4+v1corr (12/30) vs v1 (5/30) and TQ1 (4/30):
 - TQ1 passes: T29, T03, T02, T13.  It gains T02/T13 but loses T25/T18/R11:
   net -1.  Coding is 0/10 in every variant.
 - `Scion-35B-A3B-v2-all2.gguf`: 9.06 GiB, all experts TQ1, no corrections,
-  PPL 2.9251.  The honest full-TQ1-without-v1-QAT control; subset10 pending.
+  PPL 2.9251.  On v1's five pass items it gets **2/5** (T29, T25; loses T03,
+  T18, R11), the same count as v1-TQ1 but a different mix and below v1's
+  current 4/5.  Fresh PTQ without the v1 QAT weights/corrections does not
+  recover the lost passes; the full 30 was not run.
 
 The partial standard-Q4_0 down body (16.81 GiB, PPL 1.9307) finished its
 first-10 at **3/10** (R21, R29, T04; coding 0/5), identical to gateup4's
