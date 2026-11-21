@@ -320,10 +320,15 @@ partial is the candidate if its subset10 holds up.
 - `Scion-35B-A3B-v1-tq1.gguf`: **9.15 GiB**, 120 type-143 banks and the 160
   v1 correction tensors kept at 142.  Sample parity on
   `blk.0.ffn_gate_exps.weight`: trits equal, scales equal, dequantized values
-  bit-equal.  PPL and first-10 pending; expected to reproduce v1 (2.4445,
-  2/10 first-ten / 5/30).
+  bit-equal.  **GPU PPL 2.4468** vs v1 2.4445 (0.1% kernel accumulation, not
+  a weight difference).  First-10 running.
 - `Scion-35B-A3B-v2-all2.gguf`: 9.06 GiB, all experts TQ1, no corrections,
   PPL 2.9251.  The honest full-TQ1-without-v1-QAT control; subset10 pending.
+
+The partial standard-Q4_0 down body (16.81 GiB, PPL 1.9307) finished its
+first-10 at **3/10** (R21, R29, T04; coding 0/5), identical to gateup4's
+3/10.  The PPL gain did not turn into capability, and the body is 1.7 GiB
+larger, so it is not promoted; `gateup4 + v1 corrections` stays the release.
 
 ## Known confounds
 
