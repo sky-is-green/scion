@@ -328,6 +328,20 @@ one failing-assertion feedback turn):
   release's weak family (0/10 frozen, 1/10 with the coding profile); tools
   (9/10) and reasoning (3/10) carry the 12/30.
 
+## HF upload (2026-11-22)
+
+- Uploaded the release to `SkyIsNotGreen/Scion-35B-A3B` as
+  `Scion-35B-A3B-Q4GateUp-TQ1Down-v1corr.gguf`:
+  16,202,300,928 bytes, SHA256
+  `83256e60ecd7bf8a8745f6222d27816d602a5e1be29fdf5e816bc47ad85502e5`.
+  The Hub LFS OID matches the local hash; GGUF magic verified by range read.
+- Card commit `76682e7`: added the Q4 gate/up variant section, the
+  SHA256SUMS entry, and the `Q4_0_g128` (147) row to CONTAINER-NAMES.
+  The 11.3 GB Q2 file remains the main release.
+- The card states plainly: no new training, every trained tensor is v1,
+  and types 147/143 require `scion-llama.cpp` `scion-base` at
+  `2089cd1d3`; stock llama.cpp and the HF GGUF viewer cannot load it.
+
 ## Full-TQ1 tests (2026-11-21)
 
 - The v1 reference's Q2_0_G128 expert banks and TQ1_0_G128 encode the same
