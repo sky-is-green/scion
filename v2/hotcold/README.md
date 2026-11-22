@@ -331,7 +331,9 @@ one failing-assertion feedback turn):
 ## HF upload (2026-11-22)
 
 - Uploaded the release to `SkyIsNotGreen/Scion-35B-A3B` as
-  `Scion-35B-A3B-Q4GateUp-TQ1Down-v1corr.gguf`:
+  `Scion-35B-A3B-Q4_0-GateUp-TQ1Down-v1corr.gguf` (renamed from
+  `Q4GateUp-...` so the Hub's filename-derived quant selector groups it
+  as a 4-bit variant; the selector now shows Q2_0 and Q4_0):
   16,202,300,928 bytes, SHA256
   `83256e60ecd7bf8a8745f6222d27816d602a5e1be29fdf5e816bc47ad85502e5`.
   The Hub LFS OID matches the local hash; GGUF magic verified by range read.
