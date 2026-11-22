@@ -341,6 +341,20 @@ one failing-assertion feedback turn):
   `scion-base`, and the Prism build is kept only as a fallback for Q2.
   Selector still shows Q2_0 and Q4_0.
 
+## Cross-platform prebuilt release (2026-11-22)
+
+- `scion-v1.0.0` now carries Linux ROCm/gfx1100 and CPU, Windows x64 CPU and
+  CUDA 12.4, Linux x64 CUDA 12.4, and macOS arm64 CPU packages, all built from
+  `2089cd1d3`. The combined `SHA256SUMS` covers all six archives.
+- Linux ROCm remains the only hardware-verified package (Q4 smoke test,
+  58.8 tok/s). The CUDA previews disable FlashAttention, require no NCCL on
+  Linux, bundle the CUDA runtime on Windows, and are compile-checked but not
+  hardware-tested. macOS is CPU-only; the Scion custom types have no Metal
+  kernels.
+- The HF 35B card now links all six packages, labels the CUDA/macOS ones as
+  previews, and keeps the legacy Prism `moe-corr-runtime` fork as a Q2-only
+  backup.
+
 ## HF upload (2026-11-22)
 
 - Uploaded the release to `SkyIsNotGreen/Scion-35B-A3B` as
