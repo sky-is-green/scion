@@ -328,6 +328,19 @@ one failing-assertion feedback turn):
   release's weak family (0/10 frozen, 1/10 with the coding profile); tools
   (9/10) and reasoning (3/10) carry the 12/30.
 
+## Prebuilt Scion runtime (2026-11-22)
+
+- GitHub release `scion-v1.0.0` on `sky-is-green/scion-llama.cpp` at commit
+  `2089cd1d3` (build 12389): Linux x64 ROCm/gfx1100 and CPU tarballs.
+  The ROCm tarball was smoke-tested on the 16.2 GB Q4 model at 58.8 tok/s;
+  the CPU tarball only passes the version/library check.
+- The HF 35B card now makes the Scion fork the primary runtime for both Q2
+  and Q4. The older Prism `moe-corr-runtime` fork stays as a **Q2-only
+  legacy backup**; it predates type 147 and cannot load the Q4 variant.
+- The card's quickstart links the prebuilt release, the source build uses
+  `scion-base`, and the Prism build is kept only as a fallback for Q2.
+  Selector still shows Q2_0 and Q4_0.
+
 ## HF upload (2026-11-22)
 
 - Uploaded the release to `SkyIsNotGreen/Scion-35B-A3B` as
